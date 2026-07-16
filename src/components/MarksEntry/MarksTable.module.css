@@ -1,0 +1,123 @@
+.wrapper {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-solid);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  animation: fadeInUp 0.5s ease;
+}
+
+.tableScroll { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+/* === HEADER === */
+thead tr {
+  background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+}
+
+.th {
+  padding: 13px 10px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.studentTh {
+  text-align: left;
+  padding-left: 16px;
+  min-width: 170px;
+  position: sticky;
+  left: 0;
+  background: #1E1B4B;
+  z-index: 5;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.computedTh {
+  background: rgba(0,0,0,0.15);
+  min-width: 80px;
+}
+
+/* ★ Normalized column — highlighted purple accent */
+.normalizedTh {
+  background: var(--primary);
+  min-width: 110px;
+  border-left: 2px solid rgba(255,255,255,0.2);
+  border-right: 2px solid rgba(255,255,255,0.2);
+}
+
+.normalizedHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+}
+
+.normalizedOf {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.thContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.thIcon { font-size: 1rem; }
+.thLabel { font-weight: 700; font-size: 0.75rem; }
+.thMax { font-size: 0.62rem; opacity: 0.65; font-weight: 400; }
+.thSub { font-size: 0.62rem; opacity: 0.65; font-weight: 400; margin-top: 2px; }
+
+/* Body rows */
+tbody tr:nth-child(even) td {
+  background: rgba(108, 99, 255, 0.018);
+}
+
+tbody tr td {
+  border-bottom: 1px solid var(--border-solid);
+}
+
+tbody tr:last-child td { border-bottom: none; }
+
+/* Footer */
+.footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-solid);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.footerInfo {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.footerFormula {
+  font-size: 0.74rem;
+  color: var(--primary);
+  font-weight: 600;
+  background: var(--primary-glow);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(108,99,255,0.2);
+}

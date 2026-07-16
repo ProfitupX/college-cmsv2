@@ -1,0 +1,220 @@
+.row {
+  animation: fadeInUp 0.4s ease both;
+  transition: background var(--transition-fast);
+}
+
+.row:hover td { background: rgba(108, 99, 255, 0.02); }
+
+/* Student Cell */
+.studentCell {
+  padding: 12px 16px;
+  min-width: 170px;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 2;
+  border-right: 1px solid var(--border-solid);
+}
+
+.row:hover .studentCell { background: rgba(108, 99, 255, 0.02); }
+
+.studentInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sNo {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #fff;
+  background: hsl(calc(var(--idx, 0) * 36deg + 240deg), 65%, 58%);
+}
+
+.name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.roll {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Input Cell */
+.inputCell {
+  padding: 8px 6px;
+  min-width: 96px;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  width: 100%;
+  padding: 7px 28px 7px 8px;
+  border: 1.5px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  outline: none;
+  transition: all var(--transition-fast);
+  -moz-appearance: textfield;
+}
+
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.input:hover { border-color: var(--primary-light); }
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  background: #fff;
+}
+
+.inputMax {
+  position: absolute;
+  right: 6px;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.inputError {
+  border-color: var(--danger) !important;
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+
+.errorTip {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  color: var(--danger);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Raw Total */
+.totalCell {
+  padding: 8px 12px;
+  min-width: 80px;
+  text-align: center;
+  background: rgba(108, 99, 255, 0.02);
+}
+
+.total {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.maxLabel {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 1px;
+}
+
+/* ★ Normalized to 40 — Most important column */
+.normalizedCell {
+  padding: 8px 12px;
+  min-width: 110px;
+  text-align: center;
+}
+
+.normalizedBadge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  transition: all var(--transition-base);
+}
+
+.normalizedVal {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.normalizedOf {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* Percent */
+.percentCell {
+  padding: 8px 12px;
+  min-width: 100px;
+}
+
+.percentBar {
+  height: 4px;
+  background: var(--border-solid);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+
+.percentFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-base), background var(--transition-base);
+}
+
+.percentText {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Grade */
+.gradeCell {
+  padding: 8px 12px;
+  min-width: 70px;
+  text-align: center;
+}
+
+.gradeBadge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.5px;
+  transition: all var(--transition-fast);
+}

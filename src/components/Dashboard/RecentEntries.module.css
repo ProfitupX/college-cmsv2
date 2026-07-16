@@ -1,0 +1,115 @@
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-solid);
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.viewAll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.viewAll:hover { background: var(--primary-glow); }
+
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2fr 1.8fr 1.2fr 0.8fr 1fr 1fr;
+  align-items: center;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border-solid);
+  font-size: 0.82rem;
+  gap: 8px;
+  animation: fadeInUp 0.4s ease both;
+  min-width: 600px;
+}
+
+.row:last-child { border-bottom: none; }
+
+.head {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding-bottom: 10px;
+  animation: none !important;
+}
+
+.row:not(.head):hover {
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+.subject {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.class { color: var(--text-secondary); font-size: 0.78rem; }
+.date { color: var(--text-muted); font-size: 0.78rem; }
+.count { font-weight: 600; color: var(--text-secondary); }
+
+.score {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.submitted {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.draft {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
