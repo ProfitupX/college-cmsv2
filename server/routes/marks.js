@@ -18,8 +18,20 @@ router.post('/submit', async (req, res) => {
 
     const { subjectId, classId, staffId, sessionLabel, components, marks } = req.body;
 
-    if (!subjectId || !classId || !staffId || !components?.length) {
+    if (!subjectId || !classId || !staffId || !components) {
       return res.status(400).json({ error: 'Missing required fields.' });
+    }
+
+    // 1.5 Delete any existing session for this subject/class so it acts as an UPDATE or CLEAR
+    await conn.execute(
+      `DELETE FROM marks_sessions WHERE subject_id = ? AND class_id = ?`,
+      [subjectId, classId]
+    );
+
+    // If no components, it means the user deleted all components and wants to clear the marksheet
+    if (components.length === 0) {
+      await conn.commit();
+      return res.json({ success: true, message: 'Marks sheet cleared successfully.' });
     }
 
     // 1. Calculate total max and avg score
@@ -37,12 +49,6 @@ router.post('/submit', async (req, res) => {
     }
     const avgRaw = Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1);
     const avgScore = totalMax > 0 ? parseFloat(((avgRaw / totalMax) * 40).toFixed(2)) : 0;
-
-    // 1.5 Delete any existing session for this subject/class so it acts as an UPDATE
-    await conn.execute(
-      `DELETE FROM marks_sessions WHERE subject_id = ? AND class_id = ?`,
-      [subjectId, classId]
-    );
 
     // 2. Insert marks_session
     const [sessionResult] = await conn.execute(

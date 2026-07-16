@@ -28,6 +28,7 @@ export default function MarksEntryPage() {
   const [saving,  setSaving]  = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isComponentsDirty, setIsComponentsDirty] = useState(false);
 
   // ── Load classes on mount ──────────────────────────────
   useEffect(() => {
@@ -83,11 +84,13 @@ export default function MarksEntryPage() {
           });
           setMarksBulk(loadedMarks);
           setSaved(true);
+          setIsComponentsDirty(false);
         } else {
           // No session found, clean slate
           setAssessmentComponents([]);
           setMarksBulk({});
           setSaved(false);
+          setIsComponentsDirty(false);
         }
       })
       .catch((err) => console.error("Failed to load existing marks:", err))
@@ -148,6 +151,7 @@ export default function MarksEntryPage() {
 
       markSaved();
       setSaved(true);
+      setIsComponentsDirty(false);
     } catch (err) {
       setSaveErr(err.message || 'Failed to save marks.');
     } finally {
@@ -223,61 +227,61 @@ export default function MarksEntryPage() {
           </div>
           <ComponentBuilder
             components={assessmentComponents}
-            onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); }}
+            onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); setIsComponentsDirty(true); }}
           />
         </>
       )}
 
-      {/* Step 3 */}
+      {/* Step 3 (Marks Table) */}
       {canEnterMarks && students.length > 0 && (
-        <>
-          <MarksTable
-            students={students}
-            components={assessmentComponents}
-            marksData={marksData}
-            onMarkChange={(sid, uid, val) => { setMark(sid, uid, val); setSaved(false); }}
-          />
+        <MarksTable
+          students={students}
+          components={assessmentComponents}
+          marksData={marksData}
+          onMarkChange={(sid, uid, val) => { setMark(sid, uid, val); setSaved(false); }}
+        />
+      )}
 
-          {/* Action Bar */}
-          <div className={styles.actionBar}>
-            <div className={styles.actionLeft}>
-              {saved && (
-                <div className={styles.savedMsg}>
-                  <CheckCircle size={16} />
-                  Marks saved to database!
-                </div>
-              )}
-              {saveErr && (
-                <div className={styles.errorMsg}>
-                  <AlertTriangle size={16} />
-                  {saveErr}
-                </div>
-              )}
-              {isDirty && !saved && !saveErr && (
-                <div className={styles.dirtyMsg}>
-                  <AlertTriangle size={16} />
-                  Unsaved changes — don't forget to submit
-                </div>
-              )}
-            </div>
-            <div className={styles.actionRight}>
-              <button className={styles.clearBtn} onClick={handleReset} id="clear-marks-btn">
-                <RotateCcw size={15} /> Clear Marks
-              </button>
-              <button
-                className={styles.saveBtn}
-                onClick={handleSave}
-                disabled={saving || !isDirty}
-                id="save-marks-btn"
-              >
-                {saving
-                  ? <><Loader size={15} className={styles.spinner} /> Saving to DB…</>
-                  : <><Save size={15} /> Save & Submit</>
-                }
-              </button>
-            </div>
+      {/* Action Bar (always visible if a subject is selected) */}
+      {selectedSubject && (
+        <div className={styles.actionBar}>
+          <div className={styles.actionLeft}>
+            {saved && (
+              <div className={styles.savedMsg}>
+                <CheckCircle size={16} />
+                Marks saved to database!
+              </div>
+            )}
+            {saveErr && (
+              <div className={styles.errorMsg}>
+                <AlertTriangle size={16} />
+                {saveErr}
+              </div>
+            )}
+            {(isDirty || isComponentsDirty) && !saved && !saveErr && (
+              <div className={styles.dirtyMsg}>
+                <AlertTriangle size={16} />
+                Unsaved changes — don't forget to submit
+              </div>
+            )}
           </div>
-        </>
+          <div className={styles.actionRight}>
+            <button className={styles.clearBtn} onClick={handleReset} id="clear-marks-btn">
+              <RotateCcw size={15} /> Clear Marks
+            </button>
+            <button
+              className={styles.saveBtn}
+              onClick={handleSave}
+              disabled={saving || (!isDirty && !isComponentsDirty)}
+              id="save-marks-btn"
+            >
+              {saving
+                ? <><Loader size={15} className={styles.spinner} /> Saving to DB…</>
+                : <><Save size={15} /> Save & Submit</>
+              }
+            </button>
+          </div>
+        </div>
       )}
 
       {selectedSubject && assessmentComponents.length === 0 && (
