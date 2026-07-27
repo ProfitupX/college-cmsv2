@@ -14,17 +14,21 @@ router.post('/login', async (req, res) => {
     if (email.trim().toLowerCase() === 'admin@nscet.edu.in' && password === 'admin123') {
       return res.json({
         success: true,
-        user: {
-          id: 'ADMIN',
-          name: 'Admin User',
-          shortName: 'Admin',
-          designation: 'System Administrator',
-          role: 'admin',
-          email: 'admin@nscet.edu.in',
-          employeeId: 'ADMIN-001',
-          classRole: null,
-          department: 'Information Technology'
-        }
+        user: { id: 'ADMIN', name: 'Admin User', shortName: 'Admin', designation: 'System Administrator', role: 'admin', email: 'admin@nscet.edu.in', employeeId: 'ADMIN-001', classRole: null, department: 'College Administration' }
+      });
+    }
+
+    if (email.trim().toLowerCase() === 'principal@nscet.edu.in' && password === 'admin123') {
+      return res.json({
+        success: true,
+        user: { id: 'PRIN', name: 'Dr. C. Mathalai Sundaram', shortName: 'PRIN', designation: 'Principal, NSCET', role: 'principal', email: 'principal@nscet.edu.in', employeeId: 'PRIN-001', classRole: null, department: 'College Administration' }
+      });
+    }
+
+    if (email.trim().toLowerCase() === 'vp@nscet.edu.in' && password === 'admin123') {
+      return res.json({
+        success: true,
+        user: { id: 'VP', name: 'Dr. M. Sathya', shortName: 'VP', designation: 'Vice Principal & Academic', role: 'vice_principal', email: 'vp@nscet.edu.in', employeeId: 'VP-001', classRole: null, department: 'College Administration' }
       });
     }
 
@@ -38,18 +42,35 @@ router.post('/login', async (req, res) => {
     }
 
     const staff = rows[0];
+
+    // Fetch assigned subjects for this staff member
+    const [assignedSubs] = await db.execute(
+      'SELECT id, code, name FROM subjects WHERE faculty_id = ?',
+      [staff.id]
+    );
+
+    // Fetch classes where staff is class coordinator
+    const [coordClasses] = await db.execute(
+      'SELECT id, name FROM classes WHERE class_coordinator LIKE ? OR asst_coordinator LIKE ?',
+      [`%${staff.name}%`, `%${staff.name}%`]
+    );
+
     res.json({
       success: true,
       user: {
-        id:          staff.id,
-        name:        staff.name,
-        shortName:   staff.short_name,
-        designation: staff.designation,
-        role:        staff.role,
-        email:       staff.email,
-        employeeId:  staff.employee_id,
-        classRole:   staff.class_role,
-        department:  'Information Technology',
+        id:                 staff.id,
+        name:               staff.name,
+        shortName:          staff.short_name,
+        designation:        staff.designation,
+        role:               staff.role,
+        email:              staff.email,
+        employeeId:         staff.employee_id,
+        classRole:          staff.class_role,
+        department:         'Information Technology',
+        assignedSubjectIds: assignedSubs.map(s => s.id),
+        assignedSubjects:   assignedSubs,
+        isClassCoordinator: coordClasses.length > 0 || staff.class_role === 'Class Coordinator',
+        coordinatedClasses: coordClasses
       },
     });
   } catch (err) {

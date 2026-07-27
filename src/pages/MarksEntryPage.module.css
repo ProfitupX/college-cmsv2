@@ -68,21 +68,199 @@
 .stepDone .stepLabel { color: var(--success); }
 .stepDone + .step .stepLine { background: var(--success); }
 
-/* Subject Strip */
 .subjectStrip {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border-solid);
-  border-left: 4px solid var(--primary);
+  background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+  animation: fadeIn 0.3s ease;
+}
+
+.subjectStrip h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.subjectStrip p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.assessmentSelector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.assessmentSelector label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dropdown {
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.dropdown option {
+  background: #1E1B4B;
+  color: #fff;
+}
+
+.dropdown:focus {
+  border-color: #14B8A6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
+}
+
+/* Lock Status Banner */
+.lockBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
   border-radius: var(--radius-md);
   padding: 12px 18px;
   margin-bottom: 16px;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
+  color: #92400E;
+  font-size: 0.85rem;
+  font-weight: 600;
   animation: fadeIn 0.3s ease;
+}
+
+.lockBannerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.requestUnlockBtn {
+  background: #D97706;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s ease;
+}
+
+.requestUnlockBtn:hover {
+  background: #B45309;
+}
+
+.pendingBadge {
+  background: #FEF3C7;
+  color: #B45309;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid #FCD34D;
+}
+
+/* Modal Overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modalCard {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-solid);
+}
+
+.modalCard h3 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modalCard p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.modalTextarea {
+  width: 100%;
+  height: 90px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-solid);
+  font-family: inherit;
+  font-size: 0.85rem;
+  margin-bottom: 18px;
+  outline: none;
+  resize: none;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modalCancelBtn {
+  background: transparent;
+  border: 1px solid var(--border-solid);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modalSubmitBtn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .subjectStrip strong { color: var(--text-primary); }
@@ -158,7 +336,35 @@
   gap: 12px;
 }
 
-.clearBtn {
+.downloadGroup {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-solid);
+  overflow: hidden;
+}
+
+.downloadSelect {
+  appearance: none;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: none;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-right: 1px solid var(--border-solid);
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+}
+
+.downloadGroup .downloadBtn {
+  border: none;
+  border-radius: 0;
+}
+
+.clearBtn, .downloadBtn {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -176,6 +382,12 @@
   border-color: var(--danger);
   color: var(--danger);
   background: var(--danger-bg);
+}
+
+.downloadBtn:hover {
+  border-color: #14B8A6;
+  color: #14B8A6;
+  background: rgba(20, 184, 166, 0.1);
 }
 
 .saveBtn {

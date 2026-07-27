@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     const { classId, facultyId } = req.query;
     let sql = `
       SELECT s.id, s.code, s.name, s.acronym, s.type, s.department,
-             s.semester, s.faculty_id, s.class_id,
+             s.semester, s.ltpc, s.total_hours, s.faculty_id, s.class_id,
              f.name AS faculty_name, f.designation AS faculty_designation
       FROM subjects s
       LEFT JOIN staffs f ON f.id = s.faculty_id
@@ -40,16 +40,16 @@ router.post('/', async (req, res) => {
 
     await conn.beginTransaction();
     for (const item of data) {
-      const { id, code, name, acronym, type, department, semester, faculty_id, class_id } = item;
+      const { id, code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id } = item;
       if (!id || !code || !name) throw new Error(`Missing required fields for subject ${id || 'unknown'}`);
       
       await conn.execute(
-        `INSERT INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO subjects (id, code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE 
            code=VALUES(code), name=VALUES(name), acronym=VALUES(acronym), type=VALUES(type), 
-           department=VALUES(department), semester=VALUES(semester), faculty_id=VALUES(faculty_id), class_id=VALUES(class_id)`,
-        [id, code, name, acronym || null, type || 'Theory', department || null, semester || null, faculty_id || null, class_id || null]
+           department=VALUES(department), semester=VALUES(semester), ltpc=VALUES(ltpc), total_hours=VALUES(total_hours), faculty_id=VALUES(faculty_id), class_id=VALUES(class_id)`,
+        [id, code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null, total_hours || null, faculty_id || null, class_id || null]
       );
     }
     await conn.commit();
@@ -66,10 +66,10 @@ router.post('/', async (req, res) => {
 // PUT /api/subjects/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { code, name, acronym, type, department, semester, faculty_id, class_id } = req.body;
+    const { code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id } = req.body;
     await db.execute(
-      `UPDATE subjects SET code=?, name=?, acronym=?, type=?, department=?, semester=?, faculty_id=?, class_id=? WHERE id = ?`,
-      [code, name, acronym || null, type || 'Theory', department || null, semester || null, faculty_id || null, class_id || null, req.params.id]
+      `UPDATE subjects SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, total_hours=?, faculty_id=?, class_id=? WHERE id = ?`,
+      [code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null, total_hours || null, faculty_id || null, class_id || null, req.params.id]
     );
     res.json({ success: true });
   } catch (err) {

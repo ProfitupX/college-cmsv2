@@ -97,11 +97,56 @@ export const marksAPI = {
   },
 
   getSessionDetail: (id) => get(`/marks/sessions/${id}`),
+
+  requestUnlock: (payload) => post('/marks/request-unlock', payload),
+
+  getUnlockRequests: () => get('/marks/unlock-requests'),
+
+  approveUnlock: (payload) => post('/marks/approve-unlock', payload),
+
+  getClassSummary: (classId, sessionLabel = 'internal1') => 
+    get(`/marks/class-summary?classId=${classId}&sessionLabel=${sessionLabel}`),
 };
 
 // ─────────────────────────────────────────
 // STATS (Dashboard)
 // ─────────────────────────────────────────
 export const statsAPI = {
-  get: (classId) => get(`/stats${classId ? '?classId=' + classId : ''}`),
+  get: (classId, staffId, role, department) => {
+    const params = new URLSearchParams();
+    if (classId) params.append('classId', classId);
+    if (staffId) params.append('staffId', staffId);
+    if (role) params.append('role', role);
+    if (department) params.append('department', department);
+    const q = params.toString();
+    return get(`/stats${q ? '?' + q : ''}`);
+  },
+  getCollegeStats: () => get('/stats/college')
+};
+
+// ─────────────────────────────────────────
+// ADMIN, NOTIFICATIONS, SETTINGS, REMARKS
+// ─────────────────────────────────────────
+export const adminAPI = {
+  getStaffs: () => get('/admin/staffs'),
+  getCredentials: () => get('/admin/credentials'),
+  createCredential: (data) => post('/admin/credentials', data),
+  updateCredential: (id, data) => put(`/admin/credentials/${id}`, data),
+  deleteCredential: (id) => remove(`/admin/credentials/${id}`),
+  resetPassword: (staffId, newPassword) => put('/admin/reset-password', { staffId, newPassword })
+};
+
+export const notificationsAPI = {
+  get: (role, userId) => get(`/notifications/${role}/${userId}`),
+  markRead: (id) => put(`/notifications/${id}/read`)
+};
+
+export const settingsAPI = {
+  getDeadline: () => get('/settings/marks_entry_deadline'),
+  setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr })
+};
+
+export const remarksAPI = {
+  get: (classId, sessionLabel) => get(`/remarks/${classId}/${sessionLabel}`),
+  save: (classId, sessionLabel, data) => post(`/remarks/${classId}/${sessionLabel}`, data)
 };

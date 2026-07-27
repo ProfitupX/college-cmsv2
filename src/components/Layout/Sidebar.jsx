@@ -11,6 +11,7 @@ import {
   GraduationCap,
   BookOpen,
   Bell,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Sidebar.module.css';
@@ -21,19 +22,22 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   const isAdmin = user?.role === 'admin';
 
+  const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
+
   const navItems = isAdmin
     ? [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/admin/classes', icon: BookOpen, label: 'Manage Classes' },
         { to: '/admin/subjects', icon: ClipboardEdit, label: 'Manage Subjects' },
         { to: '/admin/staffs', icon: Users, label: 'Manage Staffs' },
+        { to: '/admin/credentials', icon: KeyRound, label: 'Staff Passwords & Email' },
         { to: '/admin/students', icon: GraduationCap, label: 'Manage Students' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ]
     : [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/marks-entry', icon: ClipboardEdit, label: 'Marks Entry' },
+        { to: '/marks-entry', icon: ClipboardEdit, label: isPrincipal ? 'Student Marks' : 'Marks Entry' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
 
@@ -48,31 +52,33 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
-      {/* Logo */}
-      <div className={styles.logo}>
-        <div className={styles.logoIcon}>
-          <GraduationCap size={22} color="#fff" />
+      {/* Top Section: User Profile & First-Letter Avatar */}
+      <div className={styles.sidebarUserHeader}>
+        <div className={styles.headerAvatar} title={user?.name || 'User'}>
+          {initials}
         </div>
         {!collapsed && (
-          <div className={styles.logoText}>
-            <span className={styles.logoTitle}>CMS</span>
-            <span className={styles.logoSub}>College Portal</span>
+          <div className={styles.headerUserInfo}>
+            <span className={styles.headerUserName}>{user?.name || 'Faculty'}</span>
+            <span className={styles.headerUserSub}>
+              {user?.role === 'principal' ? 'Principal' : user?.role === 'vice_principal' ? 'Vice Principal' : user?.role === 'hod' ? 'HOD' : user?.isClassCoordinator ? 'Class In-charge' : 'Staff'} · {user?.department || 'IT'}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Toggle Button */}
+      {/* Sleek Collapse/Expand Toggle Button */}
       <button
         className={`${styles.toggleBtn} ${collapsed ? styles.toggleCollapsed : ''}`}
         onClick={onToggle}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        <ChevronLeft size={16} />
+        <ChevronLeft size={15} />
       </button>
 
       {/* Navigation */}
       <nav className={styles.nav}>
-        {!collapsed && <span className={styles.navLabel}>MENU</span>}
+        {!collapsed && <span className={styles.navLabel}>MAIN MENU</span>}
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -93,30 +99,24 @@ export default function Sidebar({ collapsed, onToggle }) {
         ))}
       </nav>
 
-      {/* Notifications quick (bottom) */}
+      {/* Notifications quick card (bottom) */}
       {!collapsed && (
         <div className={styles.notifCard}>
           <div className={styles.notifIcon}>
-            <Bell size={18} color="#6C63FF" />
+            <Bell size={18} color="#fff" />
           </div>
           <div className={styles.notifContent}>
-            <p className={styles.notifTitle}>3 Pending</p>
-            <p className={styles.notifSub}>Marks submissions due</p>
+            <p className={styles.notifTitle}>Notifications</p>
+            <p className={styles.notifSub}>3 updates pending</p>
           </div>
         </div>
       )}
 
-      {/* User Profile */}
-      <div className={styles.userSection}>
-        <div className={styles.avatar}>{initials}</div>
-        {!collapsed && (
-          <div className={styles.userInfo}>
-            <p className={styles.userName}>{user?.name || 'Faculty'}</p>
-            <p className={styles.userRole}>{user?.designation || 'Staff'}</p>
-          </div>
-        )}
-        <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
-          <LogOut size={16} />
+      {/* Logout Action */}
+      <div className={styles.bottomBar}>
+        <button className={styles.logoutFullBtn} onClick={handleLogout} title="Logout">
+          <LogOut size={18} />
+          {!collapsed && <span>Logout Account</span>}
         </button>
       </div>
     </aside>

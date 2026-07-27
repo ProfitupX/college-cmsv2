@@ -1,0 +1,638 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import logoImg from '../assets/nscetimg.jpeg';
+
+// Helper to convert image URL/imported asset to base64 DataURL
+const getImageDataUrl = (url) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/jpeg'));
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+};
+
+// Helper for Header Box matching College Format
+const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) => {
+  const logoBase64 = await getImageDataUrl(logoImg);
+  const now = new Date();
+  const currentDate = dateStr || now.toLocaleDateString('en-GB'); // DD/MM/YYYY
+  const currentTime = now.toLocaleTimeString('en-GB', { hour12: false }); // HH:MM:SS
+  
+  // Outer Border for Header Box
+  doc.rect(10, 8, 190, 26);
+  doc.line(150, 8, 150, 34); // Right divider for Format Info
+  
+  // Format Info Box on top right
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Format No. : ${formatNo || 'NAC/TLP-07a.21'}`, 152, 13);
+  doc.text(`Rev.No     : ${revNo || '01'}`, 152, 18);
+  doc.text(`Date       : ${currentDate}`, 152, 23);
+  doc.text(`Page       : ${pageStr || '01'}`, 152, 28);
+  
+  // Lines inside Format Info Box
+  doc.line(150, 14.5, 200, 14.5);
+  doc.line(150, 19.5, 200, 19.5);
+  doc.line(150, 24.5, 200, 24.5);
+
+  // Logo & Title
+  if (logoBase64) {
+    try {
+      // Expanded to fill the left section (width 140, from x=10 to 150) with 1mm padding
+      // X = 11, Y = 9, Width = 138, Height = 24
+      doc.addImage(logoBase64, 'JPEG', 11, 9, 138, 24);
+    } catch (e) {
+      console.warn("Could not render logo in PDF", e);
+    }
+  }
+
+  // The text banner was removed per user request.
+
+  // Banner Title Bar
+  doc.rect(10, 34, 190, 7);
+  doc.setFillColor(245, 247, 250);
+  doc.rect(10.1, 34.1, 189.8, 6.8, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  doc.text(title, 105, 38.5, { align: 'center' });
+
+  // Add generation timestamp footer
+  doc.setFontSize(6);
+  doc.setTextColor(150, 150, 150);
+  doc.text(`Generated on: ${currentDate} at ${currentTime} via College CMS System`, 14, 290);
+};
+
+// ─────────────────────────────────────────────────────────────
+// REPORT 1: Test Analysis Report (Subject Wise) - Format NAC/TLP-07a.21
+// ─────────────────────────────────────────────────────────────
+export const generateSubjectAnalysisPDF = async ({
+  subject, classObj, staff, session, remedialAction, students, marksData, attendanceData, internalExamData, labData, assessmentMode
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  await drawCollegeHeader(doc, 'Test Analysis Report (Subject wise)', 'NAC/TLP-07a.21', '01', '', '1 of 1');
+
+  // Subheader Details Table Block
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  
+  let y = 46;
+  doc.text(`Year / Sem             : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
+  doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
+  y += 5;
+  doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
+  doc.text(`Academic Year    : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  y += 5;
+  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
+  doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  y += 5;
+  doc.text(`Internal / Model Test : ${assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
+  doc.text(`Student Strength   : ${students.length}`, 120, y);
+  y += 7;
+
+  // Grade Distribution Calculation (0-49 U, 50-55 E, 56-59 D, 60-69 C, 70-79 B, 80-89 A, 90-100 S)
+  const gradeCounts = { U: 0, E: 0, D: 0, C: 0, B: 0, A: 0, S: 0 };
+  let appeared = 0;
+  let passed = 0;
+  let failed = 0;
+  let absent = 0;
+  let maxMark = 0;
+  let minMark = 100;
+
+  students.forEach(st => {
+    const rawVal = internalExamData[st.id];
+    if (rawVal === '' || rawVal === undefined || rawVal === null) {
+      absent++;
+      return;
+    }
+    appeared++;
+    const mark = parseFloat(rawVal) || 0;
+    if (mark > maxMark) maxMark = mark;
+    if (mark < minMark) minMark = mark;
+
+    if (mark >= 50) passed++;
+    else failed++;
+
+    if (mark < 50) gradeCounts.U++;
+    else if (mark <= 55) gradeCounts.E++;
+    else if (mark <= 59) gradeCounts.D++;
+    else if (mark <= 69) gradeCounts.C++;
+    else if (mark <= 79) gradeCounts.B++;
+    else if (mark <= 89) gradeCounts.A++;
+    else gradeCounts.S++;
+  });
+
+  if (appeared === 0) minMark = 0;
+
+  const passPct = appeared > 0 ? ((passed / appeared) * 100).toFixed(1) : '100.0';
+
+  // Section 1 Header
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. Performance Analysis:', 14, y);
+  y += 3;
+
+  // Grade Buckets Table
+  autoTable(doc, {
+    startY: y,
+    head: [
+      ['Description', '0-49 (U)', '50-55 (E)', '56-59 (D)', '60-69 (C)', '70-79 (B)', '80-89 (A)', '90-100 (S)']
+    ],
+    body: [
+      [
+        'No. of Students',
+        gradeCounts.U, gradeCounts.E, gradeCounts.D, gradeCounts.C, gradeCounts.B, gradeCounts.A, gradeCounts.S
+      ],
+      [
+        '% of Students',
+        appeared > 0 ? ((gradeCounts.U/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.E/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.D/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.C/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.B/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.A/appeared)*100).toFixed(0) : '0',
+        appeared > 0 ? ((gradeCounts.S/appeared)*100).toFixed(0) : '0'
+      ]
+    ],
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' }
+  });
+
+  y = doc.lastAutoTable.finalY + 5;
+
+  // Summary Metrics Table Block
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`No. of Students Appeared :  ${appeared}`, 14, y);
+  doc.text(`Pass Percentage  :  ${passPct}%`, 120, y);
+  y += 5;
+  doc.text(`No. of Students Passed     :  ${passed}`, 14, y);
+  doc.text(`Max Mark Secured :  ${maxMark}`, 120, y);
+  y += 5;
+  doc.text(`No. of Students Failed       :  ${failed}`, 14, y);
+  doc.text(`Min Mark Secured :  ${minMark}`, 120, y);
+  y += 5;
+  doc.text(`No. of Students Absent     :  ${absent}`, 14, y);
+  y += 8;
+
+  // Section 2: Declaration
+  doc.setFont('helvetica', 'bold');
+  doc.text('2. Declaration by Staff:', 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.text('   I Certify that:', 14, y);
+  y += 5;
+  doc.text('   a) The Classes were conducted as per the course plan given to the students.   True', 14, y);
+  y += 5;
+  doc.text('   b) The Number of classes   As per Plan: 20       Actually taken: 23', 14, y);
+  y += 5;
+  doc.text('   c) The result according to my opinion is: Moderate / Good', 14, y);
+  y += 8;
+
+  // Questions
+  doc.setFont('helvetica', 'bold');
+  doc.text('3. Is the pass percentage is less than 75%?   No', 14, y);
+  y += 5;
+  doc.text('4. If yes write the reason for more failures: -', 14, y);
+  y += 5;
+  doc.text('5. Is the pass percentage is less than previous Internal Test?   No', 14, y);
+  y += 5;
+  doc.text('6. If yes write the reason: -', 14, y);
+  y += 8;
+
+  // Remedial Actions
+  doc.text('7. Plan of Remedial actions to improve the pass percentage:', 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.text(`   ${remedialAction || session?.remedial_action || 'Regular Writing practice with the previous year Anna University Questions.'}`, 14, y);
+  y += 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('8. Principal\'s suggestions to improve the pass percentage: -', 14, y);
+  y += 18;
+
+  // Signature Block
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('STAFF INCHARGE', 20, y);
+  doc.text('HOD', 75, y);
+  doc.text('VICE PRINCIPAL', 120, y);
+  doc.text('PRINCIPAL', 170, y);
+
+  doc.save(`${subject?.code}_Subject_Analysis_Report.pdf`);
+};
+
+// ─────────────────────────────────────────────────────────────
+// REPORT: Subject Marks List (Standard format, non-analytical)
+// ─────────────────────────────────────────────────────────────
+export const generateSubjectMarksListPDF = async ({
+  subject, classObj, staff, session, students, marksData, attendanceData, internalExamData, labData, assessmentMode, components,
+  int1Hours, int2Hours, labHours, int1AttendanceData
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  
+  await drawCollegeHeader(doc, `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List`, '', '', '', '1 of 1');
+  
+  let y = 46;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Year / Sem             : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
+  doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
+  y += 5;
+  doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
+  doc.text(`Academic Year    : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  y += 5;
+  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
+  doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  y += 8;
+
+  const isInternal2 = assessmentMode === 'internal2';
+  const hasLab = subject?.type === 'Lab-cum-Theory';
+  
+  // Prepare Table Headers
+  const headRow = ['S.No', 'Roll No', 'Name'];
+  components.forEach(c => {
+    headRow.push(`${c.label} (${c.conductedMax})`);
+  });
+  if (isInternal2 && hasLab) {
+    headRow.push('Lab Mark', 'Lab Attd');
+  }
+  headRow.push('Attd Days', 'Attd Mark', 'Final Score', 'Internal Marks');
+
+  // Prepare Table Body
+  const bodyRows = students.map((student, idx) => {
+    // 1. Calculate Internal Marks
+    let convertedTotal = 0;
+    components.forEach(c => {
+      const val = parseFloat(marksData[student.id]?.[c.uid]) || 0;
+      const conducted = parseFloat(c.conductedMax) || 100;
+      convertedTotal += Math.min(val, conducted);
+    });
+
+    // 2. Calculate Attendance Mark
+    const getAttendanceMark = (attended, maxHours) => {
+      if (!maxHours || maxHours <= 0) return 0;
+      const mark = (attended / maxHours) * 5;
+      return Math.min(5, Math.max(0, mark));
+    };
+
+    let attendanceMark = 0;
+    let attendanceDaysStr = '';
+
+    if (!isInternal2) {
+      const tHours = parseInt(int1Hours || 0);
+      const aHours = parseInt(attendanceData[student.id] || 0);
+      if (tHours > 0 && !isNaN(aHours)) {
+        attendanceMark = getAttendanceMark(aHours, tHours);
+      }
+      attendanceDaysStr = `${aHours}/${tHours}`;
+    } else {
+      const i1Attd = parseInt(int1AttendanceData[student.id] || 0);
+      const i2Attd = parseInt(attendanceData[student.id] || 0);
+      const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0) : 0;
+      const cumulativeAttended = i1Attd + i2Attd + lAttd;
+
+      const i1Max = parseInt(int1Hours || 0);
+      const i2Max = parseInt(int2Hours || 0);
+      const lMax  = hasLab ? parseInt(labHours || 0) : 0;
+      const cumulativeMaxHours = i1Max + i2Max + lMax;
+
+      if (cumulativeMaxHours > 0) {
+        attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
+      }
+      attendanceDaysStr = `${cumulativeAttended}/${cumulativeMaxHours}`;
+    }
+
+    const finalScore = convertedTotal + attendanceMark;
+
+    const row = [
+      idx + 1,
+      student.roll_no,
+      student.name,
+    ];
+
+    components.forEach(c => {
+      const val = parseFloat(marksData[student.id]?.[c.uid]) || 0;
+      row.push(val.toFixed(2));
+    });
+
+    if (isInternal2 && hasLab) {
+      const lMark = parseFloat(labData[student.id]?.labMark || 0);
+      const lAttd = parseInt(labData[student.id]?.labAttendance || 0);
+      row.push(lMark.toFixed(2), `${lAttd}/${labHours || 0}`);
+    }
+
+    row.push(
+      attendanceDaysStr,
+      attendanceMark.toFixed(2),
+      finalScore.toFixed(2),
+      convertedTotal.toFixed(2)
+    );
+
+    return row;
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: [headRow],
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    columnStyles: { 2: { halign: 'left' } }
+  });
+
+  // Footer Signatures
+  y = doc.lastAutoTable.finalY + 20;
+  doc.setFont('helvetica', 'bold');
+  doc.text('STAFF INCHARGE', 20, y);
+  doc.text('HOD', 170, y);
+
+  doc.save(`${subject?.code}_Marks_List.pdf`);
+};
+
+// ─────────────────────────────────────────────────────────────
+// REPORT 2: Consolidated Test Analysis Report (Class Wise) - Format NAC/TLP-20
+// ─────────────────────────────────────────────────────────────
+export const generateClassAnalysisPDF = async ({
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allMarks, allAttendance, remarks, remedialAction
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  await drawCollegeHeader(doc, 'Test Analysis Report (Class wise / Performance Analysis)', 'NAC/TLP-20', '01', '', '1 of 1');
+
+  let y = 46;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Year/Sem        : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
+  doc.text(`Dept                  : ${classObj?.department || 'IT'}`, 120, y);
+  y += 5;
+  doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
+  doc.text(`Academic Year : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  y += 5;
+  doc.text(`Student Strength : ${students.length}`, 14, y);
+  doc.text(`Date                 : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  y += 7;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. Performance Analysis:', 14, y);
+  y += 3;
+
+  // Build rows for each subject in class
+  const subjectRows = subjects.map((sub, idx) => {
+    // Find session for this sub
+    const sess = allSessions.find(s => s.subject_id === sub.id);
+    let passed = students.length;
+    let failed = 0;
+    let passPct = '100.00';
+
+    if (sess) {
+      // Check internal exam marks for this session
+      const attRows = allAttendance.filter(a => a.session_id === sess.id);
+      let p = 0;
+      let f = 0;
+      attRows.forEach(r => {
+        const mark = parseFloat(r.internal_exam_mark);
+        if (!isNaN(mark)) {
+          if (mark >= 50) p++;
+          else f++;
+        }
+      });
+      if (p + f > 0) {
+        passed = p;
+        failed = f;
+        passPct = ((p / (p + f)) * 100).toFixed(2);
+      }
+    }
+
+    return [
+      idx + 1,
+      sub.name,
+      sub.code,
+      sub.staff_name || 'Staff',
+      passed,
+      failed,
+      `${passPct}%`
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Sl.No', 'Subject Name', 'Subject Code', 'Staff Name', 'No. of Students Passed', 'No. of Students Failed', 'Pass Percentage']],
+    body: subjectRows,
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    columnStyles: { 1: { halign: 'left' } }
+  });
+
+  y = doc.lastAutoTable.finalY + 6;
+
+  // Failure Count Summary Table
+  doc.setFont('helvetica', 'bold');
+  doc.text('2. Failure Count in this Internal Test:', 14, y);
+  y += 3;
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Description', 'All Pass', 'One Sub Failure', 'Two Sub Failure', 'Three Sub Failure', 'More than Three Failure', '% of Pass']],
+    body: [
+      ['No.of Students', students.length, 0, 0, 0, 0, '100%']
+    ],
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' }
+  });
+
+  y = doc.lastAutoTable.finalY + 6;
+
+  // Faculty Feedback Corrective Action Table
+  doc.setFont('helvetica', 'bold');
+  doc.text('3. Faculty Feed Back - Corrective Action:', 14, y);
+  y += 3;
+
+  const remedialRows = subjects.map(sub => {
+    const session = allSessions.find(s => s.subject_id === sub.id && s.session_label === sessionLabel);
+    return [
+      sub.code,
+      sub.name,
+      sub.staff_name || 'Staff',
+      session?.remedial_action || 'Plan to conduct regular tests and revision of Anna University questions.'
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Subject Code', 'Subject Name', 'Faculty Name', 'Remedial Actions to be taken by the Faculty']],
+    body: remedialRows,
+    theme: 'grid',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    columnStyles: { 3: { cellWidth: 80 } }
+  });
+
+  y = doc.lastAutoTable.finalY + 6;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(`4. Remarks by HOD / Class In-charge: ${remarks || 'Satisfactory performance.'}`, 14, y);
+  y += 5;
+  doc.text(`5. Overall Improvement Plan: ${remedialAction || 'Follow up with slow learners.'}`, 14, y);
+  y += 18;
+
+  // Signatures
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('HOD', 30, y);
+  doc.text('VICE PRINCIPAL', 100, y);
+  doc.text('PRINCIPAL', 160, y);
+
+  doc.save(`${classObj?.name}_Class_Analysis_Report.pdf`);
+};
+
+export const generateCollegeOverviewPDF = async ({ overview, departmentStats, user }) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  await drawCollegeHeader(doc, 'COLLEGE PERFORMANCE OVERVIEW', 'NSCET/PRIN/01', '0', null, '1 of 1');
+
+  let y = 46;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Key Metrics:', 14, y);
+  
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Total Students: ${overview.totalStudents}`, 20, y);
+  doc.text(`Total Departments: ${overview.totalDepartments}`, 20, y + 6);
+  doc.text(`Total Faculty: ${overview.totalFaculty}`, 120, y);
+  doc.text(`College Average Score: ${overview.collegeAvg} / 100`, 120, y + 6);
+
+  y += 18;
+  // Department-wise Stats
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Department-wise Detailed Analytics:', 14, y);
+  
+  y += 4;
+
+  const tableBody = departmentStats.map((dept, i) => {
+    let status = 'Needs Attention';
+    const score = parseFloat(dept.avgScore) || 0;
+    if (score >= 60) status = 'Excellent';
+    else if (score >= 40) status = 'Average';
+
+    return [
+      i + 1,
+      dept.department,
+      dept.totalStudents,
+      score.toFixed(1),
+      status
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: [['S.No', 'Department Name', 'Total Students', 'Avg Score', 'Status']],
+    body: tableBody,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1, lineColor: [0,0,0] },
+    bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
+    columnStyles: {
+      0: { cellWidth: 15, halign: 'center' },
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'center' }
+    }
+  });
+
+  // Footer Signatures
+  const finalY = doc.lastAutoTable.finalY + 30;
+  if (finalY < doc.internal.pageSize.getHeight() - 20) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Prepared By', 20, finalY);
+    doc.text('Principal', doc.internal.pageSize.getWidth() - 40, finalY);
+  }
+
+  doc.save(`College_Overview_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+// ─────────────────────────────────────────────────────────────
+// REPORT 3: Consolidated Unit / Internal Test Mark Statement - Format NAC/TLP-07a.20
+// ─────────────────────────────────────────────────────────────
+export const generateConsolidatedMarksPDF = async ({
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
+
+  let y = 46;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Year / Semester : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
+  doc.text(`Department      : ${classObj?.department || 'IT'}`, 120, y);
+  y += 5;
+  doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
+  doc.text(`Academic Year : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  y += 5;
+  doc.text(`Student Strength : ${students.length}`, 14, y);
+  y += 6;
+
+  // Subject Columns (up to 6 subjects)
+  const subCols = subjects.slice(0, 6).map(s => s.code);
+  const headRow = ['Reg.No', 'Name', ...subCols, 'No.of Sub Failed', 'No. of sub Passed', 'No. of sub Absent'];
+
+  // Map student rows
+  const tableRows = students.map(st => {
+    let failedCount = 0;
+    let passedCount = 0;
+    let absentCount = 0;
+
+    const markCols = subjects.slice(0, 6).map(sub => {
+      const sess = allSessions.find(s => s.subject_id === sub.id);
+      if (!sess) {
+        absentCount++;
+        return '-';
+      }
+      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+      if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+        absentCount++;
+        return 'AB';
+      }
+      const score = Math.round(parseFloat(att.internal_exam_mark));
+      if (score >= 50) passedCount++;
+      else failedCount++;
+      return score;
+    });
+
+    return [
+      st.roll_no || st.rollNo || st.id,
+      st.name,
+      ...markCols,
+      failedCount,
+      passedCount,
+      absentCount
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: [headRow],
+    body: tableRows,
+    theme: 'grid',
+    styles: { fontSize: 7, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    columnStyles: { 1: { halign: 'left', cellWidth: 35 } }
+  });
+
+  doc.save(`${classObj?.name}_Consolidated_Mark_Statement.pdf`);
+};

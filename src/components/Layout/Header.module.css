@@ -9,7 +9,8 @@
   border-bottom: 1px solid var(--border-solid);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 24px;
   padding: 0 28px;
   z-index: 90;
   transition: left var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
@@ -54,18 +55,18 @@
   margin-top: 1px;
 }
 
-/* Right Section */
-.right {
+/* Aligned Left Actions Section */
+.leftActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* Icon Button */
 .iconBtn {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -73,27 +74,36 @@
   color: var(--text-secondary);
   background: transparent;
   transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
 }
 
 .iconBtn:hover {
-  background: var(--primary-glow);
-  color: var(--primary);
+  background: rgba(128, 0, 0, 0.08);
+  color: #800000;
 }
 
-/* Search */
+/* Search Box & Results */
 .searchBox {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
   background: transparent;
   border-radius: var(--radius-md);
   transition: all var(--transition-base);
 }
 
 .searchOpen {
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border-solid);
-  padding-right: 10px;
+  box-shadow: var(--shadow-sm);
+  padding-right: 6px;
+}
+
+.searchWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .searchInput {
@@ -102,11 +112,80 @@
   outline: none;
   font-size: 0.85rem;
   color: var(--text-primary);
-  width: 200px;
-  transition: width var(--transition-base);
+  width: 220px;
 }
 
 .searchInput::placeholder { color: var(--text-muted); }
+
+.clearSearchBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
+.clearSearchBtn:hover {
+  color: var(--text-primary);
+}
+
+.searchResultsDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  z-index: 300;
+  overflow: hidden;
+  padding: 6px 0;
+  animation: scaleIn 0.2s ease;
+}
+
+.searchResultItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.searchResultItem:hover {
+  background: var(--surface-hover);
+}
+
+.searchResultIcon {
+  color: #800000;
+}
+
+.searchResultText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.searchResultTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.searchResultCategory {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.noSearchResult {
+  padding: 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+}
 
 /* Notifications */
 .notifWrapper { position: relative; }
@@ -195,37 +274,41 @@
   margin-top: 3px;
 }
 
-/* User Chip */
+/* User Chip (Pill Chip Matching Mockup) */
 .userChip {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px 6px 6px;
-  background: var(--bg);
+  padding: 5px 18px 5px 6px;
+  background: var(--surface);
   border: 1px solid var(--border-solid);
-  border-radius: var(--radius-full);
+  border-radius: 9999px;
   cursor: pointer;
   transition: all var(--transition-fast);
-  margin-left: 4px;
+  margin-left: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .userChip:hover {
-  border-color: var(--primary);
-  background: var(--primary-glow);
+  border-color: #800000;
+  box-shadow: 0 4px 12px rgba(128, 0, 0, 0.12);
+  transform: translateY(-1px);
 }
 
 .avatarSmall {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent-pink) 100%);
+  background: linear-gradient(135deg, #B91C1C 0%, #D97706 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #fff;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffffff;
   letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .userMeta {
@@ -234,15 +317,16 @@
 }
 
 .userName {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .userDept {
-  font-size: 0.68rem;
-  color: var(--text-muted);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 640px) {

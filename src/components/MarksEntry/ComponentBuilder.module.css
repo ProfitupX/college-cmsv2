@@ -413,3 +413,37 @@
 }
 
 .emptySub strong { color: var(--primary); }
+
+.totalError {
+  color: var(--danger) !important;
+}
+
+.textError {
+  color: var(--danger) !important;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.weightInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.percentSymbol {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}

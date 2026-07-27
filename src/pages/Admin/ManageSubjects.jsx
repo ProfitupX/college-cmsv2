@@ -18,7 +18,18 @@ export default function ManageSubjects() {
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const [formData, setFormData] = useState({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '' });
+  const [formData, setFormData] = useState({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '', ltpc: '', total_hours: '' });
+
+  const handleLtpcChange = (val) => {
+    let hours = formData.total_hours;
+    if (val && val.length === 4) {
+      const c = parseInt(val[3]);
+      if (!isNaN(c)) {
+        hours = c * 15;
+      }
+    }
+    setFormData(prev => ({ ...prev, ltpc: val, total_hours: hours }));
+  };
 
   // Filters
   const [search, setSearch] = useState('');
@@ -91,7 +102,7 @@ export default function ManageSubjects() {
   };
 
   const openAdd = () => {
-    setFormData({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '' });
+    setFormData({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '', ltpc: '', total_hours: '' });
     setIsEditing(false);
     setShowForm(true);
   };
@@ -145,9 +156,13 @@ export default function ManageSubjects() {
             <input required placeholder="Subject Code (e.g. IT301)" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
             <input required placeholder="Subject Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             
+            <input placeholder="LTPC (e.g. 3104)" value={formData.ltpc} onChange={e => handleLtpcChange(e.target.value)} />
+            <input type="number" placeholder="Total Hours" value={formData.total_hours} onChange={e => setFormData({...formData, total_hours: e.target.value})} />
+
             <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
               <option value="Theory">Theory</option>
               <option value="Practical">Practical</option>
+              <option value="Lab-cum-Theory">Lab-cum-Theory</option>
             </select>
             
             <select required value={formData.class_id} onChange={e => setFormData({...formData, class_id: e.target.value})}>
@@ -173,6 +188,7 @@ export default function ManageSubjects() {
             <th>Code</th>
             <th>Name</th>
             <th>Type</th>
+            <th>LTPC</th>
             <th>Class</th>
             <th>Assigned Staff</th>
             <th>Actions</th>
@@ -184,6 +200,7 @@ export default function ManageSubjects() {
               <td><strong>{s.code}</strong></td>
               <td>{s.name}</td>
               <td>{s.type}</td>
+              <td>{s.ltpc ? `${s.ltpc} (${s.total_hours}h)` : '-'}</td>
               <td>{s.class_id}</td>
               <td>{s.faculty_id}</td>
               <td>

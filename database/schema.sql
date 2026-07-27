@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS subjects (
   type        VARCHAR(30)  DEFAULT 'Theory',
   department  VARCHAR(150),
   semester    INT,
+  ltpc        VARCHAR(20),
+  total_hours INT,
   faculty_id  VARCHAR(20),
   class_id    VARCHAR(20),
   PRIMARY KEY (id),
@@ -102,17 +104,36 @@ CREATE TABLE IF NOT EXISTS marks_sessions (
   subject_id    VARCHAR(20)   NOT NULL,
   class_id      VARCHAR(20)   NOT NULL,
   staff_id      VARCHAR(20)   NOT NULL,
-  session_label VARCHAR(200)  COMMENT 'e.g. Internal Assessment 1',
-  total_max     DECIMAL(8,2)  COMMENT 'Sum of all component max marks',
-  status        VARCHAR(20)   DEFAULT 'submitted',
-  avg_score     DECIMAL(5,2)  COMMENT 'Avg normalized score out of 40',
-  student_count INT,
+  session_label VARCHAR(100),
+  total_max     DECIMAL(6,2)  NOT NULL COMMENT 'Will be max 95 based on staff components',
+  total_hours   INT,
+  internal2_total_hours INT,
+  status        VARCHAR(20)   DEFAULT 'locked',
+  avg_score     DECIMAL(5,2)  DEFAULT 0.00,
+  student_count INT           DEFAULT 0,
+  remedial_action TEXT,
   created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  CONSTRAINT fk_session_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
-  CONSTRAINT fk_session_class   FOREIGN KEY (class_id)   REFERENCES classes(id),
-  CONSTRAINT fk_session_staff   FOREIGN KEY (staff_id)   REFERENCES staffs(id)
+  CONSTRAINT fk_session_sub FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_session_cls FOREIGN KEY (class_id)   REFERENCES classes(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_session_stf FOREIGN KEY (staff_id)   REFERENCES staffs(id)   ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────
+-- 4c. session_attendance
+--    Stores hours attended per student for a session
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS session_attendance (
+  session_id         INT NOT NULL,
+  student_id         VARCHAR(20) NOT NULL,
+  hours_attended     INT,
+  internal_exam_mark DECIMAL(6,2),
+  lab_attendance     INT,
+  lab_mark           DECIMAL(6,2),
+  PRIMARY KEY (session_id, student_id),
+  CONSTRAINT fk_att_session FOREIGN KEY (session_id) REFERENCES marks_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ─────────────────────────────────────────
@@ -120,14 +141,15 @@ CREATE TABLE IF NOT EXISTS marks_sessions (
 --    Dynamic components staff add per session
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS assessment_components (
-  id          INT           NOT NULL AUTO_INCREMENT,
-  session_id  INT           NOT NULL,
-  type_id     VARCHAR(30)   COMMENT 'test | assignment | quiz | ...',
-  label       VARCHAR(100)  NOT NULL COMMENT 'Custom name e.g. Test 1',
-  max_marks   DECIMAL(6,2)  NOT NULL,
-  icon        VARCHAR(10),
-  color       VARCHAR(20),
-  sort_order  INT           DEFAULT 0,
+  id            INT           NOT NULL AUTO_INCREMENT,
+  session_id    INT           NOT NULL,
+  type_id       VARCHAR(30)   COMMENT 'test | assignment | quiz | ...',
+  label         VARCHAR(100)  NOT NULL COMMENT 'Custom name e.g. Test 1',
+  conducted_max DECIMAL(6,2)  DEFAULT 100 COMMENT 'Marks the exam was written for',
+  max_marks     DECIMAL(6,2)  NOT NULL COMMENT 'Weight % out of 100 final total',
+  icon          VARCHAR(10),
+  color         VARCHAR(20),
+  sort_order    INT           DEFAULT 0,
   PRIMARY KEY (id),
   CONSTRAINT fk_comp_session FOREIGN KEY (session_id)
     REFERENCES marks_sessions(id) ON DELETE CASCADE
@@ -147,7 +169,67 @@ CREATE TABLE IF NOT EXISTS marks (
   UNIQUE KEY uq_mark (session_id, component_id, student_id),
   CONSTRAINT fk_mark_session   FOREIGN KEY (session_id)   REFERENCES marks_sessions(id) ON DELETE CASCADE,
   CONSTRAINT fk_mark_component FOREIGN KEY (component_id) REFERENCES assessment_components(id) ON DELETE CASCADE,
-  CONSTRAINT fk_mark_student   FOREIGN KEY (student_id)   REFERENCES students(id)
+-- ─────────────────────────────────────────
+-- 9. MARK UNLOCK REQUESTS
+--    Requests sent by staff to HOD to edit locked marks
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS mark_unlock_requests (
+  id            INT           NOT NULL AUTO_INCREMENT,
+  session_id    INT           NOT NULL,
+  subject_id    VARCHAR(20)   NOT NULL,
+  class_id      VARCHAR(20)   NOT NULL,
+  staff_id      VARCHAR(20)   NOT NULL,
+  reason        TEXT,
+  status        VARCHAR(20)   DEFAULT 'pending', -- pending | approved | rejected
+  requested_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+  actioned_at   TIMESTAMP     NULL,
+  actioned_by   VARCHAR(20)   NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_unlock_session FOREIGN KEY (session_id) REFERENCES marks_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_unlock_staff   FOREIGN KEY (staff_id)   REFERENCES staffs(id)   ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────
+-- 10. NOTIFICATIONS
+--     System workflow messages for deadlines and freezing
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notifications (
+  id            INT           NOT NULL AUTO_INCREMENT,
+  target_role   VARCHAR(50)   COMMENT 'e.g. hod, class_coordinator, or specific staff_id',
+  target_id     VARCHAR(20)   COMMENT 'staff ID if targeted to a specific user',
+  title         VARCHAR(150)  NOT NULL,
+  message       TEXT          NOT NULL,
+  link          VARCHAR(255)  COMMENT 'Deep link for interactive notifications',
+  is_read       BOOLEAN       DEFAULT FALSE,
+  created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────
+-- 11. SYSTEM SETTINGS
+--     Global configurations (e.g. HOD marks entry deadline)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS system_settings (
+  setting_key   VARCHAR(100)  NOT NULL,
+  setting_value VARCHAR(255)  NOT NULL,
+  updated_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────
+-- 12. CLASS ANALYSIS REMARKS
+--     Manual qualitative inputs from Class In-charge per session
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS class_analysis_remarks (
+  id               INT           NOT NULL AUTO_INCREMENT,
+  class_id         VARCHAR(20)   NOT NULL,
+  session_label    VARCHAR(50)   NOT NULL,
+  remarks          TEXT,
+  improvement_plan TEXT,
+  updated_at       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_class_session (class_id, session_label),
+  CONSTRAINT fk_rem_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Confirm

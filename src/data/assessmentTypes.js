@@ -17,8 +17,8 @@ export const ASSESSMENT_TYPES = [
   { id: 'participation', label: 'Class Participation', icon: '✋', color: '#A78BFA', suggestedMax: 5 },
 ];
 
-// INTERNAL ASSESSMENT TOTAL — everything normalizes to 40
-export const INTERNAL_ASSESSMENT_MAX = 40;
+// Maximum weight staff can allocate (remaining 5% is reserved for Attendance)
+export const MAX_STAFF_ALLOCATION = 95;
 
 // Grade thresholds based on normalized-to-40 marks
 export const GRADE_THRESHOLDS = [

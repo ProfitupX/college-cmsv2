@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Search, Bell, Sun, Moon, Menu } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, Sun, Moon, Menu, FileText, Users, BookOpen, ChevronRight, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Header.module.css';
+import NotificationsDropdown from './NotificationsDropdown';
 
 const pageTitles = {
   '/dashboard': { title: 'Dashboard', sub: 'Welcome back! Here\'s your overview.' },
@@ -12,21 +13,38 @@ const pageTitles = {
   '/settings': { title: 'Settings', sub: 'Manage your account and preferences.' },
 };
 
+const searchablePages = [
+  { name: 'Dashboard Overview', path: '/dashboard', cat: 'Page', icon: FileText },
+  { name: 'Marks Entry Sheet', path: '/marks-entry', cat: 'Action', icon: BookOpen },
+  { name: 'Manage Classes & Subjects', path: '/admin/classes', cat: 'Admin', icon: BookOpen },
+  { name: 'Manage Staff Members & Passwords', path: '/admin/credentials', cat: 'Admin', icon: Users },
+  { name: 'Manage Students Roster', path: '/admin/students', cat: 'Admin', icon: Users },
+  { name: 'Official Reports & Analytics', path: '/reports', cat: 'Reports', icon: FileText },
+  { name: 'Account Settings & Profile', path: '/settings', cat: 'Settings', icon: FileText },
+];
+
 export default function Header({ onMobileToggle, darkMode, onToggleDark }) {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
-  const [notifOpen, setNotifOpen] = useState(false);
 
-  const pageInfo = pageTitles[location.pathname] || { title: 'CMS', sub: '' };
+  const pageInfo = pageTitles[location.pathname] || { title: 'College CMS', sub: 'Management Portal' };
 
-  const notifications = [
-    { id: 1, text: 'Marks submission for CS301 is pending', time: '2h ago', unread: true },
-    { id: 2, text: 'New student added to CS - Sem 3 - A', time: '5h ago', unread: true },
-    { id: 3, text: 'Report generated for July session', time: '1d ago', unread: false },
-  ];
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'FA';
+
+  const filteredResults = searchVal.trim()
+    ? searchablePages.filter(p => p.name.toLowerCase().includes(searchVal.toLowerCase()) || p.cat.toLowerCase().includes(searchVal.toLowerCase()))
+    : [];
+
+  const handleSelectResult = (path) => {
+    navigate(path);
+    setSearchVal('');
+    setSearchOpen(false);
+  };
 
   return (
     <header className={styles.header}>
@@ -41,75 +59,82 @@ export default function Header({ onMobileToggle, darkMode, onToggleDark }) {
         </div>
       </div>
 
-      {/* Right: Actions */}
-      <div className={styles.right}>
-        {/* Search */}
+      {/* Aligned Left: Search, Theme Toggle, Notifications, User Chip */}
+      <div className={styles.leftActions}>
+        {/* Search Bar with Live Results */}
         <div className={`${styles.searchBox} ${searchOpen ? styles.searchOpen : ''}`}>
           <button
             className={styles.iconBtn}
             onClick={() => setSearchOpen(!searchOpen)}
             id="search-toggle-btn"
+            title="Search Portal"
           >
             <Search size={18} />
           </button>
           {searchOpen && (
-            <input
-              className={styles.searchInput}
-              type="text"
-              placeholder="Search students, subjects..."
-              value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
-              autoFocus
-              id="header-search-input"
-            />
+            <div className={styles.searchWrapper}>
+              <input
+                className={styles.searchInput}
+                type="text"
+                placeholder="Search pages, marks, students..."
+                value={searchVal}
+                onChange={(e) => setSearchVal(e.target.value)}
+                autoFocus
+                id="header-search-input"
+              />
+              {searchVal && (
+                <button className={styles.clearSearchBtn} onClick={() => setSearchVal('')}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           )}
-        </div>
 
-        {/* Dark Mode */}
-        <button className={styles.iconBtn} onClick={onToggleDark} title="Toggle Theme" id="dark-mode-btn">
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-
-        {/* Notifications */}
-        <div className={styles.notifWrapper}>
-          <button
-            className={styles.iconBtn}
-            onClick={() => setNotifOpen(!notifOpen)}
-            id="notif-btn"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className={styles.notifDot}>{unreadCount}</span>
-            )}
-          </button>
-
-          {notifOpen && (
-            <div className={styles.notifDropdown}>
-              <div className={styles.notifHeader}>
-                <span>Notifications</span>
-                <span className={styles.notifCount}>{unreadCount} new</span>
-              </div>
-              {notifications.map((n) => (
-                <div key={n.id} className={`${styles.notifItem} ${n.unread ? styles.notifUnread : ''}`}>
-                  <div className={styles.notifDotSmall} />
-                  <div>
-                    <p className={styles.notifText}>{n.text}</p>
-                    <p className={styles.notifTime}>{n.time}</p>
+          {/* Live Search Results Dropdown */}
+          {searchOpen && searchVal && (
+            <div className={styles.searchResultsDropdown}>
+              {filteredResults.length > 0 ? (
+                filteredResults.map((res) => (
+                  <div 
+                    key={res.path} 
+                    className={styles.searchResultItem}
+                    onClick={() => handleSelectResult(res.path)}
+                  >
+                    <res.icon size={16} className={styles.searchResultIcon} />
+                    <div className={styles.searchResultText}>
+                      <span className={styles.searchResultTitle}>{res.name}</span>
+                      <span className={styles.searchResultCategory}>{res.cat}</span>
+                    </div>
+                    <ChevronRight size={14} color="var(--text-muted)" />
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className={styles.noSearchResult}>No pages or records found</div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Avatar */}
-        <div className={styles.userChip}>
+        {/* Dark / Light Theme Toggle */}
+        <button className={styles.iconBtn} onClick={onToggleDark} title="Toggle Theme" id="dark-mode-btn">
+          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        {/* Real Working Notifications Dropdown */}
+        <NotificationsDropdown />
+
+        {/* User Profile Chip (Navigates to Settings on Click) */}
+        <div 
+          className={styles.userChip} 
+          onClick={() => navigate('/settings')} 
+          title="Click to view Account Settings"
+        >
           <div className={styles.avatarSmall}>
-            {user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'FA'}
+            {initials}
           </div>
           <div className={styles.userMeta}>
-            <span className={styles.userName}>{user?.name?.split(' ')[0] || 'Faculty'}</span>
-            <span className={styles.userDept}>{user?.department || 'Department'}</span>
+            <span className={styles.userName}>{user?.name || 'Faculty Staff'}</span>
+            <span className={styles.userDept}>{user?.department || 'Information Technology'}</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, ChevronDown, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { ASSESSMENT_TYPES, INTERNAL_ASSESSMENT_MAX } from '../../data/assessmentTypes';
+import { Plus, Trash2, ChevronDown, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ASSESSMENT_TYPES, MAX_STAFF_ALLOCATION } from '../../data/assessmentTypes';
 import styles from './ComponentBuilder.module.css';
 
 // Counter to create unique ids per added component
@@ -19,10 +19,11 @@ function TypeBadge({ typeId, small }) {
   );
 }
 
-export default function ComponentBuilder({ components, onChange }) {
+export default function ComponentBuilder({ components, onChange, isLocked }) {
   const [selectedType, setSelectedType] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [maxMarks, setMaxMarks] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
 
@@ -39,11 +40,18 @@ export default function ComponentBuilder({ components, onChange }) {
 
   const handleAdd = () => {
     if (!selectedType || !maxMarks || parseFloat(maxMarks) <= 0) return;
+    const weight = parseFloat(maxMarks);
+    if (totalMax + weight > MAX_STAFF_ALLOCATION) {
+      setErrorMsg(`Cannot add component. Total weight would exceed ${MAX_STAFF_ALLOCATION}%. (You currently have ${totalMax}% allocated)`);
+      return;
+    }
+    
     const newComp = {
       uid: uid++,
       typeId: selectedType,
       label: customLabel.trim() || selectedTypeMeta?.label || selectedType,
-      max: parseFloat(maxMarks),
+      conductedMax: weight,
+      max: weight,
       color: selectedTypeMeta?.color || '#6C63FF',
       icon: selectedTypeMeta?.icon || '📝',
     };
@@ -52,6 +60,7 @@ export default function ComponentBuilder({ components, onChange }) {
     setSelectedType('');
     setCustomLabel('');
     setMaxMarks('');
+    setErrorMsg('');
   };
 
   const handleRemove = (uid) => {
@@ -59,12 +68,42 @@ export default function ComponentBuilder({ components, onChange }) {
   };
 
   const handleMaxChange = (uid, val) => {
-    onChange(components.map((c) => (c.uid === uid ? { ...c, max: parseFloat(val) || 0 } : c)));
+    const floatVal = parseFloat(val) || 0;
+    onChange(components.map((c) => (c.uid === uid ? { ...c, max: floatVal, conductedMax: floatVal } : c)));
   };
 
   const handleLabelChange = (uid, val) => {
     onChange(components.map((c) => (c.uid === uid ? { ...c, label: val } : c)));
   };
+
+  if (isLocked) {
+    return (
+      <div className={styles.wrapper}>
+        <div className={styles.header}>
+          <div>
+            <h3 className={styles.title}>Assessment Composition</h3>
+            <p className={styles.sub}>Total Weight: <strong>{totalMax}%</strong></p>
+          </div>
+        </div>
+        <div className={styles.compList}>
+          {components.map((comp) => (
+            <div key={comp.uid} className={styles.compItem}>
+              <div className={styles.compMeta}>
+                <TypeBadge typeId={comp.typeId} />
+                <span className={styles.compLabelText}>{comp.label}</span>
+              </div>
+              <div className={styles.compInputs}>
+                <div className={styles.compField}>
+                  <span className={styles.fieldLabel}>Weight</span>
+                  <span>{comp.max}%</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.wrapper}>
@@ -72,19 +111,24 @@ export default function ComponentBuilder({ components, onChange }) {
         <div>
           <h3 className={styles.title}>Build Assessment Sheet</h3>
           <p className={styles.sub}>
-            Add the marks components for this subject. Final score will be normalized to{' '}
-            <strong>{INTERNAL_ASSESSMENT_MAX} marks</strong> (Internal Assessment).
+            Add the marks components for this subject. Total weight allowed is <strong>{MAX_STAFF_ALLOCATION}%</strong> (5% reserved for Attendance).
           </p>
         </div>
         {/* Total indicator */}
         <div className={styles.totalIndicator}>
-          <div className={styles.totalLabel}>Total Max Marks</div>
-          <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''}`}>
-            {totalMax}
+          <div className={styles.totalLabel}>Total Weight %</div>
+          <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''} ${totalMax > MAX_STAFF_ALLOCATION ? styles.totalError : ''}`}>
+            {totalMax}% / {MAX_STAFF_ALLOCATION}%
           </div>
-          <div className={styles.totalSub}>→ Normalized to {INTERNAL_ASSESSMENT_MAX}</div>
+          <div className={styles.totalSub}>5% reserved for Attendance</div>
         </div>
       </div>
+      
+      {errorMsg && (
+        <div className={styles.errorBanner}>
+          <AlertTriangle size={16} /> {errorMsg}
+        </div>
+      )}
 
       {/* Add Component Row */}
       <div className={styles.addRow}>
@@ -129,11 +173,15 @@ export default function ComponentBuilder({ components, onChange }) {
             id="component-max-input"
             type="number"
             min="1"
-            max="200"
+            max="95"
             className={styles.input}
-            placeholder="25"
+            placeholder="50"
             value={maxMarks}
-            onChange={(e) => setMaxMarks(e.target.value)}
+            onChange={(e) => {
+              setMaxMarks(e.target.value);
+              setErrorMsg('');
+            }}
+            title="Maximum marks for this component"
           />
         </div>
 
@@ -173,11 +221,9 @@ export default function ComponentBuilder({ components, onChange }) {
             <span>Name</span>
             <span>Type</span>
             <span className={styles.centerCol}>Max Marks</span>
-            <span className={styles.centerCol}>Weight</span>
             <span />
           </div>
           {components.map((comp) => {
-            const weight = totalMax > 0 ? ((comp.max / totalMax) * 100).toFixed(1) : '—';
             return (
               <div key={comp.uid} className={styles.compItem}>
                 {/* Label */}
@@ -189,7 +235,7 @@ export default function ComponentBuilder({ components, onChange }) {
                 />
                 {/* Type badge */}
                 <TypeBadge typeId={comp.typeId} small />
-                {/* Max marks editable */}
+                {/* Max Marks */}
                 <div className={styles.centerCol}>
                   <input
                     type="number"
@@ -197,11 +243,8 @@ export default function ComponentBuilder({ components, onChange }) {
                     className={styles.maxInput}
                     value={comp.max}
                     onChange={(e) => handleMaxChange(comp.uid, e.target.value)}
+                    title="Max Marks"
                   />
-                </div>
-                {/* Weight */}
-                <div className={styles.centerCol}>
-                  <span className={styles.weightPill}>{weight}%</span>
                 </div>
                 {/* Remove */}
                 <button
@@ -221,10 +264,10 @@ export default function ComponentBuilder({ components, onChange }) {
               <CheckCircle2 size={15} color="var(--success)" />
               <span>{components.length} component{components.length !== 1 ? 's' : ''}</span>
               <span className={styles.summarySep}>·</span>
-              <span>Total Max: <strong>{totalMax} marks</strong></span>
+              <span>Total Allocated Weight: <strong className={totalMax > MAX_STAFF_ALLOCATION ? styles.textError : ''}>{totalMax}%</strong></span>
               <span className={styles.summarySep}>·</span>
               <span className={styles.normalizeNote}>
-                Each student's score = (Total / {totalMax}) × {INTERNAL_ASSESSMENT_MAX}
+                Remaining {MAX_STAFF_ALLOCATION - totalMax}% available.
               </span>
             </div>
           </div>

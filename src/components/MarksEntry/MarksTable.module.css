@@ -42,33 +42,87 @@ thead tr {
   border-right: 1px solid rgba(255,255,255,0.1);
 }
 
+.sNoTh {
+  text-align: center;
+  padding: 13px 10px;
+  min-width: 50px;
+  background: #1E1B4B;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.rollNoTh {
+  text-align: left;
+  padding-left: 16px;
+  min-width: 120px;
+  background: #1E1B4B;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
 .computedTh {
   background: rgba(0,0,0,0.15);
   min-width: 80px;
 }
 
-/* ★ Normalized column — highlighted purple accent */
-.normalizedTh {
-  background: var(--primary);
-  min-width: 110px;
-  border-left: 2px solid rgba(255,255,255,0.2);
-  border-right: 2px solid rgba(255,255,255,0.2);
+.attendanceTh {
+  background: rgba(20, 184, 166, 0.15);
+  border-left: 2px solid rgba(20, 184, 166, 0.4);
+  border-right: 2px solid rgba(20, 184, 166, 0.4);
+  min-width: 100px;
 }
 
-.normalizedHeader {
+.internalExamTh {
+  background: rgba(245, 158, 11, 0.15);
+  border-left: 2px solid rgba(245, 158, 11, 0.4);
+  min-width: 100px;
+}
+
+.globalHoursWrap {
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 3px;
-  font-size: 0.9rem;
-  font-weight: 800;
-  font-family: var(--font-heading);
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  margin-bottom: 4px;
+  background: rgba(255,255,255,0.1);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.2);
 }
 
-.normalizedOf {
-  font-size: 0.72rem;
-  font-weight: 600;
+.globalHoursWrap label {
+  font-size: 0.6rem;
   opacity: 0.8;
+  font-weight: 500;
+}
+
+.globalHoursInput {
+  width: 50px;
+  text-align: center;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.lockedHours {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #14B8A6;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: not-allowed;
+}
+
+.globalHoursInput:focus {
+  border-color: #14B8A6;
+  background: rgba(0,0,0,0.3);
 }
 
 .thContent {
@@ -81,6 +135,7 @@ thead tr {
 .thIcon { font-size: 1rem; }
 .thLabel { font-weight: 700; font-size: 0.75rem; }
 .thMax { font-size: 0.62rem; opacity: 0.65; font-weight: 400; }
+.thWeight { font-size: 0.65rem; color: #a78bfa; font-weight: 700; }
 .thSub { font-size: 0.62rem; opacity: 0.65; font-weight: 400; margin-top: 2px; }
 
 /* Body rows */
