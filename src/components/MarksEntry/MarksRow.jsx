@@ -13,11 +13,12 @@ export default function MarksRow({
     const conducted = parseFloat(c.conductedMax) || 100;
     convertedTotal += Math.min(val, conducted);
   });
+  convertedTotal = Math.round(convertedTotal);
 
   const getAttendanceMark = (attended, maxHours) => {
     if (!maxHours || maxHours <= 0) return 0;
     const mark = (attended / maxHours) * 5;
-    return Math.min(5, Math.max(0, mark));
+    return Math.round(Math.min(5, Math.max(0, mark)));
   };
 
   let attendanceMark = 0;
@@ -117,7 +118,7 @@ export default function MarksRow({
             />
             <span className={styles.inputMax}>/{int1Hours || displayHours || '?'}</span>
             <div className={styles.convertedDisplay}>
-              <span className={styles.convertedLabel}>wt.</span> {attendanceMark.toFixed(1)} 
+              <span className={styles.convertedLabel}>wt.</span> {attendanceMark} 
               <span className={styles.convertedMax}>/5</span>
             </div>
           </div>
@@ -154,7 +155,7 @@ export default function MarksRow({
               />
               <span className={styles.inputMax}>/{int2Hours || '?'}</span>
               <div className={styles.convertedDisplay} title={`Cumulative Attended: ${cumulativeAttended}/${cumulativeMaxHours}`}>
-                <span className={styles.convertedLabel}>wt.</span> {attendanceMark.toFixed(1)} 
+                <span className={styles.convertedLabel}>wt.</span> {attendanceMark} 
                 <span className={styles.convertedMax}>/5</span>
               </div>
             </div>
@@ -192,7 +193,7 @@ export default function MarksRow({
             color: `var(--surface)`,
           }}
         >
-          <span className={styles.total}>{finalTotal100.toFixed(1)}</span>
+          <span className={styles.total}>{finalTotal100}</span>
         </div>
       </td>
 

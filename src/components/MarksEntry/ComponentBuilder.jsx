@@ -116,9 +116,9 @@ export default function ComponentBuilder({ components, onChange, isLocked }) {
         </div>
         {/* Total indicator */}
         <div className={styles.totalIndicator}>
-          <div className={styles.totalLabel}>Total Weight %</div>
+          <div className={styles.totalLabel}>Total Weight</div>
           <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''} ${totalMax > MAX_STAFF_ALLOCATION ? styles.totalError : ''}`}>
-            {totalMax}% / {MAX_STAFF_ALLOCATION}%
+            {totalMax} / {MAX_STAFF_ALLOCATION}
           </div>
           <div className={styles.totalSub}>5% reserved for Attendance</div>
         </div>

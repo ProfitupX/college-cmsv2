@@ -261,13 +261,14 @@ export const generateSubjectMarksListPDF = async ({
   
   // Prepare Table Headers
   const headRow = ['S.No', 'Roll No', 'Name'];
-  components.forEach(c => {
-    headRow.push(`${c.label} (${c.conductedMax})`);
-  });
+  headRow.push('Activities (95)');
+  
   if (isInternal2 && hasLab) {
-    headRow.push('Lab Mark', 'Lab Attd');
+    headRow.push('Lab Attd (Hrs)', 'Lab Mark');
   }
-  headRow.push('Attd Days', 'Attd Mark', 'Final Score', 'Internal Marks');
+  
+  headRow.push('Attendance (Hrs)', 'Attd Mark (5)', 'Activities Total (100)');
+  headRow.push(isInternal2 ? 'Internal 02 Mark (100)' : 'Internal 01 Mark (100)');
 
   // Prepare Table Body
   const bodyRows = students.map((student, idx) => {
@@ -278,12 +279,13 @@ export const generateSubjectMarksListPDF = async ({
       const conducted = parseFloat(c.conductedMax) || 100;
       convertedTotal += Math.min(val, conducted);
     });
+    convertedTotal = Math.round(convertedTotal);
 
     // 2. Calculate Attendance Mark
     const getAttendanceMark = (attended, maxHours) => {
       if (!maxHours || maxHours <= 0) return 0;
       const mark = (attended / maxHours) * 5;
-      return Math.min(5, Math.max(0, mark));
+      return Math.round(Math.min(5, Math.max(0, mark)));
     };
 
     let attendanceMark = 0;
@@ -319,24 +321,23 @@ export const generateSubjectMarksListPDF = async ({
       idx + 1,
       student.roll_no,
       student.name,
+      convertedTotal
     ];
 
-    components.forEach(c => {
-      const val = parseFloat(marksData[student.id]?.[c.uid]) || 0;
-      row.push(val.toFixed(2));
-    });
-
     if (isInternal2 && hasLab) {
-      const lMark = parseFloat(labData[student.id]?.labMark || 0);
+      const lMark = Math.round(parseFloat(labData[student.id]?.labMark || 0));
       const lAttd = parseInt(labData[student.id]?.labAttendance || 0);
-      row.push(lMark.toFixed(2), `${lAttd}/${labHours || 0}`);
+      row.push(`${lAttd}/${labHours || 0}`, lMark);
     }
+
+    const internalExamMark = internalExamData[student.id];
+    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
 
     row.push(
       attendanceDaysStr,
-      attendanceMark.toFixed(2),
-      finalScore.toFixed(2),
-      convertedTotal.toFixed(2)
+      attendanceMark,
+      finalScore,
+      internalExamMarkStr
     );
 
     return row;
