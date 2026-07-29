@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS students (
   roll_no   VARCHAR(30)  NOT NULL,
   name      VARCHAR(100) NOT NULL,
   class_id  VARCHAR(20)  NOT NULL,
+  department VARCHAR(150),
   PRIMARY KEY (id),
   UNIQUE KEY uq_rollno (roll_no),
   CONSTRAINT fk_student_class FOREIGN KEY (class_id) REFERENCES classes(id)
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS staffs (
   employee_id   VARCHAR(50),
   password      VARCHAR(255) DEFAULT 'faculty123',
   class_role    VARCHAR(50),
+  department    VARCHAR(150),
   PRIMARY KEY (id),
   UNIQUE KEY uq_email (email)
 ) ENGINE=InnoDB;
