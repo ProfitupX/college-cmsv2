@@ -1,12 +1,12 @@
 import { RadialBarChart, RadialBar, ResponsiveContainer, Tooltip } from 'recharts';
 import styles from './SubjectBreakdown.module.css';
 
-export default function SubjectBreakdown({ data }) {
+export default function SubjectBreakdown({ data, title = 'Subject Scores', sub = 'Average % per subject' }) {
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        <h3 className={styles.title}>Subject Scores</h3>
-        <p className={styles.sub}>Average % per subject</p>
+        <h3 className={styles.title}>{title}</h3>
+        <p className={styles.sub}>{sub}</p>
       </div>
 
       <ResponsiveContainer width="100%" height={180}>

@@ -222,7 +222,7 @@ export default function MarksEntryPage() {
         labMark: (labData[st.id] && labData[st.id].labMark) || ''
       }));
 
-      await marksAPI.submit({
+      const payload = {
         subjectId:     selectedSubjectId,
         classId:       selectedClassId,
         staffId:       user.id,
@@ -241,7 +241,13 @@ export default function MarksEntryPage() {
         attendance: attendancePayload,
         actionType,
         remedialAction
-      });
+      };
+
+      const res = await marksAPI.submit(payload);
+
+      if (res.sessionId) {
+        setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId }));
+      }
 
       markSaved();
       setSaved(true);
@@ -285,6 +291,18 @@ export default function MarksEntryPage() {
       alert(err.message || 'Failed to submit unlock request.');
     } finally {
       setSubmittingUnlock(false);
+    }
+  };
+
+  // Instant unlock for HOD/Admin
+  const handleUnlockSheet = async () => {
+    if (!currentSession?.id) return;
+    try {
+      await marksAPI.unlockSession(currentSession.id);
+      setSessionStatus('draft');
+      setSaved(false);
+    } catch (err) {
+      alert(err.message || 'Failed to unlock sheet.');
     }
   };
 
@@ -405,11 +423,17 @@ export default function MarksEntryPage() {
             <div className={styles.lockBanner}>
               <div className={styles.lockBannerLeft}>
                 <Lock size={18} />
-                <span>This Marks Sheet is <strong>Locked</strong> after submission. Changes require HOD approval.</span>
+                <span>This Marks Sheet is <strong>Locked</strong> after submission. {user?.role === 'hod' || user?.role === 'admin' ? 'You can unlock it.' : 'Changes require HOD approval.'}</span>
               </div>
-              <button className={styles.requestUnlockBtn} onClick={() => setShowUnlockModal(true)}>
-                <Key size={14} /> Request Edit Permission
-              </button>
+              {user?.role === 'hod' || user?.role === 'admin' ? (
+                <button className={styles.requestUnlockBtn} onClick={handleUnlockSheet}>
+                  <Key size={14} /> Unlock Sheet
+                </button>
+              ) : (
+                <button className={styles.requestUnlockBtn} onClick={() => setShowUnlockModal(true)}>
+                  <Key size={14} /> Request Edit Permission
+                </button>
+              )}
             </div>
           )}
 
@@ -437,7 +461,7 @@ export default function MarksEntryPage() {
                 className={styles.dropdown}
               >
                 <option value="internal1">Internal Assessment 1</option>
-                <option value="internal2">Internal Assessment 2 (Lab)</option>
+                <option value="internal2">Internal Assessment 2</option>
               </select>
             </div>
           </div>

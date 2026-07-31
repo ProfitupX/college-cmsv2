@@ -2,7 +2,7 @@
 -- College CMS — Seed Data for AI&DS Department
 -- ============================================================
 
-USE college_cms;
+-- USE college_cms;
 
 -- ─────────────────────────────────────────
 -- DEPARTMENTS

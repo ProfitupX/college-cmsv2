@@ -100,7 +100,12 @@ export const marksAPI = {
 
   requestUnlock: (payload) => post('/marks/request-unlock', payload),
 
-  getUnlockRequests: () => get('/marks/unlock-requests'),
+  unlockSession: (sessionId) => post('/marks/unlock-session', { sessionId }),
+
+  getUnlockRequests: (department) => {
+    const q = department ? `?department=${encodeURIComponent(department)}` : '';
+    return get(`/marks/unlock-requests${q}`);
+  },
 
   approveUnlock: (payload) => post('/marks/approve-unlock', payload),
 

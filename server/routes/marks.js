@@ -43,8 +43,12 @@ router.post('/submit', async (req, res) => {
 
     const getAttendanceMark = (attended, maxHours) => {
       if (!maxHours || maxHours <= 0) return 0;
-      const mark = (attended / maxHours) * 5;
-      return Math.min(5, Math.max(0, mark));
+      const pct = (attended / maxHours) * 100;
+      if (pct >= 80 && pct <= 85) return 1;
+      if (pct > 85 && pct <= 90) return 2;
+      if (pct > 90 && pct <= 95) return 3;
+      if (pct > 95) return 5;
+      return 0; // Below 80% is 0 mark
     };
 
     // Group marks by student to compute converted total per student
@@ -261,6 +265,22 @@ router.get('/sessions/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// POST /api/marks/unlock-session
+// Instant unlock for HOD/Admin (bypasses request queue)
+// ─────────────────────────────────────────────────────────────
+router.post('/unlock-session', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'Missing sessionId.' });
+    await db.execute(`UPDATE marks_sessions SET status = 'draft' WHERE id = ?`, [sessionId]);
+    res.json({ success: true, message: 'Sheet unlocked successfully.' });
+  } catch (err) {
+    console.error('POST /marks/unlock-session error:', err);
+    res.status(500).json({ error: 'Failed to unlock sheet: ' + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/marks/request-unlock
 // Staff requests permission from HOD to edit a locked sheet
 // ─────────────────────────────────────────────────────────────
@@ -297,18 +317,26 @@ router.post('/request-unlock', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.get('/unlock-requests', async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT ur.id, ur.session_id, ur.subject_id, ur.class_id, ur.staff_id,
-              ur.reason, ur.status, ur.requested_at,
-              st.name AS staff_name,
-              sub.name AS subject_name, sub.code AS subject_code,
-              cl.name AS class_name
-       FROM mark_unlock_requests ur
-       JOIN staffs st ON st.id = ur.staff_id
-       LEFT JOIN subjects sub ON sub.id = ur.subject_id
-       LEFT JOIN classes cl ON cl.id = ur.class_id
-       ORDER BY ur.requested_at DESC`
-    );
+    const { department } = req.query;
+    let sql = `
+      SELECT ur.id, ur.session_id, ur.subject_id, ur.class_id, ur.staff_id,
+             ur.reason, ur.status, ur.requested_at,
+             st.name AS staff_name,
+             sub.name AS subject_name, sub.code AS subject_code,
+             cl.name AS class_name
+      FROM mark_unlock_requests ur
+      JOIN staffs st ON st.id = ur.staff_id
+      LEFT JOIN subjects sub ON sub.id = ur.subject_id
+      LEFT JOIN classes cl ON cl.id = ur.class_id
+    `;
+    const params = [];
+    if (department) {
+      sql += ` WHERE st.department = ?`;
+      params.push(department);
+    }
+    sql += ` ORDER BY ur.requested_at DESC`;
+
+    const [rows] = await db.execute(sql, params);
     res.json(rows);
   } catch (err) {
     console.warn('GET /marks/unlock-requests table notice:', err.message);

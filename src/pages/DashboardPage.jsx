@@ -26,13 +26,17 @@ export default function DashboardPage() {
   const loadData = () => {
     setLoading(true);
     const promises = [
-      statsAPI.get('', user?.id, user?.role, user?.department),
+      user?.role === 'admin' 
+        ? statsAPI.getCollegeStats()
+        : statsAPI.get('', user?.id, user?.role, user?.department),
       marksAPI.getSessions({}),
       settingsAPI.getDeadline()
     ];
 
-    if (user?.role === 'hod' || user?.role === 'admin') {
-      promises.push(marksAPI.getUnlockRequests().catch(() => []));
+    // Removed unlock requests for Admin since they have direct unlock button.
+    // HOD still gets unlock requests.
+    if (user?.role === 'hod') {
+      promises.push(marksAPI.getUnlockRequests(user.department).catch(() => []));
     } else {
       promises.push(Promise.resolve([]));
     }
@@ -180,28 +184,55 @@ export default function DashboardPage() {
         : `Across all ${user?.department || 'IT'} classes`)
     : (assignedClassList.length > 0 ? `${assignedClassList.length} Class(es) Teaching` : 'This semester');
 
-  const stats = [
-    {
-      icon: Users, label: isHodOrAdmin ? 'Department Total Students' : 'Total Students',
-      value: data?.totalStudents ?? 0,
-      sub: studentSubtext, color: '#6C63FF',
-    },
-    {
-      icon: BookOpen, label: subjectLabel,
-      value: subjectValue,
-      sub: subjectSubtext, color: '#22D3EE',
-    },
-    {
-      icon: AlertCircle, label: 'Pending Drafts',
-      value: data?.pendingSubmissions ?? 0,
-      sub: 'Awaiting submission', color: '#F59E0B',
-    },
-    {
-      icon: TrendingUp, label: 'Average Score /40',
-      value: `${data?.averageScore ?? 0}`,
-      sub: 'Across all sessions', trend: 'up', trendVal: '+2.1', color: '#10B981',
-    },
-  ];
+  let stats = [];
+
+  if (user?.role === 'admin') {
+    stats = [
+      {
+        icon: Users, label: 'Total Students',
+        value: data?.overview?.totalStudents ?? (data?.totalStudents ?? 0),
+        sub: 'Enrolled across college', color: '#6C63FF',
+      },
+      {
+        icon: BookOpen, label: 'Total Departments',
+        value: data?.overview?.totalDepartments ?? 0,
+        sub: 'Active departments', color: '#22D3EE',
+      },
+      {
+        icon: Users, label: 'Total Faculty',
+        value: data?.overview?.totalFaculty ?? 0,
+        sub: 'Registered staff', color: '#F59E0B',
+      },
+      {
+        icon: TrendingUp, label: 'College Avg Score',
+        value: `${data?.overview?.collegeAvg ?? (data?.averageScore ?? 0)}`,
+        sub: 'Across all sessions', color: '#10B981',
+      },
+    ];
+  } else {
+    stats = [
+      {
+        icon: Users, label: isHodOrAdmin ? 'Department Total Students' : 'Total Students',
+        value: data?.totalStudents ?? 0,
+        sub: studentSubtext, color: '#6C63FF',
+      },
+      {
+        icon: BookOpen, label: subjectLabel,
+        value: subjectValue,
+        sub: subjectSubtext, color: '#22D3EE',
+      },
+      {
+        icon: AlertCircle, label: 'Pending Drafts',
+        value: data?.pendingSubmissions ?? 0,
+        sub: 'Awaiting submission', color: '#F59E0B',
+      },
+      {
+        icon: TrendingUp, label: 'Average Score /40',
+        value: `${data?.averageScore ?? 0}`,
+        sub: 'Across all sessions', trend: 'up', trendVal: '+2.1', color: '#10B981',
+      },
+    ];
+  }
 
   // Shape sessions into the format RecentEntries expects
   const entries = sessions.map((s) => ({
@@ -213,6 +244,41 @@ export default function DashboardPage() {
     count:       s.student_count,
     avgScore:    s.avg_score,
   }));
+
+  let sideChartData = [];
+  let sideChartTitle = 'Subject Scores';
+  let sideChartSub = 'Average % per subject';
+
+  const colors = ['#6C63FF', '#10B981', '#F59E0B', '#22D3EE', '#EF4444', '#EC4899', '#8B5CF6'];
+
+  if (user?.role === 'admin') {
+    sideChartTitle = 'Department Scores';
+    sideChartSub = 'Average % per department';
+    if (data?.departmentStats) {
+      sideChartData = data.departmentStats.map((d, idx) => ({
+        name: d.department,
+        value: parseFloat(d.avgScore) || 0,
+        fill: colors[idx % colors.length]
+      }));
+    }
+  } else {
+    if (data?.subjectDistribution) {
+      sideChartData = data.subjectDistribution.map((d, idx) => ({
+        ...d,
+        value: parseFloat(d.value) || 0,
+        fill: colors[idx % colors.length]
+      }));
+    }
+  }
+
+  // Ensure AreaChart has at least 2 points to draw a line
+  let perfData = (user?.role === 'admin' ? data?.performanceTrend : data?.performanceData) || [];
+  if (perfData.length === 1) {
+    perfData = [
+      { month: 'Prev', avgScore: 0, submissions: 0 },
+      ...perfData
+    ];
+  }
 
   return (
     <div>
@@ -242,10 +308,14 @@ export default function DashboardPage() {
 
       <div className={styles.chartsRow}>
         <div className={styles.chartMain}>
-          <PerformanceChart data={data?.performanceData || []} />
+          <PerformanceChart data={perfData} />
         </div>
         <div className={styles.chartSide}>
-          <SubjectBreakdown data={data?.subjectDistribution || []} />
+          <SubjectBreakdown 
+            data={sideChartData} 
+            title={sideChartTitle} 
+            sub={sideChartSub} 
+          />
         </div>
       </div>
 

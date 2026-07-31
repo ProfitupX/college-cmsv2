@@ -33,7 +33,7 @@ router.post('/login', async (req, res) => {
     }
 
     const [rows] = await db.execute(
-      'SELECT id, name, short_name, designation, role, email, employee_id, class_role FROM staffs WHERE LOWER(email) = LOWER(?) AND password = ?',
+      'SELECT id, name, short_name, designation, role, email, employee_id, class_role, department FROM staffs WHERE LOWER(email) = LOWER(?) AND password = ?',
       [email.trim(), password]
     );
 
@@ -66,7 +66,7 @@ router.post('/login', async (req, res) => {
         email:              staff.email,
         employeeId:         staff.employee_id,
         classRole:          staff.class_role,
-        department:         'Information Technology',
+        department:         staff.department || 'Information Technology',
         assignedSubjectIds: assignedSubs.map(s => s.id),
         assignedSubjects:   assignedSubs,
         isClassCoordinator: coordClasses.length > 0 || staff.class_role === 'Class Coordinator',

@@ -13,7 +13,7 @@ CREATE DATABASE IF NOT EXISTS college_cms
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE college_cms;
+-- USE college_cms;
 
 -- ─────────────────────────────────────────
 -- 1. DEPARTMENTS

@@ -17,8 +17,12 @@ export default function MarksRow({
 
   const getAttendanceMark = (attended, maxHours) => {
     if (!maxHours || maxHours <= 0) return 0;
-    const mark = (attended / maxHours) * 5;
-    return Math.round(Math.min(5, Math.max(0, mark)));
+    const pct = (attended / maxHours) * 100;
+    if (pct >= 80 && pct <= 85) return 1;
+    if (pct > 85 && pct <= 90) return 2;
+    if (pct > 90 && pct <= 95) return 3;
+    if (pct > 95) return 5;
+    return 0; // Below 80% is 0 mark
   };
 
   let attendanceMark = 0;
@@ -155,6 +159,9 @@ export default function MarksRow({
               />
               <span className={styles.inputMax}>/{int2Hours || '?'}</span>
               <div className={styles.convertedDisplay} title={`Cumulative Attended: ${cumulativeAttended}/${cumulativeMaxHours}`}>
+                {(cumulativeMaxHours > 0 && (cumulativeAttended / cumulativeMaxHours) < 0.8) && (
+                  <span title="< 80% Attendance" style={{color:'#ef4444', marginRight:'4px', fontSize:'12px'}}>⚠️</span>
+                )}
                 <span className={styles.convertedLabel}>wt.</span> {attendanceMark} 
                 <span className={styles.convertedMax}>/5</span>
               </div>
