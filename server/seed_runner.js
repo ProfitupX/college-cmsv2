@@ -18,20 +18,12 @@ const pool = mysql.createPool({
 
 async function runSeed() {
   try {
-    const csePath = path.resolve('../database/seed_cse.sql');
-    const aidsPath = path.resolve('../database/seed_aids.sql');
+    const seedPath = path.resolve('../database/seed.sql');
+    const seedSql = fs.readFileSync(seedPath, 'utf8');
     
-    const cseSql = fs.readFileSync(csePath, 'utf8');
-    const aidsSql = fs.readFileSync(aidsPath, 'utf8');
-    
-    console.log('Running seed_cse.sql...');
-    await pool.query(cseSql);
-    console.log('Successfully inserted CSE data!');
-    
-    console.log('Running seed_aids.sql...');
-    await pool.query(aidsSql);
-    console.log('Successfully inserted AI&DS data!');
-    
+    console.log('Running database/seed.sql...');
+    await pool.query(seedSql);
+    console.log('Successfully initialized database with seed.sql!');
   } catch (err) {
     console.error('Error running seed script:', err);
   } finally {

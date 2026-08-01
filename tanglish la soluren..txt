@@ -1,3 +1,0 @@
-tanglish la soluren.
-enala new students aha add pana mudiyathu on direct db la so, na my dashboard direct aha add panikalam student details class and subaject all control my admin so split into two one for staffs only can access a marks entry and their own settings and 
-enakku own admin dashboard venum for dashboard reports and own setting and ethula tha extra add panu for add students subjcets depetamet staffs alos with crt connection la na add panikalam from my dashboard la without touch of db la ok. athukku suitable la db ya make panu and website aha login access vachu split panu for admin and staffs ok 

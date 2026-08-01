@@ -58,22 +58,10 @@ if ($testResult -like "*connected*") {
 Write-Host ""
 Write-Host "[3/4] Setting up database schema and seed data..." -ForegroundColor Yellow
 
-$schemaPath  = "$rootDir\database\schema.sql"
-$seedPath    = "$rootDir\database\seed.sql"
-$seedAids    = "$rootDir\database\seed_aids.sql"
-$seedCse     = "$rootDir\database\seed_cse.sql"
+$seedPath = "$rootDir\database\seed.sql"
 
-& cmd /c "`"$mysql`" -u root -p`"$dbPass`" < `"$schemaPath`""
-Write-Host "      ✅ schema.sql executed" -ForegroundColor Green
-
-& cmd /c "`"$mysql`" -u root -p`"$dbPass`" college_cms < `"$seedPath`""
-Write-Host "      ✅ seed.sql executed" -ForegroundColor Green
-
-& cmd /c "`"$mysql`" -u root -p`"$dbPass`" college_cms < `"$seedAids`""
-Write-Host "      ✅ seed_aids.sql executed" -ForegroundColor Green
-
-& cmd /c "`"$mysql`" -u root -p`"$dbPass`" college_cms < `"$seedCse`""
-Write-Host "      ✅ seed_cse.sql executed" -ForegroundColor Green
+& cmd /c "`"$mysql`" -u root -p`"$dbPass`" < `"$seedPath`""
+Write-Host "      ✅ seed.sql executed successfully" -ForegroundColor Green
 
 # ── Step 4: Verify ─────────────────────────────────────────────
 Write-Host ""
