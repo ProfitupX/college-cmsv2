@@ -38,14 +38,14 @@ export default function MarksRow({
   } else {
     // Internal 2 mode: Cumulative attendance (Int1 + Int2 [+ Lab if Lab-cum-Theory])
     const i1Attd = parseInt(int1AttendanceHours || 0);
-    const i2Attd = parseInt(attendanceHours || 0);
-    const lAttd  = (selectedSubject?.type === 'Lab-cum-Theory') ? parseInt(labData?.labAttendance || 0) : 0;
+    const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+    const lAttd  = isLabCumTheory ? parseInt(labData?.labAttendance || 0) : 0;
     
     cumulativeAttended = i1Attd + i2Attd + lAttd;
 
     const i1Max = parseInt(int1Hours || 0);
     const i2Max = parseInt(int2Hours || 0);
-    const lMax  = (selectedSubject?.type === 'Lab-cum-Theory') ? parseInt(labHours || 0) : 0;
+    const lMax  = isLabCumTheory ? parseInt(labHours || 0) : 0;
     
     cumulativeMaxHours = i1Max + i2Max + lMax;
 
@@ -168,8 +168,8 @@ export default function MarksRow({
             </div>
           </td>
 
-          {/* Lab Attendance Input Column (if Lab-cum-Theory) */}
-          {selectedSubject?.type === 'Lab-cum-Theory' && (
+          {/* Lab Attendance Input Column (if Lab-cum-Theory / Theory-cum-Lab) */}
+          {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
             <td className={styles.inputCell}>
               <div className={styles.inputWrap}>
                 <input
@@ -224,8 +224,8 @@ export default function MarksRow({
         </div>
       </td>
 
-      {/* Lab Mark column - only when mode is internal2 AND type is Lab-cum-Theory */}
-      {assessmentMode === 'internal2' && selectedSubject?.type === 'Lab-cum-Theory' && (
+      {/* Lab Mark column - only when mode is internal2 AND type is Lab-cum-Theory / Theory-cum-Lab */}
+      {assessmentMode === 'internal2' && (selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
         <td className={styles.inputCell}>
           <div className={styles.inputWrap}>
             <input

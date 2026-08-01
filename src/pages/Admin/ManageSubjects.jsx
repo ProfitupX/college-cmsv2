@@ -20,14 +20,25 @@ export default function ManageSubjects() {
 
   const [formData, setFormData] = useState({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '', ltpc: '', total_hours: '' });
 
-  const handleLtpcChange = (val) => {
-    let hours = formData.total_hours;
-    if (val && val.length === 4) {
-      const c = parseInt(val[3]);
-      if (!isNaN(c)) {
-        hours = c * 15;
-      }
+  const calculateTotalHoursFromLTPC = (val) => {
+    if (!val) return '';
+    let parts = String(val).trim().split(/[\s\-]+/);
+    if (parts.length === 1 && parts[0].length >= 4) {
+      parts = parts[0].split('');
     }
+    if (parts.length >= 3) {
+      const l = parseFloat(parts[0]) || 0;
+      const t = parseFloat(parts[1]) || 0;
+      const p = parseFloat(parts[2]) || 0;
+      const total = (l + t + p) * 15;
+      return total > 0 ? total : '';
+    }
+    return '';
+  };
+
+  const handleLtpcChange = (val) => {
+    const calculatedHours = calculateTotalHoursFromLTPC(val);
+    const hours = calculatedHours !== '' ? calculatedHours : formData.total_hours;
     setFormData(prev => ({ ...prev, ltpc: val, total_hours: hours }));
   };
 
@@ -161,8 +172,11 @@ export default function ManageSubjects() {
 
             <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
               <option value="Theory">Theory</option>
-              <option value="Practical">Practical</option>
+              <option value="Theory-cum-Lab">Theory-cum-Lab</option>
               <option value="Lab-cum-Theory">Lab-cum-Theory</option>
+              <option value="Practical">Practical</option>
+              <option value="Skill">Skill</option>
+              <option value="Other">Other</option>
             </select>
             
             <select required value={formData.class_id} onChange={e => setFormData({...formData, class_id: e.target.value})}>

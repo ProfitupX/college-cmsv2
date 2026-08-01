@@ -66,8 +66,8 @@ export default function MarksTable({
                     </div>
                   </th>
 
-                  {/* Lab Attendance Header (if Lab-cum-Theory) */}
-                  {selectedSubject?.type === 'Lab-cum-Theory' && (
+                  {/* Lab Attendance Header (if Lab-cum-Theory / Theory-cum-Lab) */}
+                  {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
                     <th className={`${styles.th} ${styles.attendanceTh}`}>
                       <div className={styles.thContent}>
                         <span className={styles.thIcon}>🧑‍🔬</span>
@@ -96,8 +96,8 @@ export default function MarksTable({
                 </div>
               </th>
 
-              {/* Lab Mark column - only when mode is internal2 AND type is Lab-cum-Theory */}
-              {assessmentMode === 'internal2' && selectedSubject?.type === 'Lab-cum-Theory' && (
+              {/* Lab Mark column - only when mode is internal2 AND type is Lab-cum-Theory / Theory-cum-Lab */}
+              {(assessmentMode === 'internal2' && (selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab')) && (
                 <th className={`${styles.th} ${styles.internalExamTh}`}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>🔬</span>

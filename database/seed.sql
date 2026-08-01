@@ -1,251 +1,8 @@
--- ============================================================
--- College CMS — MySQL Schema
--- College: Nadar Saraswathi College of Engineering & Technology
--- Department: Information Technology | II Year III Sem | 2025-26
--- ============================================================
--- HOW TO USE:
---   1. Open MySQL Workbench → File → Open SQL Script → select this file
---   2. Press Ctrl+Shift+Enter (Execute All)
---   3. Then run seed.sql the same way
--- ============================================================
-
-CREATE DATABASE IF NOT EXISTS college_cms
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
+CREATE DATABASE IF NOT EXISTS college_cms;
 USE college_cms;
 
--- ─────────────────────────────────────────
--- 1. DEPARTMENTS
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS departments (
-  id           INT          NOT NULL AUTO_INCREMENT,
-  short_name   VARCHAR(20)  NOT NULL,
-  name         VARCHAR(150) NOT NULL,
-  college_name VARCHAR(250),
-  PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 2. CLASSES
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS classes (
-  id                  VARCHAR(20)  NOT NULL,
-  name                VARCHAR(100) NOT NULL,
-  department          VARCHAR(150),
-  semester            INT,
-  year_label          VARCHAR(10)  COMMENT 'e.g. II',
-  section             VARCHAR(5),
-  room_no             VARCHAR(20),
-  academic_year       VARCHAR(20),
-  batch               VARCHAR(20),
-  class_coordinator   VARCHAR(100),
-  asst_coordinator    VARCHAR(100),
-  PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 3. STUDENTS
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS students (
-  id        VARCHAR(20)  NOT NULL,
-  s_no      INT          NOT NULL,
-  roll_no   VARCHAR(30)  NOT NULL,
-  name      VARCHAR(100) NOT NULL,
-  class_id  VARCHAR(20)  NOT NULL,
-  department VARCHAR(150),
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_rollno (roll_no),
-  CONSTRAINT fk_student_class FOREIGN KEY (class_id) REFERENCES classes(id)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 4. STAFFS
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS staffs (
-  id            VARCHAR(20)  NOT NULL,
-  name          VARCHAR(100) NOT NULL,
-  short_name    VARCHAR(100),
-  designation   VARCHAR(100),
-  role          VARCHAR(30)  DEFAULT 'faculty',
-  email         VARCHAR(150) NOT NULL,
-  employee_id   VARCHAR(50),
-  password      VARCHAR(255) DEFAULT 'faculty123',
-  class_role    VARCHAR(50),
-  department    VARCHAR(150),
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_email (email)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 5. SUBJECTS
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS subjects (
-  id          VARCHAR(20)  NOT NULL,
-  code        VARCHAR(30)  NOT NULL,
-  name        VARCHAR(200) NOT NULL,
-  acronym     VARCHAR(20),
-  type        VARCHAR(50)  DEFAULT 'Theory',
-  department  VARCHAR(150),
-  semester    INT,
-  l           INT          DEFAULT 0,
-  t           INT          DEFAULT 0,
-  p           INT          DEFAULT 0,
-  c           INT          DEFAULT 0,
-  total_hours INT,
-  faculty_id  VARCHAR(20),
-  class_id    VARCHAR(20),
-  PRIMARY KEY (id),
-  CONSTRAINT fk_subject_faculty FOREIGN KEY (faculty_id) REFERENCES staffs(id),
-  CONSTRAINT fk_subject_class   FOREIGN KEY (class_id)   REFERENCES classes(id)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 6. MARKS SESSIONS
---    One row per "Submit Marks" action
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS marks_sessions (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  subject_id    VARCHAR(20)   NOT NULL,
-  class_id      VARCHAR(20)   NOT NULL,
-  staff_id      VARCHAR(20),
-  session_label VARCHAR(100),
-  total_max     DECIMAL(6,2)  NOT NULL COMMENT 'Will be max 95 based on staff components',
-  total_hours   INT,
-  internal2_total_hours INT,
-  status        VARCHAR(20)   DEFAULT 'locked',
-  avg_score     DECIMAL(5,2)  DEFAULT 0.00,
-  student_count INT           DEFAULT 0,
-  remedial_action TEXT,
-  created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  CONSTRAINT fk_session_sub FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
-  CONSTRAINT fk_session_cls FOREIGN KEY (class_id)   REFERENCES classes(id)  ON DELETE CASCADE,
-  CONSTRAINT fk_session_stf FOREIGN KEY (staff_id)   REFERENCES staffs(id)   ON DELETE SET NULL
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 4c. session_attendance
---    Stores hours attended per student for a session
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS session_attendance (
-  session_id         INT NOT NULL,
-  student_id         VARCHAR(20) NOT NULL,
-  hours_attended     INT,
-  internal_exam_mark DECIMAL(6,2),
-  lab_attendance     INT,
-  lab_mark           DECIMAL(6,2),
-  PRIMARY KEY (session_id, student_id),
-  CONSTRAINT fk_att_session FOREIGN KEY (session_id) REFERENCES marks_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 7. ASSESSMENT COMPONENTS
---    Dynamic components staff add per session
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS assessment_components (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  session_id    INT           NOT NULL,
-  type_id       VARCHAR(30)   COMMENT 'test | assignment | quiz | ...',
-  label         VARCHAR(100)  NOT NULL COMMENT 'Custom name e.g. Test 1',
-  conducted_max DECIMAL(6,2)  DEFAULT 100 COMMENT 'Marks the exam was written for',
-  max_marks     DECIMAL(6,2)  NOT NULL COMMENT 'Weight % out of 100 final total',
-  icon          VARCHAR(10),
-  color         VARCHAR(20),
-  sort_order    INT           DEFAULT 0,
-  PRIMARY KEY (id),
-  CONSTRAINT fk_comp_session FOREIGN KEY (session_id)
-    REFERENCES marks_sessions(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 8. MARKS
---    One row per student per component
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS marks (
-  id              INT           NOT NULL AUTO_INCREMENT,
-  session_id      INT           NOT NULL,
-  component_id    INT           NOT NULL,
-  student_id      VARCHAR(20)   NOT NULL,
-  marks_obtained  DECIMAL(6,2)  DEFAULT 0,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_mark (session_id, component_id, student_id),
-  CONSTRAINT fk_mark_session   FOREIGN KEY (session_id)   REFERENCES marks_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_mark_component FOREIGN KEY (component_id) REFERENCES assessment_components(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 9. MARK UNLOCK REQUESTS
---    Requests sent by staff to HOD to edit locked marks
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS mark_unlock_requests (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  session_id    INT           NOT NULL,
-  subject_id    VARCHAR(20)   NOT NULL,
-  class_id      VARCHAR(20)   NOT NULL,
-  staff_id      VARCHAR(20)   NOT NULL,
-  reason        TEXT,
-  status        VARCHAR(20)   DEFAULT 'pending', -- pending | approved | rejected
-  requested_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
-  actioned_at   TIMESTAMP     NULL,
-  actioned_by   VARCHAR(20)   NULL,
-  PRIMARY KEY (id),
-  CONSTRAINT fk_unlock_session FOREIGN KEY (session_id) REFERENCES marks_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_unlock_staff   FOREIGN KEY (staff_id)   REFERENCES staffs(id)   ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 10. NOTIFICATIONS
---     System workflow messages for deadlines and freezing
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS notifications (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  target_role   VARCHAR(50)   COMMENT 'e.g. hod, class_coordinator, or specific staff_id',
-  target_id     VARCHAR(20)   COMMENT 'staff ID if targeted to a specific user',
-  title         VARCHAR(150)  NOT NULL,
-  message       TEXT          NOT NULL,
-  link          VARCHAR(255)  COMMENT 'Deep link for interactive notifications',
-  is_read       BOOLEAN       DEFAULT FALSE,
-  created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 11. SYSTEM SETTINGS
---     Global configurations (e.g. HOD marks entry deadline)
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS system_settings (
-  setting_key   VARCHAR(100)  NOT NULL,
-  setting_value VARCHAR(255)  NOT NULL,
-  updated_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (setting_key)
-) ENGINE=InnoDB;
-
--- ─────────────────────────────────────────
--- 12. CLASS ANALYSIS REMARKS
---     Manual qualitative inputs from Class In-charge per session
--- ─────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS class_analysis_remarks (
-  id               INT           NOT NULL AUTO_INCREMENT,
-  class_id         VARCHAR(20)   NOT NULL,
-  session_label    VARCHAR(50)   NOT NULL,
-  remarks          TEXT,
-  improvement_plan TEXT,
-  updated_at       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_class_session (class_id, session_label),
-  CONSTRAINT fk_rem_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- Confirm
-SELECT 'Schema created successfully ✓' AS status;
-
-
-
 -- ============================================================
--- SEED DATA DUMP
+-- COLLEGE CMS FULL DUMP (SCHEMA + SEED DATA)
 -- ============================================================
 
 -- ─────────────────────────────────────────
@@ -345,66 +102,66 @@ INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, emplo
 -- TABLE: SUBJECTS
 -- ─────────────────────────────────────────
 INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
-('SUB001', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Information Technology', 3, 'FAC002', 'CL001', '3104', 60, 0, 0, 0, 0),
-('SUB002', 'CW25201', 'Computer Organization and Architecture', 'COA', 'Theory', 'Information Technology', 3, 'FAC003', 'CL001', '3104', 60, 0, 0, 0, 0),
-('SUB003', 'CS25C08', 'Data Structures', 'DS', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC004', 'CL001', '3045', 75, 0, 0, 0, 0),
-('SUB004', 'CS25C07', 'Object Oriented Programming', 'OOP', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC001', 'CL001', '3045', 75, 0, 0, 0, 0),
-('SUB005', 'IT25301', 'Web Technologies', 'WT', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC005', 'CL001', '3024', 60, 0, 0, 0, 0),
-('SUB006', 'SD', 'Skill Development Course - I', 'SD', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC006', 'CL001', '1022', 30, 0, 0, 0, 0),
-('SUB010', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Computer Science and Engineering', 3, 'FAC010', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB011', 'CS25C11', 'Operating Systems', 'OS', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC011', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB012', 'CS25C10', 'Object Oriented Software Engineering', 'OOSE', 'Theory', 'Computer Science and Engineering', 3, 'FAC012', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB013', 'CS25C08', 'Data Structures', 'DS', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC013', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB014', 'CS25C09', 'Java Programming', 'JAVA', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC014', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB015', 'NM', 'Naan Mudhalvan Course', 'NM', 'Skill', 'Computer Science and Engineering', 3, 'FAC012', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB016', 'SD', 'Skill Development Course-I', 'SD', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC016', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB017', 'EN25C03', 'English Communication Skills Laboratory', 'ECS LAB', 'Practical', 'Computer Science and Engineering', 3, 'FAC017', 'CL002', NULL, NULL, 0, 0, 0, 0),
-('SUB020', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Artificial Intelligence and Data Science', 3, 'FAC026', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB021', 'CS25C08', 'Data Structures', 'DS', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC021', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB022', 'CS25C09', 'Java Programming', 'JP', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC022', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB023', 'AD25C01', 'Exploratory Data Analysis', 'EDA', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC023', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB024', 'CS25C11', 'Operating Systems', 'OS', 'Theory', 'Artificial Intelligence and Data Science', 3, 'FAC024', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB025', 'SD', 'Skill Development Course - I', 'SD', 'Skill', 'Artificial Intelligence and Data Science', 3, 'FAC025', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB026', 'NM', 'Naan Mudhalvan Course', 'NM', 'Skill', 'Artificial Intelligence and Data Science', 3, 'FAC021', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB027', 'EN25C03', 'English Communication Skills Laboratory', 'ECS LAB', 'Practical', 'Artificial Intelligence and Data Science', 3, 'FAC027', 'CL003', NULL, NULL, 0, 0, 0, 0),
-('SUB030', 'MA25C04', 'Matrices for Engineers', 'MFE', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC031', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB031', 'EE25C04', 'Electromagnetic Theory', 'EMT', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC032', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB032', 'EE25301', 'Digital Electronics', 'DE', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC033', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB033', 'EE25302', 'Electric Circuit Analysis', 'ECA', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC034', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB034', 'EE25C05', 'Electronic Devices and Circuits', 'EDC', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC035', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB036', 'EE25303', 'Electric Circuit Laboratory', 'ECA LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC034', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB037', 'EE25C06', 'Electronics Laboratory', 'EL LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC035', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB038', 'EN25C03', 'English Communication Skills Laboratory - I', 'ECS LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC038', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB039', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electrical and Electronics Engineering', 3, 'FAC036', 'CL004', NULL, NULL, 0, 0, 0, 0),
-('SUB040', 'MA25C05', 'Probability, Statistical and Random Process', 'PSRP', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC041', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB041', 'EC25C04', 'Signals and Systems', 'SS', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC042', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB042', 'EC25C05', 'Electronic Circuit Analysis', 'ECA', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC043', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB043', 'EC25C06', 'Electro Magnetic Fields and Transmission Lines', 'EMF', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC045', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB044', 'EC25C07', 'Digital System Design', 'DSD', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB045', 'EC25C08', 'Digital System Design Laboratory', 'DSD LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB046', 'EC25C09', 'Electronic Circuits Laboratory', 'EC LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC044', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB047', 'EN25C03', 'English Communication Skill Laboratory-I', 'ENG LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC047', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB048', 'SD LAB', 'Skill Development Course', 'SD LAB', 'Skill', 'Electronics and Communication Engineering', 3, 'FAC047', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB049', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electronics and Communication Engineering', 3, 'FAC048', 'CL005', NULL, NULL, 0, 0, 0, 0),
-('SUB051', 'ME25C07', 'Applied Engineering Mechanics', 'AEM', 'Theory', 'Mechanical Engineering', 3, 'FAC052', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB052', 'ME25301', 'Engineering Thermodynamics', 'ETD', 'Theory', 'Mechanical Engineering', 3, 'FAC053', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB053', 'CE25C11', 'Strength of Materials', 'SOM', 'Theory-cum-Lab', 'Mechanical Engineering', 3, 'FAC054', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB054', 'ME25C08', 'Metallurgy and Materials Science', 'MMS', 'Theory', 'Mechanical Engineering', 3, 'FAC055', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB058', 'SDC - I', 'Skill Development Course - I', 'SDC - I', 'Skill', 'Mechanical Engineering', 3, 'FAC054', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB059', 'NM', 'NAAN MUDHALVAN (Foundation Skills for Employability)', 'NM', 'Skill', 'Mechanical Engineering', 3, 'FAC054', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB060', 'LIB', 'LIBRARY', 'LIB', 'Other', 'Mechanical Engineering', 3, 'FAC058', 'CL006', NULL, NULL, 0, 0, 0, 0),
-('SUB071', 'CE25C02', 'Fluid Mechanics and Machinery', 'FMM', 'Theory', 'Civil Engineering', 3, 'FAC062', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB072', 'AG25C01', 'Engineering Geology', 'EG', 'Theory', 'Civil Engineering', 3, 'FAC063', 'CL007', NULL, NULL, 0, 0, 0, 0);
+('SUB001', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Information Technology', 3, 'FAC002', 'CL001', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB002', 'CW25201', 'Computer Organization and Architecture', 'COA', 'Theory', 'Information Technology', 3, 'FAC003', 'CL001', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB003', 'CS25C08', 'Data Structures', 'DS', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC004', 'CL001', '3-0-4-5', 105, 3, 0, 4, 5),
+('SUB004', 'CS25C07', 'Object Oriented Programming', 'OOP', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC001', 'CL001', '3-0-4-5', 105, 3, 0, 4, 5),
+('SUB005', 'IT25301', 'Web Technologies', 'WT', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC005', 'CL001', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB006', 'SD', 'Skill Development Course - I', 'SD', 'Lab-cum-Theory', 'Information Technology', 3, 'FAC006', 'CL001', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB010', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Computer Science and Engineering', 3, 'FAC010', 'CL002', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB011', 'CS25C11', 'Operating Systems', 'OS', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC011', 'CL002', '2-0-2-3', 60, 2, 0, 2, 3),
+('SUB012', 'CS25C10', 'Object Oriented Software Engineering', 'OOSE', 'Theory', 'Computer Science and Engineering', 3, 'FAC012', 'CL002', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB013', 'CS25C08', 'Data Structures', 'DS', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC013', 'CL002', '3-0-4-5', 105, 3, 0, 4, 5),
+('SUB014', 'CS25C09', 'Java Programming', 'JAVA', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC014', 'CL002', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB015', 'NM', 'Naan Mudhalvan Course', 'NM', 'Skill', 'Computer Science and Engineering', 3, 'FAC012', 'CL002', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB016', 'SD', 'Skill Development Course-I', 'SD', 'Theory-cum-Lab', 'Computer Science and Engineering', 3, 'FAC016', 'CL002', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB017', 'EN25C03', 'English Communication Skills Laboratory', 'ECS LAB', 'Practical', 'Computer Science and Engineering', 3, 'FAC017', 'CL002', '1-0-2-1', 45, 1, 0, 2, 1),
+('SUB020', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Artificial Intelligence and Data Science', 3, 'FAC026', 'CL003', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB021', 'CS25C08', 'Data Structures', 'DS', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC021', 'CL003', '3-0-4-5', 105, 3, 0, 4, 5),
+('SUB022', 'CS25C09', 'Java Programming', 'JP', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC022', 'CL003', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB023', 'AD25C01', 'Exploratory Data Analysis', 'EDA', 'Theory-cum-Lab', 'Artificial Intelligence and Data Science', 3, 'FAC023', 'CL003', '2-0-4-3', 90, 2, 0, 4, 3),
+('SUB024', 'CS25C11', 'Operating Systems', 'OS', 'Theory', 'Artificial Intelligence and Data Science', 3, 'FAC024', 'CL003', '2-0-2-3', 60, 2, 0, 2, 3),
+('SUB025', 'SD', 'Skill Development Course - I', 'SD', 'Skill', 'Artificial Intelligence and Data Science', 3, 'FAC025', 'CL003', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB026', 'NM', 'Naan Mudhalvan Course', 'NM', 'Skill', 'Artificial Intelligence and Data Science', 3, 'FAC021', 'CL003', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB027', 'EN25C03', 'English Communication Skills Laboratory', 'ECS LAB', 'Practical', 'Artificial Intelligence and Data Science', 3, 'FAC027', 'CL003', '1-0-2-1', 45, 1, 0, 2, 1),
+('SUB030', 'MA25C04', 'Matrices for Engineers', 'MFE', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC031', 'CL004', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB031', 'EE25C04', 'Electromagnetic Theory', 'EMT', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC032', 'CL004', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB032', 'EE25301', 'Digital Electronics', 'DE', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC033', 'CL004', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB033', 'EE25302', 'Electric Circuit Analysis', 'ECA', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC034', 'CL004', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB034', 'EE25C05', 'Electronic Devices and Circuits', 'EDC', 'Theory', 'Electrical and Electronics Engineering', 3, 'FAC035', 'CL004', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB036', 'EE25303', 'Electric Circuit Laboratory', 'ECA LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC034', 'CL004', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB037', 'EE25C06', 'Electronics Laboratory', 'EL LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC035', 'CL004', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB038', 'EN25C03', 'English Communication Skills Laboratory - I', 'ECS LAB', 'Practical', 'Electrical and Electronics Engineering', 3, 'FAC038', 'CL004', '1-0-2-1', 45, 1, 0, 2, 1),
+('SUB039', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electrical and Electronics Engineering', 3, 'FAC036', 'CL004', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB040', 'MA25C05', 'Probability, Statistical and Random Process', 'PSRP', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC041', 'CL005', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB041', 'EC25C04', 'Signals and Systems', 'SS', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC042', 'CL005', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB042', 'EC25C05', 'Electronic Circuit Analysis', 'ECA', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC043', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB043', 'EC25C06', 'Electro Magnetic Fields and Transmission Lines', 'EMF', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC045', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB044', 'EC25C07', 'Digital System Design', 'DSD', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB045', 'EC25C08', 'Digital System Design Laboratory', 'DSD LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB046', 'EC25C09', 'Electronic Circuits Laboratory', 'EC LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC044', 'CL005', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB047', 'EN25C03', 'English Communication Skill Laboratory-I', 'ENG LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC047', 'CL005', '1-0-2-1', 45, 1, 0, 2, 1),
+('SUB048', 'SD LAB', 'Skill Development Course', 'SD LAB', 'Skill', 'Electronics and Communication Engineering', 3, 'FAC047', 'CL005', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB049', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electronics and Communication Engineering', 3, 'FAC048', 'CL005', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB051', 'ME25C07', 'Applied Engineering Mechanics', 'AEM', 'Theory', 'Mechanical Engineering', 3, 'FAC052', 'CL006', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB052', 'ME25301', 'Engineering Thermodynamics', 'ETD', 'Theory', 'Mechanical Engineering', 3, 'FAC053', 'CL006', '3-1-0-4', 60, 3, 1, 0, 4),
+('SUB053', 'CE25C11', 'Strength of Materials', 'SOM', 'Theory-cum-Lab', 'Mechanical Engineering', 3, 'FAC054', 'CL006', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB054', 'ME25C08', 'Metallurgy and Materials Science', 'MMS', 'Theory', 'Mechanical Engineering', 3, 'FAC055', 'CL006', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB058', 'SDC - I', 'Skill Development Course - I', 'SDC - I', 'Skill', 'Mechanical Engineering', 3, 'FAC054', 'CL006', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB059', 'NM', 'NAAN MUDHALVAN (Foundation Skills for Employability)', 'NM', 'Skill', 'Mechanical Engineering', 3, 'FAC054', 'CL006', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB060', 'LIB', 'LIBRARY', 'LIB', 'Other', 'Mechanical Engineering', 3, 'FAC058', 'CL006', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB071', 'CE25C02', 'Fluid Mechanics and Machinery', 'FMM', 'Theory', 'Civil Engineering', 3, 'FAC062', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB072', 'AG25C01', 'Engineering Geology', 'EG', 'Theory', 'Civil Engineering', 3, 'FAC063', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3);
 
 INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
-('SUB073', 'CE25301', 'Strength of Materials I (L/T)', 'SOM I', 'Theory-cum-Lab', 'Civil Engineering', 3, 'FAC064', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB074', 'CE25C03', 'Surveying and Geomatics', 'S&G', 'Theory', 'Civil Engineering', 3, 'FAC065', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB075', 'SDC I', 'Skill Development Course I (L/T)', 'SDC I', 'Skill', 'Civil Engineering', 3, 'FAC066', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB076', 'CE25302', 'Computer-aided Building Drawing', 'FMM LAB', 'Practical', 'Civil Engineering', 3, 'FAC067', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB078', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Civil Engineering', 3, 'FAC066', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB079', 'CE25C04', 'Surveying and Geomatics Laboratory', 'S&G LAB', 'Practical', 'Civil Engineering', 3, 'FAC065', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUB080', 'EN25C03', 'English Communication Skills Laboratory - II', 'ECS LAB', 'Practical', 'Civil Engineering', 3, 'FAC070', 'CL007', NULL, NULL, 0, 0, 0, 0),
-('SUBEN02', 'EN25C03', 'English communication skills laboratory - II', NULL, 'Practical', NULL, NULL, 'FAC007', 'CL001', '0021', 15, 0, 0, 0, 0);
+('SUB073', 'CE25301', 'Strength of Materials I (L/T)', 'SOM I', 'Theory-cum-Lab', 'Civil Engineering', 3, 'FAC064', 'CL007', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB074', 'CE25C03', 'Surveying and Geomatics', 'S&G', 'Theory', 'Civil Engineering', 3, 'FAC065', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB075', 'SDC I', 'Skill Development Course I (L/T)', 'SDC I', 'Skill', 'Civil Engineering', 3, 'FAC066', 'CL007', '1-0-2-2', 45, 1, 0, 2, 2),
+('SUB076', 'CE25302', 'Computer-aided Building Drawing', 'FMM LAB', 'Practical', 'Civil Engineering', 3, 'FAC067', 'CL007', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB078', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Civil Engineering', 3, 'FAC066', 'CL007', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB079', 'CE25C04', 'Surveying and Geomatics Laboratory', 'S&G LAB', 'Practical', 'Civil Engineering', 3, 'FAC065', 'CL007', '0-0-4-2', 60, 0, 0, 4, 2),
+('SUB080', 'EN25C03', 'English Communication Skills Laboratory - II', 'ECS LAB', 'Practical', 'Civil Engineering', 3, 'FAC070', 'CL007', '1-0-2-1', 45, 1, 0, 2, 1),
+('SUBEN02', 'EN25C03', 'English communication skills laboratory - II', NULL, 'Practical', NULL, NULL, 'FAC007', 'CL001', '1-0-2-1', 45, 1, 0, 2, 1);
 
 -- ─────────────────────────────────────────
 -- TABLE: STUDENTS

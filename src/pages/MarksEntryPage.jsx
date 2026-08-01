@@ -162,7 +162,7 @@ export default function MarksEntryPage() {
     const cleanLtpc = (ltpc || '').trim().replace(/-/g, '');
     const h = parseInt(total || 0);
 
-    if (type === 'Lab-cum-Theory') {
+    if (type === 'Lab-cum-Theory' || type === 'Theory-cum-Lab') {
       if (cleanLtpc === '2023') return { int1: 15, int2: 15, lab: 30 };
       if (cleanLtpc === '2043') return { int1: 15, int2: 15, lab: 60 };
       if (cleanLtpc === '1022') return { int1: 15, int2: 15, lab: 15 };

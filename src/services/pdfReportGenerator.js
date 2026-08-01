@@ -257,7 +257,7 @@ export const generateSubjectMarksListPDF = async ({
   y += 8;
 
   const isInternal2 = assessmentMode === 'internal2';
-  const hasLab = subject?.type === 'Lab-cum-Theory';
+  const hasLab = subject?.type === 'Lab-cum-Theory' || subject?.type === 'Theory-cum-Lab';
   
   // Prepare Table Headers
   const headRow = ['S.No', 'Roll No', 'Name'];
