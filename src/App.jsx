@@ -10,7 +10,6 @@ import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ManageClasses from './pages/Admin/ManageClasses';
 import ManageStaffs from './pages/Admin/ManageStaffs';
-import ManageStaffCredentials from './pages/Admin/ManageStaffCredentials';
 import ManageSubjects from './pages/Admin/ManageSubjects';
 import ManageStudents from './pages/Admin/ManageStudents';
 
@@ -83,7 +82,7 @@ function AppRoutes() {
       <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
       <Route path="/admin/classes" element={<AdminRoute><ManageClasses /></AdminRoute>} />
       <Route path="/admin/staffs" element={<AdminRoute><ManageStaffs /></AdminRoute>} />
-      <Route path="/admin/credentials" element={<AdminRoute><ManageStaffCredentials /></AdminRoute>} />
+      <Route path="/admin/credentials" element={<Navigate to="/admin/staffs" replace />} />
       <Route path="/admin/subjects" element={<AdminRoute><ManageSubjects /></AdminRoute>} />
       <Route path="/admin/students" element={<AdminRoute><ManageStudents /></AdminRoute>} />
       

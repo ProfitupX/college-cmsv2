@@ -17,7 +17,7 @@ const searchablePages = [
   { name: 'Dashboard Overview', path: '/dashboard', cat: 'Page', icon: FileText },
   { name: 'Marks Entry Sheet', path: '/marks-entry', cat: 'Action', icon: BookOpen },
   { name: 'Manage Classes & Subjects', path: '/admin/classes', cat: 'Admin', icon: BookOpen },
-  { name: 'Manage Staff Members & Passwords', path: '/admin/credentials', cat: 'Admin', icon: Users },
+  { name: 'Manage Staff Members & Credentials', path: '/admin/staffs', cat: 'Admin', icon: Users },
   { name: 'Manage Students Roster', path: '/admin/students', cat: 'Admin', icon: Users },
   { name: 'Official Reports & Analytics', path: '/reports', cat: 'Reports', icon: FileText },
   { name: 'Account Settings & Profile', path: '/settings', cat: 'Settings', icon: FileText },
