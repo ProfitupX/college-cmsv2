@@ -118,7 +118,7 @@ INSERT INTO students (id, s_no, roll_no, name, class_id) VALUES
 SELECT CONCAT('Seeded: ', COUNT(*), ' students') AS status FROM students;
 SELECT CONCAT('Seeded: ', COUNT(*), ' staffs')   AS status FROM staffs;
 SELECT CONCAT('Seeded: ', COUNT(*), ' subjects')  AS status FROM subjects;
-\n\n-- ─────────────────────────────────────────
+-- ─────────────────────────────────────────
 -- 1. DEPARTMENTS
 -- ─────────────────────────────────────────
 INSERT INTO departments (short_name, name, college_name) 
@@ -229,7 +229,8 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU356', 56, '921025105058', 'VIDHYA R', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU357', 57, '921025105059', 'YOGITH S', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU358', 58, '921025105060', 'YUVATHI SRI A', 'CL004', 'Electrical and Electronics Engineering');
-\n\n-- ============================================================
+
+-- ============================================================
 -- College CMS — Seed Data for ECE Department
 -- Extracted from Timetable & Excel (2026-2027, II Year, III Sem)
 -- ============================================================
@@ -344,7 +345,8 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU456', 56, '921025106057', 'THEEPTHIGA K', 'CL005', 'Electronics and Communication Engineering'),
 ('STU457', 57, '921025106058', 'VAISHNAVI S', 'CL005', 'Electronics and Communication Engineering'),
 ('STU458', 58, '921025106059', 'VIKRAM N', 'CL005', 'Electronics and Communication Engineering');
-\n\n-- ============================================================
+
+-- ============================================================
 -- College CMS — Seed Data for Mechanical Engineering Department
 -- Extracted from Timetable & Excel (2026-2027, II Year, III Sem)
 -- ============================================================
@@ -444,7 +446,8 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU540', 40, '921025114042', 'VISHNUVARATHAN', 'CL006', 'Mechanical Engineering'),
 ('STU541', 41, '921025114043', 'VISHWA V', 'CL006', 'Mechanical Engineering'),
 ('STU542', 42, '921025114044', 'YUVARAJ M', 'CL006', 'Mechanical Engineering');
-\n\n-- ============================================================
+
+-- ============================================================
 -- College CMS — Seed Data for Civil Engineering Department
 -- Extracted from Timetable & Excel (2026-2027, II Year, III Sem)
 -- ============================================================
@@ -536,3 +539,4 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU630', 30, '921025103030', 'VIJAYABHARATHI M', 'CL007', 'Civil Engineering'),
 ('STU631', 31, '921025103031', 'YAZHINI N', 'CL007', 'Civil Engineering'),
 ('STU632', 32, '921025103032', 'YUVASRI M', 'CL007', 'Civil Engineering');
+

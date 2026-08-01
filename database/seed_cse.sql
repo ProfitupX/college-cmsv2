@@ -113,3 +113,4 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU158', 58, '921025104058', 'YASHIKAJAISHREE M', 'CL002', 'Computer Science and Engineering'),
 ('STU159', 59, '921025104059', 'YOKHITHA V', 'CL002', 'Computer Science and Engineering'),
 ('STU160', 60, '921025104060', 'YOSHITHA K', 'CL002', 'Computer Science and Engineering');
+

@@ -13,7 +13,7 @@ CREATE DATABASE IF NOT EXISTS college_cms
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
--- USE college_cms;
+USE college_cms;
 
 -- ─────────────────────────────────────────
 -- 1. DEPARTMENTS
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS marks_sessions (
   id            INT           NOT NULL AUTO_INCREMENT,
   subject_id    VARCHAR(20)   NOT NULL,
   class_id      VARCHAR(20)   NOT NULL,
-  staff_id      VARCHAR(20)   NOT NULL,
+  staff_id      VARCHAR(20),
   session_label VARCHAR(100),
   total_max     DECIMAL(6,2)  NOT NULL COMMENT 'Will be max 95 based on staff components',
   total_hours   INT,
@@ -170,7 +170,9 @@ CREATE TABLE IF NOT EXISTS marks (
   PRIMARY KEY (id),
   UNIQUE KEY uq_mark (session_id, component_id, student_id),
   CONSTRAINT fk_mark_session   FOREIGN KEY (session_id)   REFERENCES marks_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_mark_component FOREIGN KEY (component_id) REFERENCES assessment_components(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mark_component FOREIGN KEY (component_id) REFERENCES assessment_components(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ─────────────────────────────────────────
 -- 9. MARK UNLOCK REQUESTS
 --    Requests sent by staff to HOD to edit locked marks
@@ -236,3 +238,4 @@ CREATE TABLE IF NOT EXISTS class_analysis_remarks (
 
 -- Confirm
 SELECT 'Schema created successfully ✓' AS status;
+
