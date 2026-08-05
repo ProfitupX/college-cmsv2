@@ -641,3 +641,168 @@ export const generateConsolidatedMarksPDF = async ({
 
   doc.save(`${classObj?.name}_Consolidated_Mark_Statement.pdf`);
 };
+
+// ─────────────────────────────────────────────────────────────
+// REPORT: 2021 Regulation — Subject Marks List (3rd & Final Year)
+//
+// Theory (Int1 & Int2):
+//   S.No | Roll No | Name | CIA (/40) | Internal Exam (/100) | Converted (/60) | Total (/100)
+//
+// Lab-cum-Theory Int1:
+//   S.No | Roll No | Name | CIA (/50) | Internal Exam (/100) | Converted (/50) | Total (/100)
+//
+// Lab-cum-Theory Int2:
+//   S.No | Roll No | Name | CIA (/50) | Internal Exam (/100, ref) | Lab Exam (/100) | Lab Converted (/50) | Total (/100)
+// ─────────────────────────────────────────────────────────────
+export const generateSubjectMarksListPDF2021 = async ({
+  subject, classObj, staff, session, students,
+  marksData, internalExamData, labData,
+  assessmentMode, components
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  const isInternal2 = assessmentMode === 'internal2';
+  const hasLab = subject?.type === 'Lab-cum-Theory' || subject?.type === 'Theory-cum-Lab';
+  const ciaMax = hasLab ? 50 : 40;
+  const examConvertedMax = hasLab ? 50 : 60;
+
+  const title = `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (2021 Regulation)`;
+  await drawCollegeHeader(doc, title, 'NAC/TLP-07a.21', '01', '', '1 of 1');
+
+  let y = 46;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+
+  // Info rows
+  doc.text(`Year / Sem       : ${classObj?.year_label || 'III'} / ${classObj?.semester || '5'}`, 14, y);
+  doc.text(`Dept                   : ${subject?.department || 'CSE'}`, 120, y);
+  y += 5;
+  doc.text(`Staff Name         : ${staff?.name || 'Faculty Staff'}`, 14, y);
+  doc.text(`Academic Year  : ${classObj?.academic_year || '2026-27'}`, 120, y);
+  y += 5;
+  doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
+  doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  y += 5;
+  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   CIA Max: ${ciaMax}`, 14, y);
+  y += 8;
+
+  // Regulation note box
+  doc.setFillColor(245, 240, 255);
+  doc.setDrawColor(124, 58, 237);
+  doc.roundedRect(14, y - 4, 182, isInternal2 && hasLab ? 10 : 7, 1, 1, 'FD');
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 0, 120);
+  doc.setFont('helvetica', 'bold');
+  if (!hasLab) {
+    doc.text(`Scheme: CIA /${ciaMax} + Internal Exam /100 → ${examConvertedMax} = Total /100  |  No Attendance Marks`, 16, y);
+  } else if (!isInternal2) {
+    doc.text(`Scheme (Int.1): CIA /${ciaMax} + Internal Exam /100 → ${examConvertedMax} = Total /100  |  No Attendance Marks`, 16, y);
+  } else {
+    doc.text(`Scheme (Int.2): CIA /${ciaMax} + Lab Exam /100 → 50 = Total /100  |  Internal Exam shown for reference only  |  No Attendance`, 16, y);
+  }
+  doc.setTextColor(0, 0, 0);
+  y += isInternal2 && hasLab ? 12 : 10;
+
+  // ── Build Table Header ──────────────────────────────────────
+  const headRow = ['S.No', 'Roll No', 'Student Name', `CIA\n(/${ciaMax})`];
+
+  if (isInternal2 && hasLab) {
+    headRow.push(
+      'Internal Exam\n(/100)\n[Ref only]',
+      'Lab Exam\n(/100)',
+      'Lab Converted\n(/50)',
+      'Total\n(/100)'
+    );
+  } else {
+    headRow.push(
+      `Internal Exam\n(/100)`,
+      `Converted\n(/${examConvertedMax})`,
+      'Total\n(/100)'
+    );
+  }
+
+  // ── Build Table Body ────────────────────────────────────────
+  const bodyRows = students.map((student, idx) => {
+    // Sum CIA components, cap at ciaMax
+    let rawCIA = 0;
+    components.forEach(c => {
+      const val = parseFloat(marksData[student.id]?.[c.uid]) || 0;
+      const conducted = parseFloat(c.conductedMax) || 100;
+      rawCIA += Math.min(val, conducted);
+    });
+    const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+    // Internal exam
+    const examRaw = parseFloat(internalExamData[student.id]) || 0;
+    const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+
+    // Lab exam (Int2 Lab-cum-Theory only)
+    const labExamRaw = parseFloat(labData?.[student.id]?.labMark) || 0;
+    const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+    // Final total
+    let finalTotal;
+    if (isInternal2 && hasLab) {
+      finalTotal = Math.min(ciaTotal + labExamConverted, 100);
+    } else {
+      finalTotal = Math.min(ciaTotal + examConverted, 100);
+    }
+
+    const row = [
+      idx + 1,
+      student.roll_no || student.rollNo || '-',
+      student.name,
+      ciaTotal === 0 ? '-' : ciaTotal,
+    ];
+
+    if (isInternal2 && hasLab) {
+      row.push(
+        examRaw === 0 ? '-' : Math.round(examRaw),
+        labExamRaw === 0 ? '-' : Math.round(labExamRaw),
+        labExamConverted === 0 ? '-' : labExamConverted,
+        finalTotal === 0 ? '-' : finalTotal
+      );
+    } else {
+      row.push(
+        examRaw === 0 ? '-' : Math.round(examRaw),
+        examConverted === 0 ? '-' : examConverted,
+        finalTotal === 0 ? '-' : finalTotal
+      );
+    }
+
+    return row;
+  });
+
+  // Column widths — wider for name column
+  const colStyles = {
+    0: { cellWidth: 10 },
+    1: { cellWidth: 28 },
+    2: { cellWidth: 48, halign: 'left' },
+  };
+
+  autoTable(doc, {
+    startY: y,
+    head: [headRow],
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center', valign: 'middle' },
+    headStyles: {
+      fillColor: [124, 58, 237],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+      cellPadding: 2,
+    },
+    alternateRowStyles: { fillColor: [248, 245, 255] },
+    columnStyles: colStyles,
+  });
+
+  // Signatures
+  y = doc.lastAutoTable.finalY + 20;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('STAFF INCHARGE', 20, y);
+  doc.text('HOD', 170, y);
+
+  doc.save(`${subject?.code}_2021Reg_${isInternal2 ? 'IA2' : 'IA1'}_Marks.pdf`);
+};

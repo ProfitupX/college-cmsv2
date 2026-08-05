@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api';
-import ComponentBuilder from '../components/MarksEntry/ComponentBuilder';
+import ComponentBuilder2021 from '../components/MarksEntry/ComponentBuilder2021';
 import MarksTable2021 from '../components/MarksEntry/MarksTable2021';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
+import { generateSubjectMarksListPDF2021 } from '../services/pdfReportGenerator';
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
@@ -53,10 +54,17 @@ export default function MarksEntryPage2021() {
   const [unlockReason,   setUnlockReason]       = useState('');
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
-  // ── Load classes on mount ──────────────────────────────────
+  // ── Load classes on mount — filter to 3rd/4th year only ────
   useEffect(() => {
     classesAPI.getAll()
-      .then(setClasses)
+      .then(allClasses => {
+        // 2021 Regulation: only show III and IV year classes (semester 5,6,7,8)
+        const filtered = allClasses.filter(c =>
+          c.year_label === 'III' || c.year_label === 'IV' ||
+          parseInt(c.semester) >= 5
+        );
+        setClasses(filtered);
+      })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
   }, []);
@@ -243,24 +251,17 @@ export default function MarksEntryPage2021() {
   // ── PDF Download ───────────────────────────────────────────
   const handleDownloadPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
-    const { generateSubjectMarksListPDF } = await import('../services/pdfReportGenerator');
-    await generateSubjectMarksListPDF({
+    await generateSubjectMarksListPDF2021({
       subject: selectedSubject,
       classObj: selectedClass,
       staff: user,
       session: currentSession,
       students,
       marksData,
-      attendanceData: {},
       internalExamData,
       labData,
       assessmentMode,
       components: assessmentComponents,
-      int1Hours: 0,
-      int2Hours: 0,
-      labHours: 0,
-      int1AttendanceData: {},
-      regulation: '2021'
     });
   };
 
@@ -396,10 +397,11 @@ export default function MarksEntryPage2021() {
           </div>
 
           {!isPrincipal && (
-            <ComponentBuilder
+            <ComponentBuilder2021
               components={assessmentComponents}
               onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); setIsComponentsDirty(true); }}
               isLocked={isLocked}
+              ciaMax={ciaMax}
             />
           )}
         </>
@@ -492,7 +494,7 @@ export default function MarksEntryPage2021() {
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
               <button className={styles.downloadBtn} onClick={handleDownloadPDF}>
-                <Download size={15} /> Download PDF Statement
+                <Download size={15} /> Download PDF Statement (2021 Reg)
               </button>
             </div>
             {!isPrincipal && (
