@@ -12,6 +12,7 @@ import {
   BookOpen,
   Bell,
   KeyRound,
+  BookMarked,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Sidebar.module.css';
@@ -37,6 +38,7 @@ export default function Sidebar({ collapsed, onToggle }) {
     : [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/marks-entry', icon: ClipboardEdit, label: isPrincipal ? 'Student Marks' : 'Marks Entry' },
+        { to: '/marks-entry-2021', icon: BookMarked, label: isPrincipal ? 'Student Marks (2021)' : '2021 Reg. Marks' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
 
@@ -79,22 +81,38 @@ export default function Sidebar({ collapsed, onToggle }) {
       <nav className={styles.nav}>
         {!collapsed && <span className={styles.navLabel}>MAIN MENU</span>}
         {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `${styles.navItem} ${isActive ? styles.active : ''}`
-            }
-            title={collapsed ? label : undefined}
-          >
-            <span className={styles.navIcon}>
-              <Icon size={20} />
-            </span>
-            {!collapsed && <span className={styles.navItemLabel}>{label}</span>}
-            {!collapsed && to === '/marks-entry' && (
-              <span className={styles.badge}>New</span>
+          <>
+            {/* Section divider before 2021 Reg link */}
+            {to === '/marks-entry-2021' && !collapsed && (
+              <div style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-secondary)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                padding: '10px 14px 4px',
+                opacity: 0.6,
+              }}>2021 Regulation</div>
             )}
-          </NavLink>
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `${styles.navItem} ${isActive ? styles.active : ''}`
+              }
+              title={collapsed ? label : undefined}
+            >
+              <span className={styles.navIcon}>
+                <Icon size={20} />
+              </span>
+              {!collapsed && <span className={styles.navItemLabel}>{label}</span>}
+              {!collapsed && to === '/marks-entry' && (
+                <span className={styles.badge}>New</span>
+              )}
+              {!collapsed && to === '/marks-entry-2021' && (
+                <span className={styles.badge} style={{ background: '#7c3aed' }}>3rd/4th</span>
+              )}
+            </NavLink>
+          </>
         ))}
       </nav>
 

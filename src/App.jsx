@@ -12,6 +12,7 @@ import ManageClasses from './pages/Admin/ManageClasses';
 import ManageStaffs from './pages/Admin/ManageStaffs';
 import ManageSubjects from './pages/Admin/ManageSubjects';
 import ManageStudents from './pages/Admin/ManageStudents';
+import MarksEntryPage2021 from './pages/MarksEntryPage2021';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -59,6 +60,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <MarksEntryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/marks-entry-2021"
+        element={
+          <ProtectedRoute>
+            <MarksEntryPage2021 />
           </ProtectedRoute>
         }
       />
