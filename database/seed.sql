@@ -25,6 +25,8 @@ INSERT IGNORE INTO departments (id, short_name, name, college_name) VALUES
 -- TABLE: CLASSES
 -- ─────────────────────────────────────────
 INSERT IGNORE INTO classes (id, name, department, semester, year_label, section, room_no, academic_year, batch, class_coordinator, asst_coordinator) VALUES
+('CL_CSE_III', 'CSE - III Year - V Sem', 'Computer Science and Engineering', 5, 'III', 'A', 'CR-10', '2026-2027', '2024-2028', 'Mrs.M.Venkata Lakshmi', 'Mrs.V.Vinothini'),
+('CL_CSE_IV', 'CSE - IV Year - VII Sem', 'Computer Science and Engineering', 7, 'IV', 'A', 'CR-9', '2026-2027', '2023-2027', 'Ms.S.Abirami Kayathri', 'Mr.K.Velkumar'),
 ('CL001', 'IT - II Year - III Sem', 'Information Technology', 3, 'II', 'A', 'CR-16', '2025-2026', '2024-2028', 'Mr. N. Kesavamoorthy', 'Mrs. P. Jasmine Jose'),
 ('CL002', 'CSE - II Year - III Sem', 'Computer Science and Engineering', 3, 'II', 'A', 'CR-11', '2026-2027', '2025-2029', 'Mrs. R.Archana', 'Mrs.V.Anusuya'),
 ('CL003', 'AI&DS - II Year - III Sem', 'Artificial Intelligence and Data Science', 3, 'II', 'A', 'CR-25', '2026-2027', '2025-2029', 'Mr. S. Kodeeswaran', 'Mrs. K. Jenifer'),
@@ -38,6 +40,9 @@ INSERT IGNORE INTO classes (id, name, department, semester, year_label, section,
 -- ─────────────────────────────────────────
 INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, employee_id, password, class_role, department) VALUES
 ('ADM001', 'Admin User', 'Admin', 'System Administrator', 'admin', 'admin@nscet.edu.in', 'ADMIN-001', 'admin123', NULL, 'Information Technology'),
+('FAC_CSE_101', 'Mr. K. Velkumar', 'K. Velkumar', 'AP', 'faculty', 'velkumar.cse@nscet.edu.in', 'NSCET-CSE-101', 'faculty123', 'Assistant Coordinator', 'Computer Science and Engineering'),
+('FAC_CSE_102', 'Ms. S. Abirami Kayathri', 'S. Abirami Kayathri', 'AP', 'faculty', 'abiramikayathri.cse@nscet.edu.in', 'NSCET-CSE-102', 'faculty123', 'Class Coordinator', 'Computer Science and Engineering'),
+('FAC_CSE_104', 'Dr. M. Sathya', 'M. Sathya', 'PROF./CSE', 'faculty', 'sathya.cse@nscet.edu.in', 'NSCET-CSE-104', 'faculty123', NULL, 'Computer Science and Engineering'),
 ('FAC001', 'Mr. C. Prathap', 'C. Prathap', 'AP, HOD IT', 'hod', 'prathap.it@nscet.edu.in', 'NSCET-IT-001', 'faculty123', NULL, 'Information Technology'),
 ('FAC002', 'Dr. C. Chithra', 'C. Chithra', 'AP', 'faculty', 'chithra.it@nscet.edu.in', 'NSCET-IT-002', 'faculty123', NULL, NULL),
 ('FAC003', 'Mrs. P. Jasmine Jose', 'P. Jasmine Jose', 'AP', 'faculty', 'jasminejose.it@nscet.edu.in', 'NSCET-IT-003', 'faculty123', 'Assistant Coordinator', 'Information Technology'),
@@ -83,12 +88,12 @@ INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, emplo
 ('FAC055', 'Mr. R. Nagaraja', 'R. Nagaraja', 'AP/Mech', 'faculty', 'nagaraja.mech@nscet.edu.in', 'NSCET-MECH-055', 'faculty123', 'Class Coordinator', 'Mechanical Engineering'),
 ('FAC058', 'Dr. S. Sinthan', 'S. Sinthan', 'Librarian', 'faculty', 'sinthan.lib@nscet.edu.in', 'NSCET-LIB-058', 'faculty123', NULL, 'Mechanical Engineering'),
 ('FAC059', 'Dr. B. Ratha Krishnan', 'B. Ratha Krishnan', 'HOD/Mech', 'hod', 'rathakrishnan.mech@nscet.edu.in', 'NSCET-MECH-HOD', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC062', 'Mrs. S. Gayathri', 'S. Gayathri', 'AP/Civil', 'faculty', 'gayathri.civil@nscet.edu.in', 'NSCET-CIVIL-062', 'faculty123', 'Class Coordinator', 'Civil Engineering'),
-('FAC063', 'Mr. P. Arul Jebaraj', 'P. Arul Jebaraj', 'AP/Civil', 'faculty', 'aruljebaraj.civil@nscet.edu.in', 'NSCET-CIVIL-063', 'faculty123', NULL, 'Civil Engineering'),
-('FAC064', 'Mr. R. Shanmugapriyan', 'R. Shanmugapriyan', 'AP/Civil', 'faculty', 'shanmugapriyan.civil@nscet.edu.in', 'NSCET-CIVIL-064', 'faculty123', NULL, 'Civil Engineering'),
-('FAC065', 'Mr. T. Hariprasath', 'T. Hariprasath', 'AP/Civil', 'faculty', 'hariprasath.civil@nscet.edu.in', 'NSCET-CIVIL-065', 'faculty123', 'Assistant Coordinator', 'Civil Engineering');
+('FAC062', 'Mrs. S. Gayathri', 'S. Gayathri', 'AP/Civil', 'faculty', 'gayathri.civil@nscet.edu.in', 'NSCET-CIVIL-062', 'faculty123', 'Class Coordinator', 'Civil Engineering');
 
 INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, employee_id, password, class_role, department) VALUES
+('FAC063', 'Mr. P. Arul Jebaraj', 'P. Arul Jebaraj', 'AP/Civil', 'faculty', 'aruljebaraj.civil@nscet.edu.in', 'NSCET-CIVIL-063', 'faculty123', NULL, 'Civil Engineering'),
+('FAC064', 'Mr. R. Shanmugapriyan', 'R. Shanmugapriyan', 'AP/Civil', 'faculty', 'shanmugapriyan.civil@nscet.edu.in', 'NSCET-CIVIL-064', 'faculty123', NULL, 'Civil Engineering'),
+('FAC065', 'Mr. T. Hariprasath', 'T. Hariprasath', 'AP/Civil', 'faculty', 'hariprasath.civil@nscet.edu.in', 'NSCET-CIVIL-065', 'faculty123', 'Assistant Coordinator', 'Civil Engineering'),
 ('FAC066', 'Mrs. M. Kanimozhi', 'M. Kanimozhi', 'AP/Civil', 'faculty', 'kanimozhi.civil@nscet.edu.in', 'NSCET-CIVIL-066', 'faculty123', NULL, 'Civil Engineering'),
 ('FAC067', 'Mrs. M. Sindhu', 'M. Sindhu', 'AP/Civil', 'faculty', 'sindhu.civil@nscet.edu.in', 'NSCET-CIVIL-067', 'faculty123', NULL, 'Civil Engineering'),
 ('FAC068', 'Mrs. P. Aadhitya', 'P. Aadhitya', 'AP/Civil', 'faculty', 'aadhitya.civil@nscet.edu.in', 'NSCET-CIVIL-068', 'faculty123', NULL, 'Civil Engineering'),
@@ -102,6 +107,22 @@ INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, emplo
 -- TABLE: SUBJECTS
 -- ─────────────────────────────────────────
 INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+('SUB_CSE_3_1', 'CS3591', 'Computer Networks', 'CN', 'Theory cum Lab', 'Computer Science and Engineering', 5, 'FAC012', 'CL_CSE_III', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB_CSE_3_2', 'CS3501', 'Compiler Design', 'CD', 'Theory cum Lab', 'Computer Science and Engineering', 5, 'FAC011', 'CL_CSE_III', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB_CSE_3_3', 'CB3491', 'Cryptography and Cyber Security', 'CCS', 'Theory', 'Computer Science and Engineering', 5, 'FAC013', 'CL_CSE_III', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_3_4', 'CS3551', 'Distributed Computing', 'DC', 'Theory', 'Computer Science and Engineering', 5, 'FAC015', 'CL_CSE_III', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_3_5', 'CCS335', 'Cloud Computing', 'CC', 'Theory cum Lab', 'Computer Science and Engineering', 5, 'FAC_CSE_101', 'CL_CSE_III', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB_CSE_3_6', 'CCS332', 'App Development', 'APP', 'Theory cum Lab', 'Computer Science and Engineering', 5, 'FAC_CSE_102', 'CL_CSE_III', '3-0-2-4', 75, 3, 0, 2, 4),
+('SUB_CSE_3_8', 'NM', 'Naan Mudhalvan Course', 'NM', 'Skill', 'Computer Science and Engineering', 5, 'FAC013', 'CL_CSE_III', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB_CSE_3_9', 'COMM', 'Communication Activity', 'COMM.', 'Skill', 'Computer Science and Engineering', 5, 'FAC016', 'CL_CSE_III', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB_CSE_4_1', 'GE3791', 'Human Values and Ethics', 'HV', 'Theory', 'Computer Science and Engineering', 7, 'FAC_CSE_104', 'CL_CSE_IV', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_4_2', 'GE3752', 'Total Quality Management', 'TQM', 'Theory', 'Computer Science and Engineering', 7, 'FAC015', 'CL_CSE_IV', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_4_3', 'A13021', 'IT in Agricultural System', 'IT', 'Theory', 'Computer Science and Engineering', 7, 'FAC_CSE_102', 'CL_CSE_IV', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_4_4', 'OG1352', 'Geographical Information System', 'GIS', 'Theory', 'Computer Science and Engineering', 7, 'FAC_CSE_101', 'CL_CSE_IV', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB_CSE_4_5', 'CS3711', 'Summer Internship', 'SI', 'Practical', 'Computer Science and Engineering', 7, 'FAC015', 'CL_CSE_IV', '0-0-0-2', 30, 0, 0, 0, 2),
+('SUB_CSE_4_6', 'NM', 'NAAN MUDHALVAN COURSE', 'NM', 'Skill', 'Computer Science and Engineering', 7, 'FAC_CSE_102', 'CL_CSE_IV', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB_CSE_4_7', 'COMM', 'Communication Activity', 'COMM.', 'Skill', 'Computer Science and Engineering', 7, 'FAC016', 'CL_CSE_IV', '0-0-2-1', 30, 0, 0, 2, 1),
+('SUB_CSE_4_8', 'CODING', 'Coding Hours', 'Coding', 'Skill', 'Computer Science and Engineering', 7, 'FAC016', 'CL_CSE_IV', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUB001', 'MA25C08', 'Discrete Mathematics', 'DM', 'Theory', 'Information Technology', 3, 'FAC002', 'CL001', '3-1-0-4', 60, 3, 1, 0, 4),
 ('SUB002', 'CW25201', 'Computer Organization and Architecture', 'COA', 'Theory', 'Information Technology', 3, 'FAC003', 'CL001', '3-1-0-4', 60, 3, 1, 0, 4),
 ('SUB003', 'CS25C08', 'Data Structures', 'DS', 'Theory-cum-Lab', 'Information Technology', 3, 'FAC004', 'CL001', '3-0-4-5', 105, 3, 0, 4, 5),
@@ -135,7 +156,9 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB039', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electrical and Electronics Engineering', 3, 'FAC036', 'CL004', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUB040', 'MA25C05', 'Probability, Statistical and Random Processes', 'PSRP', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC041', 'CL005', '3-1-0-4', 60, 3, 1, 0, 4),
 ('SUB041', 'EC25C04', 'Signals and Systems', 'SS', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC042', 'CL005', '3-1-0-4', 60, 3, 1, 0, 4),
-('SUB042', 'EC25C05', 'Electronic Circuits and Analysis', 'ECA', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC043', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
+('SUB042', 'EC25C05', 'Electronic Circuits and Analysis', 'ECA', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC043', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3);
+
+INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
 ('SUB043', 'EC25C06', 'Electro Magnetic Fields and Transmission Lines', 'EMF', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC045', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB044', 'EC25C07', 'Digital System Design', 'DSD', 'Theory', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB045', 'EC25C08', 'Digital System Design Laboratory', 'DSD LAB', 'Practical', 'Electronics and Communication Engineering', 3, 'FAC046', 'CL005', '0-0-4-2', 60, 0, 0, 4, 2),
@@ -151,9 +174,7 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB059', 'NM', 'NAAN MUDHALVAN (Foundation Skills for Employability)', 'NM', 'Skill', 'Mechanical Engineering', 3, 'FAC054', 'CL006', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUB060', 'LIB', 'LIBRARY', 'LIB', 'Other', 'Mechanical Engineering', 3, 'FAC058', 'CL006', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB071', 'CE25C02', 'Fluid Mechanics and Machinery', 'FMM', 'Theory', 'Civil Engineering', 3, 'FAC062', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3),
-('SUB072', 'AG25C01', 'Engineering Geology', 'EG', 'Theory', 'Civil Engineering', 3, 'FAC063', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3);
-
-INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+('SUB072', 'AG25C01', 'Engineering Geology', 'EG', 'Theory', 'Civil Engineering', 3, 'FAC063', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB073', 'CE25301', 'Strength of Materials I', 'SOM I', 'Theory-cum-Lab', 'Civil Engineering', 3, 'FAC064', 'CL007', '3-0-2-4', 75, 3, 0, 2, 4),
 ('SUB074', 'CE25C03', 'Surveying and Geomatics', 'S&G', 'Theory', 'Civil Engineering', 3, 'FAC065', 'CL007', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB075', 'SDC I', 'Skill Development Course I', 'SDC I', 'Theory-cum-Lab', 'Civil Engineering', 3, 'FAC066', 'CL007', '1-0-2-2', 45, 1, 0, 2, 2),
@@ -167,6 +188,118 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 -- TABLE: STUDENTS
 -- ─────────────────────────────────────────
 INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('ST_CSE3_1', 1, '921024104001', 'ADHITHIYA S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_10', 10, '921024104011', 'GNANASWETHA K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_11', 11, '921024104012', 'GOKUL M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_12', 12, '921024104013', 'GOWSALYA S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_13', 13, '921024104014', 'GOYALD R', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_14', 14, '921024104015', 'HARINI K S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_15', 15, '921024104016', 'HEMAPRIYA P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_16', 16, '921024104017', 'JAISHREE D', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_17', 17, '921024104018', 'JASMIN FATHIMA M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_18', 18, '921024104019', 'JESSICA K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_19', 19, '921024104020', 'JOTHIKA P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_2', 2, '921024104003', 'ANU VIASHINI M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_20', 20, '921024104021', 'KALPANA S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_21', 21, '921024104022', 'KARTHIK C', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_22', 22, '921024104023', 'KARTHIKEYAN M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_23', 23, '921024104024', 'LATHIKA K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_24', 24, '921024104025', 'LOGESHWARI E', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_25', 25, '921024104026', 'MAHALAKSHMI M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_26', 26, '921024104027', 'MALAVIKA P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_27', 27, '921024104028', 'MITHILESH R', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_28', 28, '921024104029', 'MUFASIRA FARVEEN S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_29', 29, '921024104030', 'MUTHUKAMATCHI M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_3', 3, '921024104004', 'ARCHANA B', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_30', 30, '921024104031', 'NITHISH M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_31', 31, '921024104032', 'NIVETHA P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_32', 32, '921024104033', 'PANDICHELVI M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_33', 33, '921024104034', 'PON HARIPRASATH R', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_34', 34, '921024104035', 'PRAGATHI P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_35', 35, '921024104036', 'PRAVIN K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_36', 36, '921024104037', 'RIHANA B', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_37', 37, '921024104038', 'SABARI J', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_38', 38, '921024104039', 'SAFIYATHUL JABURA I', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_39', 39, '921024104040', 'SANGEETHA V', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_4', 4, '921024104005', 'ASIFA SHEREEN S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_40', 40, '921024104041', 'SANJAY RAJ G', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_41', 41, '921024104042', 'SANMATHI V', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_42', 42, '921024104043', 'SHASVANDH R', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_43', 43, '921024104044', 'SHRILAYA K K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_44', 44, '921024104045', 'SOWMIYA G', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_45', 45, '921024104046', 'SRI HARINI A', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_46', 46, '921024104047', 'SUBIKSHA S', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_47', 47, '921024104048', 'SUGANYA P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_48', 48, '921024104049', 'SWETHA E', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_49', 49, '921024104050', 'SYED ALI FATHIMA M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_5', 5, '921024104006', 'ASMATH NABILA A', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_50', 50, '921024104051', 'SYED MASOOD A', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_51', 51, '921024104052', 'THAARANI R K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_52', 52, '921024104053', 'VASANTHAKUMAR M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_53', 53, '921024104054', 'VEDHA DHARSHINI P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_54', 54, '921024104055', 'VIBISH P T', 'CL_CSE_III', 'Computer Science and Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('ST_CSE3_55', 55, '921024104056', 'VIJAY PRASATH T', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_56', 56, '921024104057', 'YAZHINI K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_57', 57, '921024104301', 'GOKULAPRIYAN J', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_58', 58, '921024104302', 'SUKASHINIE P M', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_6', 6, '921024104007', 'CHELLAMUTHUKUMAR P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_7', 7, '921024104008', 'DIYASRI P', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_8', 8, '921024104009', 'DURGESHWARI R', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE3_9', 9, '921024104010', 'GNANASHREE K', 'CL_CSE_III', 'Computer Science and Engineering'),
+('ST_CSE4_1', 1, '921023104001', 'ABI R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_10', 10, '921023104010', 'HARINI M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_11', 11, '921023104011', 'HARINI VISHVA R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_12', 12, '921023104012', 'HARSHINI K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_13', 13, '921023104013', 'JEFFIN JOSH P', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_14', 14, '921023104014', 'JEEVITHA M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_15', 15, '921023104015', 'KAMALI T', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_16', 16, '921023104016', 'KARPAGAM M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_17', 17, '921023104018', 'KAVIN S', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_18', 18, '921023104019', 'KAWSALYA C', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_19', 19, '921023104020', 'KEERTHIKA R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_2', 2, '921023104002', 'AHAMED ATHIL KHAN M V', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_20', 20, '921023104021', 'LAKSHITHA K R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_21', 21, '921023104022', 'MOHAMMED RAYAN J', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_22', 22, '921023104023', 'MOULIKA R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_23', 23, '921023104024', 'MUTHUKUMAR S', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_24', 24, '921023104025', 'NANDHINI P', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_25', 25, '921023104026', 'NIGIL S S', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_26', 26, '921023104027', 'NISHALINI K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_27', 27, '921023104028', 'NITHIKSHA L', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_28', 28, '921023104029', 'NITHISHKUMAR R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_29', 29, '921023104030', 'OVIYA M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_3', 3, '921023104003', 'AKSHAYA G', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_30', 30, '921023104031', 'PONMUGIL V N', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_31', 31, '921023104032', 'PRAMOTH J', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_32', 32, '921023104033', 'RASIKA D', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_33', 33, '921023104034', 'RISHIVANTH V K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_34', 34, '921023104035', 'SABITHA T', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_35', 35, '921023104036', 'SAI BAVADHARANI M M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_36', 36, '921023104037', 'SATHIYA SRI M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_37', 37, '921023104038', 'SATHIYASRI J', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_38', 38, '921023104039', 'SHIVADHARSHINI S', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_39', 39, '921023104040', 'SIVANITHY P', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_4', 4, '921023104004', 'AKSHAYA R', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_40', 40, '921023104041', 'SRIHARI M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_41', 41, '921023104042', 'SUWETHA B', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_42', 42, '921023104043', 'THIYAGU G', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_43', 43, '921023104044', 'VANISRI M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_44', 44, '921023104045', 'VELMURUGAN G', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_45', 45, '921023104046', 'VENGATESH T', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_46', 46, '921023104047', 'VIDHYASHRI M', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_47', 47, '921023104048', 'VIJAY T K P', 'CL_CSE_IV', 'Computer Science and Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('ST_CSE4_48', 48, '921023104049', 'VISHAL J', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_49', 49, '921023104301', 'ARJUN T', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_5', 5, '921023104005', 'AKSHAYA SHRI K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_50', 50, '921023104302', 'SAKTHIVEL S', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_6', 6, '921023104006', 'BALADINESH K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_7', 7, '921023104007', 'BRINDHA A', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_8', 8, '921023104008', 'DEEBA DHARSHINIE G K', 'CL_CSE_IV', 'Computer Science and Engineering'),
+('ST_CSE4_9', 9, '921023104009', 'DHANUJA P', 'CL_CSE_IV', 'Computer Science and Engineering'),
 ('ST001', 1, '921025205001', 'Abarna M', 'CL001', NULL),
 ('ST002', 2, '921025205002', 'Abirami R', 'CL001', NULL),
 ('ST003', 3, '921025205003', 'Aishwarya Lakshmi S', 'CL001', NULL),
@@ -208,7 +341,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST039', 39, '921025205039', 'Rajaneswaran N', 'CL001', NULL),
 ('ST040', 40, '921025205040', 'Rajiya Priya K', 'CL001', NULL),
 ('ST041', 41, '921025205041', 'Renuga K', 'CL001', NULL),
-('ST042', 42, '921025205042', 'Rinisha M', 'CL001', NULL),
+('ST042', 42, '921025205042', 'Rinisha M', 'CL001', NULL);
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('ST043', 43, '921025205043', 'Rohith Balaji M', 'CL001', NULL),
 ('ST044', 44, '921025205044', 'Roshini M', 'CL001', NULL),
 ('ST045', 45, '921025205045', 'Sabana Banu K', 'CL001', NULL),
@@ -216,9 +351,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST047', 47, '921025205047', 'Santhosh P', 'CL001', NULL),
 ('ST048', 48, '921025205048', 'Saravanakumar A', 'CL001', NULL),
 ('ST049', 49, '921025205049', 'Sarushela G', 'CL001', NULL),
-('ST050', 50, '921025205050', 'Shanmugavalli K', 'CL001', NULL);
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('ST050', 50, '921025205050', 'Shanmugavalli K', 'CL001', NULL),
 ('ST051', 51, '921025205051', 'Sharunethra V', 'CL001', NULL),
 ('ST052', 52, '921025205052', 'Shivani B', 'CL001', NULL),
 ('ST053', 53, '921025205053', 'Shoba M', 'CL001', NULL),
@@ -260,7 +393,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU129', 29, '921025104029', 'MEGADHARSHINI S', 'CL002', 'Computer Science and Engineering'),
 ('STU130', 30, '921025104030', 'MOHAMED AFSAL K', 'CL002', 'Computer Science and Engineering'),
 ('STU131', 31, '921025104031', 'MOHANASANTHOSH V', 'CL002', 'Computer Science and Engineering'),
-('STU132', 32, '921025104032', 'MONISHA S', 'CL002', 'Computer Science and Engineering'),
+('STU132', 32, '921025104032', 'MONISHA S', 'CL002', 'Computer Science and Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU133', 33, '921025104033', 'NETHRA V', 'CL002', 'Computer Science and Engineering'),
 ('STU134', 34, '921025104034', 'NISHA K', 'CL002', 'Computer Science and Engineering'),
 ('STU135', 35, '921025104035', 'NITHARSHANA S', 'CL002', 'Computer Science and Engineering'),
@@ -268,9 +403,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU137', 37, '921025104037', 'PRATHIKSHASRI S', 'CL002', 'Computer Science and Engineering'),
 ('STU138', 38, '921025104038', 'PRINCYMISPHA C', 'CL002', 'Computer Science and Engineering'),
 ('STU139', 39, '921025104039', 'PRIYADHARSHINI P', 'CL002', 'Computer Science and Engineering'),
-('STU140', 40, '921025104040', 'PUGAZHENTHI G', 'CL002', 'Computer Science and Engineering');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU140', 40, '921025104040', 'PUGAZHENTHI G', 'CL002', 'Computer Science and Engineering'),
 ('STU141', 41, '921025104041', 'RAGASRI V', 'CL002', 'Computer Science and Engineering'),
 ('STU142', 42, '921025104042', 'RIYA R', 'CL002', 'Computer Science and Engineering'),
 ('STU143', 43, '921025104043', 'SAMRUTHA P', 'CL002', 'Computer Science and Engineering'),
@@ -312,7 +445,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU219', 19, '921025243019', 'GOKULA VANI K', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU220', 20, '921025243020', 'GOPAL KARTHICK S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU221', 21, '921025243021', 'HARINI M', 'CL003', 'Artificial Intelligence and Data Science'),
-('STU222', 22, '921025243022', 'HARINISRI M', 'CL003', 'Artificial Intelligence and Data Science'),
+('STU222', 22, '921025243022', 'HARINISRI M', 'CL003', 'Artificial Intelligence and Data Science');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU223', 23, '921025243023', 'HARIPRIYA S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU224', 24, '921025243024', 'HEMAN M', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU225', 25, '921025243025', 'JEEVITHA C', 'CL003', 'Artificial Intelligence and Data Science'),
@@ -320,9 +455,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU227', 27, '921025243027', 'KANISHKA R', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU228', 28, '921025243028', 'KANISHKUMAR K', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU229', 29, '921025243029', 'KAVITHA S', 'CL003', 'Artificial Intelligence and Data Science'),
-('STU230', 30, '921025243030', 'LAKSHANA S', 'CL003', 'Artificial Intelligence and Data Science');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU230', 30, '921025243030', 'LAKSHANA S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU231', 31, '921025243031', 'LAKSHMI DEVI S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU232', 32, '921025243032', 'MATHUMITHA G', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU233', 33, '921025243033', 'MEERA S', 'CL003', 'Artificial Intelligence and Data Science'),
@@ -364,7 +497,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU312', 12, '921025105012', 'GOWSIKA S', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU313', 13, '921025105013', 'HARCHINI M', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU314', 14, '921025105014', 'HARINI M', 'CL004', 'Electrical and Electronics Engineering'),
-('STU315', 15, '921025105015', 'HARISH K', 'CL004', 'Electrical and Electronics Engineering'),
+('STU315', 15, '921025105015', 'HARISH K', 'CL004', 'Electrical and Electronics Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU316', 16, '921025105016', 'HARISH L', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU317', 17, '921025105017', 'HARISH M', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU318', 18, '921025105018', 'HARITHABANU K', 'CL004', 'Electrical and Electronics Engineering'),
@@ -372,9 +507,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU320', 20, '921025105020', 'JANANI A V', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU321', 21, '921025105021', 'KAMALESH V', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU322', 22, '921025105023', 'KEERTHIKA.C', 'CL004', 'Electrical and Electronics Engineering'),
-('STU323', 23, '921025105024', 'KIRUBA A', 'CL004', 'Electrical and Electronics Engineering');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU323', 23, '921025105024', 'KIRUBA A', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU324', 24, '921025105025', 'LINGESH S (15.05.2007)', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU325', 25, '921025105026', 'LINGESH S (13.02.2008)', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU326', 26, '921025105027', 'MADHU MIDHA M', 'CL004', 'Electrical and Electronics Engineering'),
@@ -416,7 +549,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU404', 4, '921025106004', 'ARIVAZHAGAN G', 'CL005', 'Electronics and Communication Engineering'),
 ('STU405', 5, '921025106005', 'BARANIDHARAN R', 'CL005', 'Electronics and Communication Engineering'),
 ('STU406', 6, '921025106006', 'BALAJI B', 'CL005', 'Electronics and Communication Engineering'),
-('STU407', 7, '921025106007', 'BHARANIDHARAN C', 'CL005', 'Electronics and Communication Engineering'),
+('STU407', 7, '921025106007', 'BHARANIDHARAN C', 'CL005', 'Electronics and Communication Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU408', 8, '921025106008', 'DEEKSITHKASTHURIRAJAN R', 'CL005', 'Electronics and Communication Engineering'),
 ('STU409', 9, '921025106009', 'DEEPAKSRIRENGA D', 'CL005', 'Electronics and Communication Engineering'),
 ('STU410', 10, '921025106010', 'DHANUSREE M P', 'CL005', 'Electronics and Communication Engineering'),
@@ -424,9 +559,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU412', 12, '921025106012', 'DHARANI SHREE S', 'CL005', 'Electronics and Communication Engineering'),
 ('STU413', 13, '921025106013', 'DHIVASHINI M', 'CL005', 'Electronics and Communication Engineering'),
 ('STU414', 14, '921025106014', 'DHIYA M', 'CL005', 'Electronics and Communication Engineering'),
-('STU415', 15, '921025106015', 'GIRIVASAN A', 'CL005', 'Electronics and Communication Engineering');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU415', 15, '921025106015', 'GIRIVASAN A', 'CL005', 'Electronics and Communication Engineering'),
 ('STU416', 16, '921025106016', 'GOWTHAM V', 'CL005', 'Electronics and Communication Engineering'),
 ('STU417', 17, '921025106017', 'HARINI K', 'CL005', 'Electronics and Communication Engineering'),
 ('STU418', 18, '921025106018', 'HEMA T', 'CL005', 'Electronics and Communication Engineering'),
@@ -468,7 +601,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU454', 54, '921025106055', 'SRILEKHA R', 'CL005', 'Electronics and Communication Engineering'),
 ('STU455', 55, '921025106056', 'SURIYAPRAKASH K', 'CL005', 'Electronics and Communication Engineering'),
 ('STU456', 56, '921025106057', 'THEEPTHIGA K', 'CL005', 'Electronics and Communication Engineering'),
-('STU457', 57, '921025106058', 'VAISHNAVI S', 'CL005', 'Electronics and Communication Engineering'),
+('STU457', 57, '921025106058', 'VAISHNAVI S', 'CL005', 'Electronics and Communication Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU458', 58, '921025106059', 'VIKRAM N', 'CL005', 'Electronics and Communication Engineering'),
 ('STU501', 1, '921025114001', 'ABINESH P', 'CL006', 'Mechanical Engineering'),
 ('STU502', 2, '921025114002', 'AKASH K', 'CL006', 'Mechanical Engineering'),
@@ -476,9 +611,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU504', 4, '921025114004', 'BHUVANESHPANDI S', 'CL006', 'Mechanical Engineering'),
 ('STU505', 5, '921025114005', 'BUVANESWARAN S', 'CL006', 'Mechanical Engineering'),
 ('STU506', 6, '921025114006', 'DEEPAK A', 'CL006', 'Mechanical Engineering'),
-('STU507', 7, '921025114007', 'DEEPAK KISHAN R', 'CL006', 'Mechanical Engineering');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU507', 7, '921025114007', 'DEEPAK KISHAN R', 'CL006', 'Mechanical Engineering'),
 ('STU508', 8, '921025114008', 'DESIKASRI S', 'CL006', 'Mechanical Engineering'),
 ('STU509', 9, '921025114009', 'DHIVYAJOTHI SREE K', 'CL006', 'Mechanical Engineering'),
 ('STU510', 10, '921025114010', 'DIVAHAR S', 'CL006', 'Mechanical Engineering'),
@@ -520,7 +653,9 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU604', 4, '921025103004', 'ARO NIRANJAN S', 'CL007', 'Civil Engineering'),
 ('STU605', 5, '921025103005', 'ATCHAYA S', 'CL007', 'Civil Engineering'),
 ('STU606', 6, '921025103006', 'BOOMA P', 'CL007', 'Civil Engineering'),
-('STU607', 7, '921025103007', 'DEEPIKA K', 'CL007', 'Civil Engineering'),
+('STU607', 7, '921025103007', 'DEEPIKA K', 'CL007', 'Civil Engineering');
+
+INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
 ('STU608', 8, '921025103008', 'DHANYA SHREE K', 'CL007', 'Civil Engineering'),
 ('STU609', 9, '921025103009', 'ENIYA K', 'CL007', 'Civil Engineering'),
 ('STU610', 10, '921025103010', 'GIRI S P', 'CL007', 'Civil Engineering'),
@@ -528,9 +663,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU612', 12, '921025103012', 'KAVIYADHARSHINI K', 'CL007', 'Civil Engineering'),
 ('STU613', 13, '921025103013', 'LOGESHWARI P', 'CL007', 'Civil Engineering'),
 ('STU614', 14, '921025103014', 'MAITHIRAN P', 'CL007', 'Civil Engineering'),
-('STU615', 15, '921025103015', 'MENAKA DEVI K', 'CL007', 'Civil Engineering');
-
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+('STU615', 15, '921025103015', 'MENAKA DEVI K', 'CL007', 'Civil Engineering'),
 ('STU616', 16, '921025103016', 'NISHA GANDHI S', 'CL007', 'Civil Engineering'),
 ('STU617', 17, '921025103017', 'NIVEDHA MANI M', 'CL007', 'Civil Engineering'),
 ('STU618', 18, '921025103018', 'PADMASRI N', 'CL007', 'Civil Engineering'),
