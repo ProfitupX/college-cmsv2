@@ -19,7 +19,11 @@ export default function MarksTable2021({
   assessmentMode, selectedSubject,
   onInternalExamChange, onLabDataChange, isLocked
 }) {
-  const isLabType = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+  // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
+  const isLabType = [
+    'Lab-cum-Theory', 'Theory-cum-Lab',
+    'Lab cum Theory', 'Theory cum Lab'
+  ].includes(selectedSubject?.type);
   const ciaMax    = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
 
@@ -57,13 +61,9 @@ export default function MarksTable2021({
                   <span className={styles.thIcon}>📝</span>
                   <span className={styles.thLabel}>
                     {assessmentMode === 'internal1' ? 'Internal 1 Exam' : 'Internal 2 Exam'}
-                    {assessmentMode === 'internal2' && isLabType && (
-                      <span style={{ color: '#f59e0b', fontSize: '0.7rem', display: 'block' }}>(Ref only)</span>
-                    )}
                   </span>
                   <div className={styles.thSub}>
                     /100 → {examConvertedMax}
-                    {assessmentMode === 'internal2' && isLabType && ' ⚠️ Not counted'}
                   </div>
                 </div>
               </th>

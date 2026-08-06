@@ -25,7 +25,11 @@ export default function MarksRow2021({
   onMarkChange, onInternalExamChange, onLabDataChange,
   isLocked, index, ciaMax, examConvertedMax
 }) {
-  const isLabType = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+  // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
+  const isLabType = [
+    'Lab-cum-Theory', 'Theory-cum-Lab',
+    'Lab cum Theory', 'Theory cum Lab'
+  ].includes(selectedSubject?.type);
 
   // 1. Sum raw component marks — cap each at conductedMax
   let rawCIA = 0;
@@ -126,14 +130,11 @@ export default function MarksRow2021({
             type="number"
             min="0"
             max="100"
-            className={`${styles.input} ${parseFloat(internalExamMark) > 100 ? styles.inputError : ''} ${
-              (isLabType && assessmentMode === 'internal2') ? styles.readOnlyInput : ''
-            }`}
+            className={`${styles.input} ${parseFloat(internalExamMark) > 100 ? styles.inputError : ''}`}
             value={internalExamMark}
             onChange={(e) => onInternalExamChange(e.target.value)}
             disabled={isLocked}
             placeholder="—"
-            title={isLabType && assessmentMode === 'internal2' ? 'Recorded for reference — not counted in total' : ''}
           />
           <span className={styles.inputMax}>/100</span>
           {/* Show converted value only if it counts */}
@@ -142,9 +143,6 @@ export default function MarksRow2021({
               <span className={styles.convertedLabel}>→</span> {examConverted}
               <span className={styles.convertedMax}>/{examConvertedMax}</span>
             </div>
-          )}
-          {(isLabType && assessmentMode === 'internal2') && (
-            <div style={{ fontSize: '0.65rem', color: '#f59e0b', marginTop: '2px' }}>Ref only</div>
           )}
         </div>
       </td>

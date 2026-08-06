@@ -273,7 +273,11 @@ export default function MarksEntryPage2021() {
   const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && user?.role !== 'hod' && user?.role !== 'admin');
   const canEnterMarks = isPrincipal ? true : assessmentComponents.length > 0;
 
-  const isLabType = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+  // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
+  const isLabType = [
+    'Lab-cum-Theory', 'Theory-cum-Lab',
+    'Lab cum Theory', 'Theory cum Lab'
+  ].includes(selectedSubject?.type);
   const ciaMax = isLabType ? 50 : 40;
 
   if (loading) {
@@ -305,7 +309,7 @@ export default function MarksEntryPage2021() {
           <div>2021 Regulation — 3rd &amp; Final Year Marks Entry</div>
           <div style={{ fontWeight: 400, fontSize: '0.78rem', opacity: 0.85, marginTop: '2px' }}>
             {isLabType
-              ? `Lab-cum-Theory: CIA /${ciaMax} + Exam /100→${ciaMax === 50 ? 50 : 60}  |  Int2: CIA /50 + Lab Exam /100→50 (Internal Exam for reference only)`
+              ? `Lab-cum-Theory: CIA /${ciaMax} + Exam /100→${ciaMax === 50 ? 50 : 60}  |  Int2: CIA /50 + Lab Exam /100→50`
               : `Theory: CIA /40 + Internal Exam /100→60 = Total /100 · No Attendance marks`}
           </div>
         </div>
@@ -428,7 +432,7 @@ export default function MarksEntryPage2021() {
             )}
             {isLabType && assessmentMode === 'internal2' && (
               <>
-                <span>📝 <strong>Internal Exam:</strong> /100 (reference only, not counted)</span>
+                <span>📝 <strong>Internal Exam:</strong> /100</span>
                 <span>🔬 <strong>Lab Exam:</strong> /100 → converted to /50</span>
               </>
             )}

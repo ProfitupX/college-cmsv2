@@ -257,7 +257,7 @@ export const generateSubjectMarksListPDF = async ({
   y += 8;
 
   const isInternal2 = assessmentMode === 'internal2';
-  const hasLab = subject?.type === 'Lab-cum-Theory' || subject?.type === 'Theory-cum-Lab';
+  const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
   // Prepare Table Headers
   const headRow = ['S.No', 'Roll No', 'Name'];
@@ -662,7 +662,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   const doc = new jsPDF('p', 'mm', 'a4');
 
   const isInternal2 = assessmentMode === 'internal2';
-  const hasLab = subject?.type === 'Lab-cum-Theory' || subject?.type === 'Theory-cum-Lab';
+  const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   const ciaMax = hasLab ? 50 : 40;
   const examConvertedMax = hasLab ? 50 : 60;
 
@@ -698,7 +698,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   } else if (!isInternal2) {
     doc.text(`Scheme (Int.1): CIA /${ciaMax} + Internal Exam /100 → ${examConvertedMax} = Total /100  |  No Attendance Marks`, 16, y);
   } else {
-    doc.text(`Scheme (Int.2): CIA /${ciaMax} + Lab Exam /100 → 50 = Total /100  |  Internal Exam shown for reference only  |  No Attendance`, 16, y);
+    doc.text(`Scheme (Int.2): CIA /${ciaMax} + Lab Exam /100 → 50 = Total /100  |  No Attendance`, 16, y);
   }
   doc.setTextColor(0, 0, 0);
   y += isInternal2 && hasLab ? 12 : 10;
@@ -708,7 +708,7 @@ export const generateSubjectMarksListPDF2021 = async ({
 
   if (isInternal2 && hasLab) {
     headRow.push(
-      'Internal Exam\n(/100)\n[Ref only]',
+      'Internal Exam\n(/100)',
       'Lab Exam\n(/100)',
       'Lab Converted\n(/50)',
       'Total\n(/100)'
