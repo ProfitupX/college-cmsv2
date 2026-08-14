@@ -31,16 +31,31 @@ router.post('/', async (req, res) => {
 
     await conn.beginTransaction();
     for (const item of data) {
-      const { id, s_no, roll_no, name, class_id } = item;
-      if (!id || !roll_no || !name || !class_id) throw new Error(`Missing required fields for student ${id || 'unknown'}`);
+      let { id, s_no, roll_no, name, class_id } = item;
       
-      await conn.execute(
-        `INSERT INTO students (id, s_no, roll_no, name, class_id)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-           s_no=VALUES(s_no), roll_no=VALUES(roll_no), name=VALUES(name), class_id=VALUES(class_id)`,
-        [id, s_no || 0, roll_no, name, class_id]
-      );
+      // Auto-generate ID if missing
+      if (!id && roll_no) {
+        id = `ST_${roll_no}`;
+      }
+
+      if (!id || !roll_no || !name || !class_id) {
+        throw new Error(`Missing required fields for student ${name || roll_no || 'unknown'}. Please check your CSV columns (id, s_no, roll_no, name, class_id).`);
+      }
+      
+      try {
+        await conn.execute(
+          `INSERT INTO students (id, s_no, roll_no, name, class_id)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+             s_no=VALUES(s_no), roll_no=VALUES(roll_no), name=VALUES(name), class_id=VALUES(class_id)`,
+          [id, s_no || 0, roll_no, name, class_id]
+        );
+      } catch (dbErr) {
+        if (dbErr.code === 'ER_NO_REFERENCED_ROW_2' && dbErr.message.includes('class_id')) {
+          throw new Error(`Invalid class_id "${class_id}" for student ${name}. Please use correct Class ID (e.g., CL_CSE_III).`);
+        }
+        throw dbErr;
+      }
     }
     await conn.commit();
     res.status(201).json({ success: true, count: data.length });

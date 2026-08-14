@@ -59,7 +59,7 @@ export default function MarksRow2021({
     finalTotal = Math.min(ciaTotal + examConverted, 100);
   }
 
-  const initials = student.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+  const initials = (student.name || 'Unknown').split(' ').map(n => n[0]).join('').slice(0, 2);
 
   return (
     <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>

@@ -684,24 +684,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
   doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   CIA Max: ${ciaMax}`, 14, y);
-  y += 8;
-
-  // Regulation note box
-  doc.setFillColor(245, 240, 255);
-  doc.setDrawColor(124, 58, 237);
-  doc.roundedRect(14, y - 4, 182, isInternal2 && hasLab ? 10 : 7, 1, 1, 'FD');
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 0, 120);
-  doc.setFont('helvetica', 'bold');
-  if (!hasLab) {
-    doc.text(`Scheme: CIA /${ciaMax} + Internal Exam /100 → ${examConvertedMax} = Total /100  |  No Attendance Marks`, 16, y);
-  } else if (!isInternal2) {
-    doc.text(`Scheme (Int.1): CIA /${ciaMax} + Internal Exam /100 → ${examConvertedMax} = Total /100  |  No Attendance Marks`, 16, y);
-  } else {
-    doc.text(`Scheme (Int.2): CIA /${ciaMax} + Lab Exam /100 → 50 = Total /100  |  No Attendance`, 16, y);
-  }
-  doc.setTextColor(0, 0, 0);
-  y += isInternal2 && hasLab ? 12 : 10;
+  y += 6;
 
   // ── Build Table Header ──────────────────────────────────────
   const headRow = ['S.No', 'Roll No', 'Student Name', `CIA\n(/${ciaMax})`];
