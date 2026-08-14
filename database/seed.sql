@@ -1,10 +1,26 @@
+-- ============================================================
+-- COLLEGE CMS MASTER SEED DUMP (SCHEMA + 2021 REGULATION DATA)
+-- Generated at: 2026-08-14T10:52:31.436Z
+-- ============================================================
+
 CREATE DATABASE IF NOT EXISTS college_cms;
 USE college_cms;
 
--- COLLEGE CMS FULL DUMP
+SET FOREIGN_KEY_CHECKS = 0;
 
--- TABLE: departments
-INSERT IGNORE INTO departments (id, short_name, name, college_name) VALUES
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: DEPARTMENTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `departments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `short_name` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `college_name` varchar(250) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: DEPARTMENTS
+INSERT IGNORE INTO `departments` (`id`, `short_name`, `name`, `college_name`) VALUES
 (1, 'IT', 'Information Technology', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
 (2, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
 (3, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
@@ -17,8 +33,26 @@ INSERT IGNORE INTO departments (id, short_name, name, college_name) VALUES
 (10, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
 (11, 'S&H', 'Science and Humanities', 'Nadar Saraswathi College of Engineering and Technology, Theni');
 
--- TABLE: classes
-INSERT IGNORE INTO classes (id, name, department, semester, year_label, section, room_no, academic_year, batch, class_coordinator, asst_coordinator) VALUES
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: CLASSES
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `classes` (
+  `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `semester` int DEFAULT NULL,
+  `year_label` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. II',
+  `section` varchar(5) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `room_no` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `academic_year` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `batch` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `class_coordinator` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `asst_coordinator` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: CLASSES
+INSERT IGNORE INTO `classes` (`id`, `name`, `department`, `semester`, `year_label`, `section`, `room_no`, `academic_year`, `batch`, `class_coordinator`, `asst_coordinator`) VALUES
 ('CL_AIDS_III', 'AD - III Year - V Sem', 'Artificial Intelligence and Data Science', 5, 'III', 'A', 'CR-24', '2026-2027', '2024-2028', 'Mrs.M.PAVITHRA', 'Mrs. S.SUNITHA'),
 ('CL_AIDS_IV', 'AD - IV Year - VII Sem', 'Artificial Intelligence and Data Science', 7, 'IV', 'A', 'CR-23', '2026-2027', '2023-2027', 'Mr. J.VINOTHKUMAR', 'Ms. G.GEERTHIGA'),
 ('CL_CIVIL_III', 'CIVIL - III Year - V Sem', 'Civil Engineering', 5, 'III', 'A', 'TBD', '2026-2027', '2024-2028', '', ''),
@@ -41,8 +75,26 @@ INSERT IGNORE INTO classes (id, name, department, semester, year_label, section,
 ('CL006', 'MECH - II Year - III Sem', 'Mechanical Engineering', 3, 'II', 'A', 'Class Room 12', '2026-2027', '2025-2029', 'Dr. B. Nagarajan', 'Mr. R. Nagaraja'),
 ('CL007', 'CIVIL - II Year - III Sem', 'Civil Engineering', 3, 'II', 'A', '19', '2026-2027', '2025-2029', 'Mrs. S. Gayathri', 'Mr. T. Hariprasath');
 
--- TABLE: staffs
-INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, employee_id, password, class_role, department) VALUES
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: STAFFS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `staffs` (
+  `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `short_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `designation` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'faculty',
+  `email` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `employee_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT 'faculty123',
+  `class_role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `department` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: STAFFS
+INSERT IGNORE INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`) VALUES
 ('ADM001', 'Admin User', 'Admin', 'System Administrator', 'admin', 'admin@nscet.edu.in', 'ADMIN-001', 'admin123', NULL, 'Information Technology'),
 ('FAC_AIDS_101', 'Mr. L.S. Vignesh', 'L.S. Vignesh', 'AP/HOD', 'hod', 'vignesh.aids@nscet.edu.in', 'NSCET-AIDS-101', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
 ('FAC_AIDS_102', 'Mrs. M. Pavithra', 'M. Pavithra', 'AP', 'faculty', 'pavithra.aids@nscet.edu.in', 'NSCET-AIDS-102', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science'),
@@ -94,7 +146,7 @@ INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, emplo
 ('FAC031', 'Dr. B. Mallaiyasamy', 'B. Mallaiyasamy', 'ASP/S&H', 'faculty', 'mallaiyasamy.sh@nscet.edu.in', 'NSCET-SH-031', 'faculty123', NULL, 'Science and Humanities'),
 ('FAC032', 'Mrs. A. Nishetha Jeflin Nixon', 'A. Nishetha Jeflin Nixon', 'AP/EEE', 'faculty', 'nishetha.eee@nscet.edu.in', 'NSCET-EEE-032', 'faculty123', NULL, 'Electrical and Electronics Engineering');
 
-INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, employee_id, password, class_role, department) VALUES
+INSERT IGNORE INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`) VALUES
 ('FAC033', 'Mrs. R. Chitra', 'R. Chitra', 'AP/EEE', 'faculty', 'chitra.eee@nscet.edu.in', 'NSCET-EEE-033', 'faculty123', 'Assistant Coordinator', 'Electrical and Electronics Engineering'),
 ('FAC034', 'Dr. R. Athilingam', 'R. Athilingam', 'HOD/EEE', 'hod', 'athilingam.eee@nscet.edu.in', 'NSCET-EEE-034', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
 ('FAC035', 'Mrs. M. Vijayalakshmi', 'M. Vijayalakshmi', 'AP/EEE', 'faculty', 'vijayalakshmi.eee@nscet.edu.in', 'NSCET-EEE-035', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
@@ -128,8 +180,34 @@ INSERT IGNORE INTO staffs (id, name, short_name, designation, role, email, emplo
 ('PRN001', 'Dr. C. Mathalai Sundaram', 'Principal', 'Principal & Executive Head', 'principal', 'principal@nscet.edu.in', 'EXE-001', 'principal123', NULL, 'College Administration'),
 ('VPN001', 'Dr. M. Sathya', 'Vice Principal', 'Vice Principal & Academic Head', 'vice_principal', 'viceprincipal@nscet.edu.in', 'EXE-002', 'vp123', NULL, 'Academic Administration');
 
--- TABLE: subjects
-INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: SUBJECTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `subjects` (
+  `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `code` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `acronym` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT 'Theory',
+  `department` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `semester` int DEFAULT NULL,
+  `faculty_id` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `class_id` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ltpc` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `total_hours` int DEFAULT NULL,
+  `l` int DEFAULT '0',
+  `t` int DEFAULT '0',
+  `p` int DEFAULT '0',
+  `c` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `fk_subject_class` (`class_id`),
+  KEY `fk_subject_faculty` (`faculty_id`),
+  CONSTRAINT `fk_subject_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_subject_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `staffs` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: SUBJECTS
+INSERT IGNORE INTO `subjects` (`id`, `code`, `name`, `acronym`, `type`, `department`, `semester`, `faculty_id`, `class_id`, `ltpc`, `total_hours`, `l`, `t`, `p`, `c`) VALUES
 ('SUB_01', 'CE3501', 'DESIGN OF REINFORCED CONCRETE STRUCTURAL ELEMENTS', NULL, 'Theory', NULL, NULL, 'FAC069', 'CL_CIVIL_III', NULL, NULL, 0, 0, 0, 0),
 ('SUB_02', 'CE3502', 'STRUCTURAL ANALYSIS', NULL, 'Theory', NULL, NULL, 'FAC066', 'CL_CIVIL_III', NULL, NULL, 0, 0, 0, 0),
 ('SUB_03', 'CE3503', 'FOUNDATION ENGINEERING', NULL, 'Theory', NULL, NULL, 'FAC063', 'CL_CIVIL_III', NULL, NULL, 0, 0, 0, 0),
@@ -181,7 +259,7 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB_ECE_4_4', 'OMR353', 'Sensors', 'SEN', 'Theory', 'Electronics and Communication Engineering', 7, 'FAC048', 'CL_ECE_IV', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB_ECE_4_5', 'EC3711', 'Summer Internship/Value Added Course', 'SI/ VAC', 'Practical', 'Electronics and Communication Engineering', 7, 'FAC_ECE_105', 'CL_ECE_IV', '0-0-0-2', 30, 0, 0, 0, 2);
 
-INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+INSERT IGNORE INTO `subjects` (`id`, `code`, `name`, `acronym`, `type`, `department`, `semester`, `faculty_id`, `class_id`, `ltpc`, `total_hours`, `l`, `t`, `p`, `c`) VALUES
 ('SUB_ECE_4_6', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electronics and Communication Engineering', 7, 'FAC046', 'CL_ECE_IV', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUB_EEE_3_1', 'EE3501', 'Power System Analysis', 'PSA', 'Theory', 'Electrical and Electronics Engineering', 5, 'FAC036', 'CL_EEE_III', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB_EEE_3_10', 'EE3512', 'Control and Instrumentation Laboratory', 'C&I LAB', 'Practical', 'Electrical and Electronics Engineering', 5, 'FAC037', 'CL_EEE_III', '0-0-4-2', 60, 0, 0, 4, 2),
@@ -233,7 +311,7 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB_MECH_3_8', 'LIB', 'LIBRARY', 'LIBRARY', 'Other', 'Mechanical Engineering', 5, 'FAC058', 'CL_MECH_III', '0-0-0-1', 15, 0, 0, 0, 1),
 ('SUB_MECH_4_1', 'ME3791', 'Mechatronics and IoT', 'M&IOT', 'Theory', 'Mechanical Engineering', 7, 'FAC055', 'CL_MECH_IV', '3-0-0-3', 45, 3, 0, 0, 3);
 
-INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+INSERT IGNORE INTO `subjects` (`id`, `code`, `name`, `acronym`, `type`, `department`, `semester`, `faculty_id`, `class_id`, `ltpc`, `total_hours`, `l`, `t`, `p`, `c`) VALUES
 ('SUB_MECH_4_2', 'ME3792', 'Computer Integrated Manufacturing', 'CIM', 'Theory', 'Mechanical Engineering', 7, 'FAC052', 'CL_MECH_IV', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB_MECH_4_3', 'GE3791', 'Human Values and Ethics', 'HVE', 'Theory', 'Mechanical Engineering', 7, 'FAC_MECH_101', 'CL_MECH_IV', '2-0-0-2', 30, 2, 0, 0, 2),
 ('SUB_MECH_4_4', 'GE3792', 'Industrial Management', 'IM', 'Theory', 'Mechanical Engineering', 7, 'FAC_MECH_102', 'CL_MECH_IV', '3-0-0-3', 45, 3, 0, 0, 3),
@@ -285,7 +363,7 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB048', 'SD LAB', 'Skill Development Course-I', 'SD LAB', 'Theory-cum-Lab', 'Electronics and Communication Engineering', 3, 'FAC047', 'CL005', '1-0-2-2', 45, 1, 0, 2, 2),
 ('SUB049', 'NM', 'Naan Mudhalvan', 'NM', 'Skill', 'Electronics and Communication Engineering', 3, 'FAC048', 'CL005', '0-0-2-1', 30, 0, 0, 2, 1);
 
-INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester, faculty_id, class_id, ltpc, total_hours, l, t, p, c) VALUES
+INSERT IGNORE INTO `subjects` (`id`, `code`, `name`, `acronym`, `type`, `department`, `semester`, `faculty_id`, `class_id`, `ltpc`, `total_hours`, `l`, `t`, `p`, `c`) VALUES
 ('SUB051', 'ME25C07', 'Applied Engineering Mechanics', 'AEM', 'Theory', 'Mechanical Engineering', 3, 'FAC052', 'CL006', '3-0-0-3', 45, 3, 0, 0, 3),
 ('SUB052', 'ME25301', 'Engineering Thermodynamics', 'ETD', 'Theory', 'Mechanical Engineering', 3, 'FAC053', 'CL006', '4-0-0-4', 60, 4, 0, 0, 4),
 ('SUB053', 'CE25C11', 'Strength of Materials', 'SOM', 'Theory-cum-Lab', 'Mechanical Engineering', 3, 'FAC054', 'CL006', '3-0-2-4', 75, 3, 0, 2, 4),
@@ -304,8 +382,24 @@ INSERT IGNORE INTO subjects (id, code, name, acronym, type, department, semester
 ('SUB080', 'EN25C03', 'English Communication Skills Laboratory – II', 'ECS LAB', 'Practical', 'Civil Engineering', 3, 'FAC070', 'CL007', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUBEN02', 'EN25C03', 'English Communication Skills Laboratory – II', NULL, 'Practical', NULL, NULL, 'FAC007', 'CL001', '0-0-2-1', 30, 0, 0, 2, 1);
 
--- TABLE: students
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: STUDENTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `students` (
+  `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `s_no` int NOT NULL,
+  `roll_no` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `class_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_rollno` (`roll_no`),
+  KEY `fk_student_class` (`class_id`),
+  CONSTRAINT `fk_student_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: STUDENTS
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('1', 1, '921024103001', 'AKSHAYADEVI R', 'CL_CIVIL_III', NULL),
 ('10', 10, '921024103010', 'MANIMEGALA P', 'CL_CIVIL_III', NULL),
 ('11', 11, '921024103011', 'MANOBARATH E', 'CL_CIVIL_III', NULL),
@@ -357,7 +451,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_AIDS3_12', 12, '921024243012', 'DHARANI D', 'CL_AIDS_III', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS3_13', 13, '921024243013', 'DHIVYA M', 'CL_AIDS_III', 'Artificial Intelligence and Data Science');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_AIDS3_14', 14, '921024243014', 'DINESHBABU', 'CL_AIDS_III', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS3_15', 15, '921024243015', 'DIVYAVARSHINI N', 'CL_AIDS_III', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS3_16', 16, '921024243016', 'GOBI P', 'CL_AIDS_III', 'Artificial Intelligence and Data Science'),
@@ -409,7 +503,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_AIDS4_13', 13, '921023243014', 'PRITHIKA S', 'CL_AIDS_IV', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS4_14', 14, '921023243015', 'RAJAPRABA R', 'CL_AIDS_IV', 'Artificial Intelligence and Data Science');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_AIDS4_15', 15, '921023243016', 'RUUBAN RAJ R', 'CL_AIDS_IV', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS4_16', 16, '921023243017', 'SAFIKUL FARINAZ S', 'CL_AIDS_IV', 'Artificial Intelligence and Data Science'),
 ('ST_AIDS4_17', 17, '921023243018', 'SHRIMATHI R', 'CL_AIDS_IV', 'Artificial Intelligence and Data Science'),
@@ -461,7 +555,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_ECE3_35', 35, '921024106036', 'RIDDHI SHREE P', 'CL_ECE_III', 'Electronics and Communication Engineering'),
 ('ST_ECE3_36', 36, '921024106037', 'RISHI PRIYAN S', 'CL_ECE_III', 'Electronics and Communication Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_ECE3_37', 37, '921024106038', 'SAKTHI DHARANI K', 'CL_ECE_III', 'Electronics and Communication Engineering'),
 ('ST_ECE3_38', 38, '921024106039', 'SARANRAJ M', 'CL_ECE_III', 'Electronics and Communication Engineering'),
 ('ST_ECE3_39', 39, '921024106040', 'SARMILI SHAKSHI S', 'CL_ECE_III', 'Electronics and Communication Engineering'),
@@ -513,7 +607,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_ECE4_4', 4, '921023106004', 'ANTON MATTEW A', 'CL_ECE_IV', 'Electronics and Communication Engineering'),
 ('ST_ECE4_40', 40, '921023106042', 'SANKARA NARAYANAN S', 'CL_ECE_IV', 'Electronics and Communication Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_ECE4_41', 41, '921023106043', 'SANTHIYA G', 'CL_ECE_IV', 'Electronics and Communication Engineering'),
 ('ST_ECE4_42', 42, '921023106044', 'SHARVARI S', 'CL_ECE_IV', 'Electronics and Communication Engineering'),
 ('ST_ECE4_43', 43, '921023106045', 'SRINITHI C', 'CL_ECE_IV', 'Electronics and Communication Engineering'),
@@ -565,7 +659,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_EEE4_16', 16, '921023105018', 'KAVIN ASWATH S', 'CL_EEE_IV', 'Electrical and Electronics Engineering'),
 ('ST_EEE4_17', 17, '921023105019', 'KRISHNAVENI P', 'CL_EEE_IV', 'Electrical and Electronics Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_EEE4_18', 18, '921023105020', 'MARIMUTHU R', 'CL_EEE_IV', 'Electrical and Electronics Engineering'),
 ('ST_EEE4_19', 19, '921023105021', 'MOHAMED NOWFIL A', 'CL_EEE_IV', 'Electrical and Electronics Engineering'),
 ('ST_EEE4_2', 2, '921023105003', 'BOOMIGA M', 'CL_EEE_IV', 'Electrical and Electronics Engineering'),
@@ -617,7 +711,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_IT3_33', 33, '921024205035', 'SHANMUGAPRIYA N', 'CL_IT_III', 'Information Technology'),
 ('ST_IT3_34', 34, '921024205036', 'SHARVESWARAN S P', 'CL_IT_III', 'Information Technology');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_IT3_35', 35, '921024205037', 'SIVA PRADEEP M', 'CL_IT_III', 'Information Technology'),
 ('ST_IT3_36', 36, '921024205038', 'SIVASANDHYA K', 'CL_IT_III', 'Information Technology'),
 ('ST_IT3_37', 37, '921024205039', 'SRINITHI A', 'CL_IT_III', 'Information Technology'),
@@ -669,7 +763,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST_MECH3_15', 15, '921024114016', 'RANJITH KUMAR K', 'CL_MECH_III', 'Mechanical Engineering'),
 ('ST_MECH3_16', 16, '921024114017', 'RIYAZ AHAMED S', 'CL_MECH_III', 'Mechanical Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST_MECH3_17', 17, '921024114018', 'SAKTHIVEL PANDI K', 'CL_MECH_III', 'Mechanical Engineering'),
 ('ST_MECH3_18', 18, '921024114019', 'SANJAY RAMKUMAR M', 'CL_MECH_III', 'Mechanical Engineering'),
 ('ST_MECH3_19', 19, '921024114020', 'SANJAY THALAIKUMAR M', 'CL_MECH_III', 'Mechanical Engineering'),
@@ -721,7 +815,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('ST016', 16, '921025205016', 'Hari Priya R', 'CL001', NULL),
 ('ST017', 17, '921025205017', 'Janarthanan M', 'CL001', NULL);
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('ST018', 18, '921025205018', 'Jeyakrishnan P', 'CL001', NULL),
 ('ST019', 19, '921025205019', 'Jeysree S', 'CL001', NULL),
 ('ST020', 20, '921025205020', 'Karthiga M', 'CL001', NULL),
@@ -773,7 +867,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU_006', 6, '921023104006', 'BALADINESH K', 'CL_CSE_IV', NULL),
 ('STU_007', 7, '921023104007', 'BRINDHA A', 'CL_CSE_IV', NULL);
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU_008', 8, '921023104008', 'DEEBA DHARSHINIE G K', 'CL_CSE_IV', NULL),
 ('STU_009', 9, '921023104009', 'DHANUJA P', 'CL_CSE_IV', NULL),
 ('STU_010', 10, '921023104010', 'HARINI M', 'CL_CSE_IV', NULL),
@@ -825,7 +919,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU1007', 7, '921024104008', 'DIYASRI P', 'CL_CSE_III', NULL),
 ('STU1008', 8, '921024104009', 'DURGADEVI V', 'CL_CSE_III', NULL);
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU1009', 9, '921024104010', 'GAYATHRI K', 'CL_CSE_III', NULL),
 ('STU101', 1, '921025104001', 'AATHISUNDARARAJAN N', 'CL002', 'Computer Science and Engineering'),
 ('STU1010', 10, '921024104011', 'GOKULAPRIYAN I', 'CL_CSE_III', NULL),
@@ -877,7 +971,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU1052', 52, '921024104054', 'VEDHASHREE S', 'CL_CSE_III', NULL),
 ('STU1053', 53, '921024104055', 'YAZHINI M', 'CL_CSE_III', NULL);
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU1054', 54, '921024104056', 'YOHESH K', 'CL_CSE_III', NULL),
 ('STU1055', 55, '921024104301', 'JOTHIRAM K', 'CL_CSE_III', NULL),
 ('STU1056', 56, '921024104701', 'DEETSANYA R', 'CL_CSE_III', NULL),
@@ -929,7 +1023,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU150', 50, '921025104050', 'SIVAKUMAR K', 'CL002', 'Computer Science and Engineering'),
 ('STU151', 51, '921025104051', 'SOWMIYA A', 'CL002', 'Computer Science and Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU152', 52, '921025104052', 'SREEJA R', 'CL002', 'Computer Science and Engineering'),
 ('STU153', 53, '921025104053', 'SRIVAISHNAVI M', 'CL002', 'Computer Science and Engineering'),
 ('STU154', 54, '921025104054', 'SUBATHRA M', 'CL002', 'Computer Science and Engineering'),
@@ -981,7 +1075,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU240', 40, '921025243040', 'RAJARAJESWARI S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU241', 41, '921025243041', 'RAJASRI M', 'CL003', 'Artificial Intelligence and Data Science');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU242', 42, '921025243042', 'REENASRI S', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU243', 43, '921025243043', 'RITHIKA SRI A', 'CL003', 'Artificial Intelligence and Data Science'),
 ('STU244', 44, '921025243044', 'SAHANA C', 'CL003', 'Artificial Intelligence and Data Science'),
@@ -1033,7 +1127,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU333', 33, '921025105034', 'NITHISH G', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU334', 34, '921025105035', 'NITHYA DHARSHINI S', 'CL004', 'Electrical and Electronics Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU335', 35, '921025105036', 'NIVESH E', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU336', 36, '921025105037', 'PADMASHRI P', 'CL004', 'Electrical and Electronics Engineering'),
 ('STU337', 37, '921025105038', 'PAVITHRA S', 'CL004', 'Electrical and Electronics Engineering'),
@@ -1085,7 +1179,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU425', 25, '921025106025', 'JEGATHEESWARI K', 'CL005', 'Electronics and Communication Engineering'),
 ('STU426', 26, '921025106026', 'KANAL AVINASH R', 'CL005', 'Electronics and Communication Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU427', 27, '921025106027', 'KARTHICK S', 'CL005', 'Electronics and Communication Engineering'),
 ('STU428', 28, '921025106028', 'KARUNIYA K', 'CL005', 'Electronics and Communication Engineering'),
 ('STU429', 29, '921025106029', 'KAVIYA B', 'CL005', 'Electronics and Communication Engineering'),
@@ -1137,7 +1231,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU517', 17, '921025114018', 'KAVIARASAN N', 'CL006', 'Mechanical Engineering'),
 ('STU518', 18, '921025114019', 'KAVIN G', 'CL006', 'Mechanical Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU519', 19, '921025114020', 'KIRTHICK M', 'CL006', 'Mechanical Engineering'),
 ('STU520', 20, '921025114022', 'KISHOR KUMAR.V', 'CL006', 'Mechanical Engineering'),
 ('STU521', 21, '921025114023', 'KOWSHIK HEMA CHANDRAN M', 'CL006', 'Mechanical Engineering'),
@@ -1189,7 +1283,7 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU625', 25, '921025103025', 'SARAVANAKUMAR P', 'CL007', 'Civil Engineering'),
 ('STU626', 26, '921025103026', 'SATHANA R', 'CL007', 'Civil Engineering');
 
-INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALUES
+INSERT IGNORE INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department`) VALUES
 ('STU627', 27, '921025103027', 'SHARMILADEVI M', 'CL007', 'Civil Engineering'),
 ('STU628', 28, '921025103028', 'SRI KANTH M', 'CL007', 'Civil Engineering'),
 ('STU629', 29, '921025103029', 'THARUNIMA S', 'CL007', 'Civil Engineering'),
@@ -1197,3 +1291,161 @@ INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department) VALU
 ('STU631', 31, '921025103031', 'YAZHINI N', 'CL007', 'Civil Engineering'),
 ('STU632', 32, '921025103032', 'YUVASRI M', 'CL007', 'Civil Engineering');
 
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: SYSTEM_SETTINGS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `system_settings` (
+  `setting_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `setting_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DATA FOR: SYSTEM_SETTINGS
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES
+('marks_entry_deadline', '2026-07-24', '2026-07-23 05:15:26');
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: MARKS_SESSIONS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `marks_sessions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `subject_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `class_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `staff_id` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `session_label` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. Internal Assessment 1',
+  `total_max` decimal(8,2) DEFAULT NULL COMMENT 'Sum of all component max marks',
+  `total_hours` int DEFAULT '0' COMMENT 'Total hours conducted for attendance',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'locked',
+  `avg_score` decimal(5,2) DEFAULT NULL COMMENT 'Avg normalized score out of 40',
+  `student_count` int DEFAULT NULL,
+  `remedial_action` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `internal2_total_hours` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_session_class` (`class_id`),
+  KEY `fk_session_staff` (`staff_id`),
+  KEY `fk_session_subject` (`subject_id`),
+  CONSTRAINT `fk_session_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_session_staff` FOREIGN KEY (`staff_id`) REFERENCES `staffs` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_session_subject` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in marks_sessions)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: ASSESSMENT_COMPONENTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `assessment_components` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `session_id` int NOT NULL,
+  `type_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'test | assignment | quiz | ...',
+  `label` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Custom name e.g. Test 1',
+  `conducted_max` decimal(6,2) DEFAULT '100.00',
+  `max_marks` decimal(6,2) NOT NULL,
+  `icon` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `color` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sort_order` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `fk_comp_session` (`session_id`),
+  CONSTRAINT `fk_comp_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in assessment_components)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: MARKS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `marks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `session_id` int NOT NULL,
+  `component_id` int NOT NULL,
+  `student_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `marks_obtained` decimal(6,2) DEFAULT '0.00',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_mark` (`session_id`,`component_id`,`student_id`),
+  KEY `fk_mark_component` (`component_id`),
+  KEY `fk_mark_student` (`student_id`),
+  CONSTRAINT `fk_mark_component` FOREIGN KEY (`component_id`) REFERENCES `assessment_components` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mark_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mark_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in marks)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: SESSION_ATTENDANCE
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `session_attendance` (
+  `session_id` int NOT NULL,
+  `student_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hours_attended` int DEFAULT '0',
+  `internal_exam_mark` decimal(5,2) DEFAULT NULL,
+  `lab_attendance` int DEFAULT NULL,
+  `lab_mark` decimal(6,2) DEFAULT NULL,
+  PRIMARY KEY (`session_id`,`student_id`),
+  KEY `fk_att_student` (`student_id`),
+  CONSTRAINT `fk_att_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_att_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in session_attendance)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: MARK_UNLOCK_REQUESTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `mark_unlock_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `session_id` int NOT NULL,
+  `subject_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `class_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `staff_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reason` text COLLATE utf8mb4_unicode_ci,
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `requested_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `actioned_at` timestamp NULL DEFAULT NULL,
+  `actioned_by` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_unlock_session` (`session_id`),
+  KEY `fk_unlock_staff` (`staff_id`),
+  CONSTRAINT `fk_unlock_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in mark_unlock_requests)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: CLASS_ANALYSIS_REMARKS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `class_analysis_remarks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `class_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `session_label` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `remarks` text COLLATE utf8mb4_unicode_ci,
+  `improvement_plan` text COLLATE utf8mb4_unicode_ci,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_class_session` (`class_id`,`session_label`),
+  CONSTRAINT `fk_rem_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in class_analysis_remarks)
+
+-- ─────────────────────────────────────────
+-- TABLE SCHEMA: NOTIFICATIONS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `target_role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. hod, class_coordinator, or specific staff_id',
+  `target_id` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'staff ID if targeted to a specific user',
+  `title` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `link` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Deep link for interactive notifications',
+  `is_read` tinyint(1) DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- (No rows in notifications)
+
+SET FOREIGN_KEY_CHECKS = 1;
