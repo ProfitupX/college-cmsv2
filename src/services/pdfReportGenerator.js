@@ -756,7 +756,7 @@ export const generateConsolidatedMarksPDF = async ({
 // ─────────────────────────────────────────────────────────────
 export const generateSubjectMarksListPDF2021 = async ({
   subject, classObj, staff, session, students,
-  marksData, internalExamData, labData,
+  marksData, attendanceData = {}, totalHours = 0, internalExamData, labData,
   assessmentMode, components
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -765,6 +765,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   const ciaMax = hasLab ? 50 : 40;
   const examConvertedMax = hasLab ? 50 : 60;
+  const totHours = parseInt(totalHours || session?.total_hours || 0);
 
   const title = `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (2021 Regulation)`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.21', '01', '', '1 of 1');
@@ -783,11 +784,17 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
-  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}`, 14, y);
+  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}${totHours > 0 ? `   |   Total Classes: ${totHours}` : ''}`, 14, y);
   y += 6;
 
   // ── Build Table Header ──────────────────────────────────────
-  const headRow = ['S.No', 'Roll No', 'Student Name', `Internal Marks\n(/${ciaMax})`];
+  const headRow = [
+    'S.No',
+    'Roll No',
+    'Student Name',
+    `Attendance\n(${totHours > 0 ? `/${totHours}` : 'Attd'})`,
+    `Internal Marks\n(/${ciaMax})`
+  ];
 
   if (isInternal2 && hasLab) {
     headRow.push(
@@ -823,7 +830,7 @@ export const generateSubjectMarksListPDF2021 = async ({
     const labExamRaw = parseFloat(labData?.[student.id]?.labMark) || 0;
     const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
-    // Final total
+    // Final total (Attendance does NOT affect final marks)
     let finalTotal;
     if (isInternal2 && hasLab) {
       finalTotal = Math.min(ciaTotal + labExamConverted, 100);
@@ -831,10 +838,17 @@ export const generateSubjectMarksListPDF2021 = async ({
       finalTotal = Math.min(ciaTotal + examConverted, 100);
     }
 
+    const attdVal = attendanceData[student.id];
+    let attdDisplay = '-';
+    if (attdVal !== undefined && attdVal !== null && attdVal !== '') {
+      attdDisplay = totHours > 0 ? `${attdVal}/${totHours}` : `${attdVal}`;
+    }
+
     const row = [
       idx + 1,
       student.roll_no || student.rollNo || '-',
       student.name,
+      attdDisplay,
       ciaTotal === 0 ? '-' : ciaTotal,
     ];
 
@@ -856,11 +870,12 @@ export const generateSubjectMarksListPDF2021 = async ({
     return row;
   });
 
-  // Column widths — wider for name column
+  // Column widths
   const colStyles = {
-    0: { cellWidth: 10 },
-    1: { cellWidth: 28 },
-    2: { cellWidth: 48, halign: 'left' },
+    0: { cellWidth: 8 },
+    1: { cellWidth: 26 },
+    2: { cellWidth: 42, halign: 'left' },
+    3: { cellWidth: 20 },
   };
 
   autoTable(doc, {

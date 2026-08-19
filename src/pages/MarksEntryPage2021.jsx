@@ -29,8 +29,8 @@ export default function MarksEntryPage2021() {
   const { user } = useAuth();
   const {
     selectedClassId, selectedSubjectId,
-    marksData, internalExamData, labData, isDirty,
-    setClass, setSubject, setMark, setInternalExam, setLabData, setSessionBulk, markSaved, clearMarks,
+    marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
+    setClass, setSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks,
   } = useMarks();
 
   const [classes,   setClasses]   = useState([]);
@@ -121,10 +121,10 @@ export default function MarksEntryPage2021() {
           });
           setSessionBulk({
             marks: loadedMarks,
-            attendance: {},
+            attendance: detail.attendance || {},
             internalExam: detail.internalExam || {},
             labData: detail.labData || {},
-            totalHours: 0
+            totalHours: detail.session.total_hours || ''
           });
           setRemedialAction(detail.session.remedial_action || '');
           setSaved(true);
@@ -163,10 +163,10 @@ export default function MarksEntryPage2021() {
         });
       });
 
-      // For 2021 reg — no attendance, but we still send internalExam and labData
+      // For 2021 reg — attendance recorded for tracking (0 marks weight), along with internalExam and labData
       const attendancePayload = students.map(st => ({
         studentId: st.id,
-        hoursAttended: 0,
+        hoursAttended: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id]) : 0,
         internalExamMark: internalExamData[st.id] || '',
         labAttendance: 0,
         labMark: (labData[st.id] && labData[st.id].labMark) || ''
@@ -177,7 +177,7 @@ export default function MarksEntryPage2021() {
         classId:      selectedClassId,
         staffId:      user.id,
         sessionLabel: assessmentMode,
-        totalHours:   0,
+        totalHours:   parseInt(totalHours || 0),
         remedialAction,
         components: assessmentComponents.map((c) => ({
           typeId:   c.typeId,
@@ -258,6 +258,8 @@ export default function MarksEntryPage2021() {
       session: currentSession,
       students,
       marksData,
+      attendanceData,
+      totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
       internalExamData,
       labData,
       assessmentMode,
@@ -436,6 +438,7 @@ export default function MarksEntryPage2021() {
                 <span>🔬 <strong>Lab Exam:</strong> /100 → converted to /50</span>
               </>
             )}
+            <span>📅 <strong>Attendance:</strong> Record only (0 mark weight)</span>
             <span>🏆 <strong>Final:</strong> /100</span>
           </div>
 
@@ -443,11 +446,15 @@ export default function MarksEntryPage2021() {
             students={students}
             components={assessmentComponents}
             marksData={marksData}
+            attendanceData={attendanceData}
+            totalHours={totalHours}
             internalExamData={internalExamData}
             labData={labData}
             assessmentMode={assessmentMode}
             selectedSubject={selectedSubject}
             onMarkChange={setMark}
+            onAttendanceChange={setAttendance}
+            onTotalHoursChange={(val) => { setTotalHours(val); setSaved(false); }}
             onInternalExamChange={setInternalExam}
             onLabDataChange={setLabData}
             isLocked={isLocked}

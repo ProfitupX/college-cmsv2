@@ -20,9 +20,9 @@ import styles from './MarksRow.module.css';
  *     Final Total = CIA + labExamConverted (max 100)
  */
 export default function MarksRow2021({
-  student, components, marks = {}, internalExamMark,
-  labData, assessmentMode, selectedSubject,
-  onMarkChange, onInternalExamChange, onLabDataChange,
+  student, components, marks = {}, attendanceHours = '', totalHours = 0,
+  internalExamMark, labData, assessmentMode, selectedSubject,
+  onMarkChange, onAttendanceChange, onInternalExamChange, onLabDataChange,
   isLocked, index, ciaMax, examConvertedMax
 }) {
   // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
@@ -50,7 +50,7 @@ export default function MarksRow2021({
   const labExamRaw = parseFloat(labData?.labMark) || 0;
   const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
-  // 5. Compute Final Total
+  // 5. Compute Final Total (Attendance does NOT affect marks)
   let finalTotal;
   if (isLabType && assessmentMode === 'internal2') {
     // Internal exam NOT counted — only CIA + Lab Exam
@@ -60,6 +60,10 @@ export default function MarksRow2021({
   }
 
   const initials = (student.name || 'Unknown').split(' ').map(n => n[0]).join('').slice(0, 2);
+  const parsedAttd = parseInt(attendanceHours);
+  const hasAttd = attendanceHours !== '' && !isNaN(parsedAttd);
+  const attdOver = totalHours > 0 && hasAttd && parsedAttd > totalHours;
+  const attdPercent = totalHours > 0 && hasAttd ? Math.min(100, Math.round((parsedAttd / totalHours) * 100)) : null;
 
   return (
     <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
@@ -171,6 +175,29 @@ export default function MarksRow2021({
           </div>
         </td>
       )}
+
+      {/* Attendance Column (Manual entry, purely for records, 0 marks weight) */}
+      <td className={styles.inputCell}>
+        <div className={styles.inputWrap}>
+          <input
+            type="number"
+            min="0"
+            max={totalHours || 200}
+            className={`${styles.input} ${attdOver ? styles.inputError : ''}`}
+            value={attendanceHours}
+            onChange={(e) => onAttendanceChange(e.target.value)}
+            disabled={isLocked}
+            placeholder="—"
+            title="Attended classes / hours (record only)"
+          />
+          <span className={styles.inputMax}>/{totalHours || '—'}</span>
+          {attdPercent !== null && (
+            <div className={styles.convertedDisplay} style={{ color: attdPercent < 75 ? 'var(--danger)' : 'inherit' }}>
+              <span className={styles.convertedLabel}>%</span> {attdPercent}%
+            </div>
+          )}
+        </div>
+      </td>
 
       {/* Final Total */}
       <td className={styles.totalCell}>
