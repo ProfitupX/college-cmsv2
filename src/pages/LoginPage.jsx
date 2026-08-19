@@ -40,9 +40,7 @@ export default function LoginPage() {
         <p className={styles.subheading}>Sign in to your faculty portal to continue</p>
 
         {/* Demo Hint */}
-        <div className={styles.demoHint}>
-          <strong>Demo credentials:</strong> prathap.it@nscet.edu.in / faculty123
-        </div>
+     
 
         <form onSubmit={handleSubmit} className={styles.form} id="login-form">
           {/* Email */}
