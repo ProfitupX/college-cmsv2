@@ -443,16 +443,47 @@ export const generateClassAnalysisPDF = async ({
 
   y = doc.lastAutoTable.finalY + 6;
 
-  // Failure Count Summary Table
+  // Failure Count Summary Table (Dynamic calculation per student)
   doc.setFont('helvetica', 'bold');
   doc.text('2. Failure Count in this Internal Test:', 14, y);
   y += 3;
+
+  let allPassCount = 0;
+  let oneFailCount = 0;
+  let twoFailCount = 0;
+  let threeFailCount = 0;
+  let moreFailCount = 0;
+
+  students.forEach(st => {
+    let failCount = 0;
+    subjects.forEach(sub => {
+      const sess = allSessions.find(s => s.subject_id === sub.id);
+      if (!sess) return;
+      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+      if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+        failCount++;
+      } else {
+        const mark = parseFloat(att.internal_exam_mark);
+        if (isNaN(mark) || mark < 50) {
+          failCount++;
+        }
+      }
+    });
+
+    if (failCount === 0) allPassCount++;
+    else if (failCount === 1) oneFailCount++;
+    else if (failCount === 2) twoFailCount++;
+    else if (failCount === 3) threeFailCount++;
+    else moreFailCount++;
+  });
+
+  const passPctClass = students.length > 0 ? ((allPassCount / students.length) * 100).toFixed(1) + '%' : '100%';
 
   autoTable(doc, {
     startY: y,
     head: [['Description', 'All Pass', 'One Sub Failure', 'Two Sub Failure', 'Three Sub Failure', 'More than Three Failure', '% of Pass']],
     body: [
-      ['No.of Students', students.length, 0, 0, 0, 0, '100%']
+      ['No.of Students', allPassCount, oneFailCount, twoFailCount, threeFailCount, moreFailCount, passPctClass]
     ],
     theme: 'grid',
     styles: { fontSize: 8, halign: 'center' },
@@ -489,17 +520,24 @@ export const generateClassAnalysisPDF = async ({
   y = doc.lastAutoTable.finalY + 6;
 
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
   doc.text(`4. Remarks by HOD / Class In-charge: ${remarks || 'Satisfactory performance.'}`, 14, y);
   y += 5;
   doc.text(`5. Overall Improvement Plan: ${remedialAction || 'Follow up with slow learners.'}`, 14, y);
   y += 18;
 
-  // Signatures
+  if (y > 270) {
+    doc.addPage();
+    y = 30;
+  }
+
+  // Signatures (Class Incharge, HOD, VP, Principal)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text('HOD', 30, y);
-  doc.text('VICE PRINCIPAL', 100, y);
-  doc.text('PRINCIPAL', 160, y);
+  doc.text('CLASS IN-CHARGE', 16, y);
+  doc.text('HOD', 75, y);
+  doc.text('VICE PRINCIPAL', 125, y);
+  doc.text('PRINCIPAL', 172, y);
 
   doc.save(`${classObj?.name}_Class_Analysis_Report.pdf`);
 };
@@ -592,8 +630,9 @@ export const generateConsolidatedMarksPDF = async ({
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
 
-  // Subject Columns (up to 6 subjects)
-  const subCols = subjects.slice(0, 6).map(s => s.code);
+  // Subject Columns (up to 7 subjects)
+  const targetSubjects = subjects.slice(0, 7);
+  const subCols = targetSubjects.map(s => s.code);
   const headRow = ['Reg.No', 'Name', ...subCols, 'No.of Sub Failed', 'No. of sub Passed', 'No. of sub Absent'];
 
   // Map student rows
@@ -602,7 +641,7 @@ export const generateConsolidatedMarksPDF = async ({
     let passedCount = 0;
     let absentCount = 0;
 
-    const markCols = subjects.slice(0, 6).map(sub => {
+    const markCols = targetSubjects.map(sub => {
       const sess = allSessions.find(s => s.subject_id === sub.id);
       if (!sess) {
         absentCount++;
@@ -613,10 +652,15 @@ export const generateConsolidatedMarksPDF = async ({
         absentCount++;
         return 'AB';
       }
-      const score = Math.round(parseFloat(att.internal_exam_mark));
-      if (score >= 50) passedCount++;
+      const score = parseFloat(att.internal_exam_mark);
+      if (isNaN(score)) {
+        absentCount++;
+        return 'AB';
+      }
+      const rounded = Math.round(score);
+      if (rounded >= 50) passedCount++;
       else failedCount++;
-      return score;
+      return rounded;
     });
 
     return [
@@ -629,15 +673,71 @@ export const generateConsolidatedMarksPDF = async ({
     ];
   });
 
+  // Calculate summary per subject (passed, failed, absent, pass %)
+  const perSubjectPassed = [];
+  const perSubjectFailed = [];
+  const perSubjectAbsent = [];
+  const perSubjectPassPct = [];
+
+  targetSubjects.forEach(sub => {
+    const sess = allSessions.find(s => s.subject_id === sub.id);
+    let p = 0, f = 0, ab = 0;
+    students.forEach(st => {
+      if (!sess) {
+        ab++;
+        return;
+      }
+      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+      if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+        ab++;
+      } else {
+        const score = parseFloat(att.internal_exam_mark);
+        if (isNaN(score)) {
+          ab++;
+        } else if (score >= 50) {
+          p++;
+        } else {
+          f++;
+        }
+      }
+    });
+    perSubjectPassed.push(p);
+    perSubjectFailed.push(f);
+    perSubjectAbsent.push(ab);
+    const totalAppeared = p + f;
+    perSubjectPassPct.push(totalAppeared > 0 ? `${((p / totalAppeared) * 100).toFixed(1)}%` : '100%');
+  });
+
+  const footRows = [
+    ['', 'No. of Students Passed', ...perSubjectPassed, '-', '-', '-'],
+    ['', 'No. of Students Failed', ...perSubjectFailed, '-', '-', '-'],
+    ['', 'No. of Students Absent', ...perSubjectAbsent, '-', '-', '-'],
+    ['', 'Pass Percentage', ...perSubjectPassPct, '-', '-', '-']
+  ];
+
   autoTable(doc, {
     startY: y,
     head: [headRow],
     body: tableRows,
+    foot: footRows,
     theme: 'grid',
-    styles: { fontSize: 7, halign: 'center' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
-    columnStyles: { 1: { halign: 'left', cellWidth: 35 } }
+    styles: { fontSize: 7, halign: 'center', valign: 'middle' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7 },
+    footStyles: { fillColor: [245, 247, 250], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+    columnStyles: { 1: { halign: 'left', cellWidth: 32 } }
   });
+
+  // Signatures (Class Incharge and HOD)
+  y = doc.lastAutoTable.finalY + 18;
+  if (y > 270) {
+    doc.addPage();
+    y = 30;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('CLASS IN-CHARGE', 24, y);
+  doc.text('HOD', 160, y);
 
   doc.save(`${classObj?.name}_Consolidated_Mark_Statement.pdf`);
 };
@@ -683,24 +783,24 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
-  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   CIA Max: ${ciaMax}`, 14, y);
+  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}`, 14, y);
   y += 6;
 
   // ── Build Table Header ──────────────────────────────────────
-  const headRow = ['S.No', 'Roll No', 'Student Name', `CIA\n(/${ciaMax})`];
+  const headRow = ['S.No', 'Roll No', 'Student Name', `Internal Marks\n(/${ciaMax})`];
 
   if (isInternal2 && hasLab) {
     headRow.push(
       'Internal Exam\n(/100)',
       'Lab Exam\n(/100)',
       'Lab Converted\n(/50)',
-      'Total\n(/100)'
+      'CIA Mark\n(/100)'
     );
   } else {
     headRow.push(
       `Internal Exam\n(/100)`,
       `Converted\n(/${examConvertedMax})`,
-      'Total\n(/100)'
+      'CIA Mark\n(/100)'
     );
   }
 
@@ -781,7 +881,12 @@ export const generateSubjectMarksListPDF2021 = async ({
   });
 
   // Signatures
-  y = doc.lastAutoTable.finalY + 20;
+  y = doc.lastAutoTable.finalY + 18;
+  if (y > 270) {
+    doc.addPage();
+    y = 30;
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('STAFF INCHARGE', 20, y);
