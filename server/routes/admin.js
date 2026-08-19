@@ -82,7 +82,7 @@ router.put('/credentials/:id', async (req, res) => {
     const params = [email, role || 'faculty'];
 
     if (password) {
-      sql += `, password = ?`;
+      sql += `, password = ?, is_password_changed = 0`;
       params.push(password);
     }
     if (name) {
@@ -154,7 +154,7 @@ router.put('/reset-password', async (req, res) => {
     }
 
     const [result] = await db.execute(
-      'UPDATE staffs SET password = ? WHERE id = ?',
+      'UPDATE staffs SET password = ?, is_password_changed = 0 WHERE id = ?',
       [newPassword, staffId]
     );
 

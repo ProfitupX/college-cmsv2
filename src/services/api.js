@@ -33,6 +33,7 @@ const remove = (path)         => request('DELETE', path);
 // ─────────────────────────────────────────
 export const authAPI = {
   login: (email, password) => post('/auth/login', { email, password }),
+  changePassword: (data) => post('/auth/change-password', data),
 };
 
 // ─────────────────────────────────────────

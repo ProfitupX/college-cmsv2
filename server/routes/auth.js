@@ -33,7 +33,7 @@ router.post('/login', async (req, res) => {
     }
 
     const [rows] = await db.execute(
-      'SELECT id, name, short_name, designation, role, email, employee_id, class_role, department FROM staffs WHERE LOWER(email) = LOWER(?) AND password = ?',
+      'SELECT id, name, short_name, designation, role, email, employee_id, class_role, department, is_password_changed FROM staffs WHERE LOWER(email) = LOWER(?) AND password = ?',
       [email.trim(), password]
     );
 
@@ -67,6 +67,7 @@ router.post('/login', async (req, res) => {
         employeeId:         staff.employee_id,
         classRole:          staff.class_role,
         department:         staff.department || 'Information Technology',
+        isPasswordChanged:  !!staff.is_password_changed,
         assignedSubjectIds: assignedSubs.map(s => s.id),
         assignedSubjects:   assignedSubs,
         isClassCoordinator: coordClasses.length > 0 || staff.class_role === 'Class Coordinator',
@@ -76,6 +77,41 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error during login.' });
+  }
+});
+
+// POST /api/auth/change-password
+router.post('/change-password', async (req, res) => {
+  try {
+    const { userId, oldPassword, newPassword } = req.body;
+    if (!userId || !oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+
+    // Verify current password and is_password_changed status
+    const [rows] = await db.execute(
+      'SELECT id, is_password_changed FROM staffs WHERE id = ? AND password = ?',
+      [userId, oldPassword]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid current password.' });
+    }
+
+    if (rows[0].is_password_changed) {
+      return res.status(403).json({ error: 'Password has already been changed once. Please contact admin to reset it.' });
+    }
+
+    // Update password
+    await db.execute(
+      'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ?',
+      [newPassword, userId]
+    );
+
+    res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'Server error while changing password.' });
   }
 });
 

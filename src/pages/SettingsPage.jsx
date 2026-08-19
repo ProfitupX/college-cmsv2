@@ -1,4 +1,5 @@
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../services/api';
 import { User, Mail, Building, Award, Shield, Bell, Eye, Download } from 'lucide-react';
 import styles from './SettingsPage.module.css';
 
@@ -59,6 +60,75 @@ export default function SettingsPage() {
           <SettingsRow icon={Building} label="Department" value={user?.department} readonly />
           <SettingsRow icon={Award} label="Designation" value={user?.designation} readonly />
           <SettingsRow icon={Shield} label="Employee ID" value={user?.employeeId} readonly />
+        </SettingsSection>
+
+        {/* Change Password */}
+        <SettingsSection title="Security (One-Time Password Change)">
+          {user?.isPasswordChanged ? (
+            <div className={styles.passwordChangedBanner}>
+              <Shield size={16} />
+              You have already updated your password. For security reasons, any further changes must be requested through the System Administrator.
+            </div>
+          ) : (
+            <div className={styles.passwordChangeForm}>
+              <div className={styles.row}>
+                <div className={styles.rowLeft}>
+                  <label className={styles.rowLabel}>Current Password</label>
+                </div>
+                <div className={styles.rowRight}>
+                  <input type="password" id="old-pwd" className={styles.rowInput} placeholder="Enter current password" />
+                </div>
+              </div>
+              <div className={styles.row}>
+                <div className={styles.rowLeft}>
+                  <label className={styles.rowLabel}>New Password</label>
+                </div>
+                <div className={styles.rowRight}>
+                  <input type="password" id="new-pwd" className={styles.rowInput} placeholder="Enter new password" />
+                </div>
+              </div>
+              <div className={styles.row}>
+                <div className={styles.rowLeft}>
+                  <label className={styles.rowLabel}>Confirm Password</label>
+                </div>
+                <div className={styles.rowRight}>
+                  <input type="password" id="confirm-pwd" className={styles.rowInput} placeholder="Confirm new password" />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                <button 
+                  className={styles.saveBtn} 
+                  id="change-pwd-btn"
+                  onClick={async () => {
+                    const oldPassword = document.getElementById('old-pwd').value;
+                    const newPassword = document.getElementById('new-pwd').value;
+                    const confirmPassword = document.getElementById('confirm-pwd').value;
+                    
+                    if (!oldPassword || !newPassword || !confirmPassword) {
+                      return alert('Please fill all password fields.');
+                    }
+                    if (newPassword !== confirmPassword) {
+                      return alert('New passwords do not match.');
+                    }
+                    
+                    try {
+                      const res = await authAPI.changePassword({ userId: user.id, oldPassword, newPassword });
+                      if (res.success) {
+                        alert('Password changed successfully! You will be logged out to apply changes.');
+                        window.location.reload();
+                      } else {
+                        alert(res.error || 'Failed to change password.');
+                      }
+                    } catch (err) {
+                      alert(err.message || 'An error occurred.');
+                    }
+                  }}
+                >
+                  Change Password
+                </button>
+              </div>
+            </div>
+          )}
         </SettingsSection>
 
         {/* Preferences */}

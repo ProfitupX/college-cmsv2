@@ -99,6 +99,25 @@
 .row:last-child { border-bottom: none; }
 .row:hover { background: var(--surface-hover); }
 
+/* Password Change */
+.passwordChangeForm {
+  padding: 10px 0;
+}
+.passwordChangedBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-solid);
+  padding: 16px;
+  margin: 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.passwordChangedBanner svg { color: var(--primary); }
+
 .rowLeft {
   display: flex;
   align-items: center;

@@ -1,8 +1,7 @@
 -- ============================================================
 -- COLLEGE CMS DEPLOYMENT MASTER SEED DUMP
--- Includes: All Departments, Classes (II, III, IV Year),
--- Staff Accounts, Subjects, and Students (2021 & Previous Regulations)
--- Generated at: 2026-08-19T09:21:00.950Z
+-- Includes: All Departments, Classes, Staff, Subjects, Students
+-- Generated at: 2026-08-19T09:34:41.277Z
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS `college_cms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -10,9 +9,7 @@ USE `college_cms`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
--- ─────────────────────────────────────────
 -- DROP OLD TABLES IF THEY EXIST
--- ─────────────────────────────────────────
 DROP TABLE IF EXISTS `notifications`;
 DROP TABLE IF EXISTS `class_analysis_remarks`;
 DROP TABLE IF EXISTS `mark_unlock_requests`;
@@ -27,9 +24,6 @@ DROP TABLE IF EXISTS `staffs`;
 DROP TABLE IF EXISTS `classes`;
 DROP TABLE IF EXISTS `departments`;
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: DEPARTMENTS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `departments` (
   `id` int NOT NULL AUTO_INCREMENT,
   `short_name` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -51,9 +45,6 @@ INSERT INTO `departments` (`id`, `short_name`, `name`, `college_name`) VALUES
 (10, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
 (11, 'S&H', 'Science and Humanities', 'Nadar Saraswathi College of Engineering and Technology, Theni');
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: CLASSES
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `classes` (
   `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -92,9 +83,6 @@ INSERT INTO `classes` (`id`, `name`, `department`, `semester`, `year_label`, `se
 ('CL006', 'MECH - II Year - III Sem', 'Mechanical Engineering', 3, 'II', 'A', 'Class Room 12', '2026-2027', '2025-2029', 'Dr. B. Nagarajan', 'Mr. R. Nagaraja'),
 ('CL007', 'CIVIL - II Year - III Sem', 'Civil Engineering', 3, 'II', 'A', '19', '2026-2027', '2025-2029', 'Mrs. S. Gayathri', 'Mr. T. Hariprasath');
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: STAFFS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `staffs` (
   `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -106,99 +94,97 @@ CREATE TABLE IF NOT EXISTS `staffs` (
   `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT 'faculty123',
   `class_role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `department` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_password_changed` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`) VALUES
-('ADM001', 'Admin User', 'Admin', 'System Administrator', 'admin', 'admin@nscet.edu.in', 'ADMIN-001', 'admin123', NULL, 'Information Technology'),
-('FAC_AIDS_101', 'Mr. L.S. Vignesh', 'L.S. Vignesh', 'AP/HOD', 'hod', 'vignesh.aids@nscet.edu.in', 'NSCET-AIDS-101', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
-('FAC_AIDS_102', 'Mrs. M. Pavithra', 'M. Pavithra', 'AP', 'faculty', 'pavithra.aids@nscet.edu.in', 'NSCET-AIDS-102', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science'),
-('FAC_AIDS_104', 'Mrs. R. Nathirun Sabinash', 'R. Nathirun Sabinash', 'AP/CE', 'faculty', 'sabinash.ce@nscet.edu.in', 'NSCET-CE-104', 'faculty123', NULL, 'Civil Engineering'),
-('FAC_AIDS_105', 'Dr. S. Premkumar', 'S. Premkumar', 'AP/CE', 'faculty', 'premkumar.ce@nscet.edu.in', 'NSCET-CE-105', 'faculty123', NULL, 'Civil Engineering'),
-('FAC_AIDS_106', 'Mr. A. Vembathurajesh', 'A. Vembathurajesh', 'AP', 'faculty', 'vembathurajesh.aids@nscet.edu.in', 'NSCET-AIDS-106', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
-('FAC_AIDS_107', 'Mr. J. Vinothkumar', 'J. Vinothkumar', 'AP', 'faculty', 'vinothkumar.aids@nscet.edu.in', 'NSCET-AIDS-107', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science'),
-('FAC_CSE_101', 'Mr. K. Velkumar', 'K. Velkumar', 'AP', 'faculty', 'velkumar.cse@nscet.edu.in', 'NSCET-CSE-101', 'faculty123', 'Assistant Coordinator', 'Computer Science and Engineering'),
-('FAC_CSE_102', 'Ms. S. Abirami Kayathri', 'S. Abirami Kayathri', 'AP', 'faculty', 'abiramikayathri.cse@nscet.edu.in', 'NSCET-CSE-102', 'faculty123', 'Class Coordinator', 'Computer Science and Engineering'),
-('FAC_CSE_104', 'Dr. M. Sathya', 'M. Sathya', 'PROF./CSE', 'faculty', 'sathya.cse@nscet.edu.in', 'NSCET-CSE-104', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC_ECE_101', 'Mrs. P. Shantha Devi', 'P. Shantha Devi', 'AP/ECE', 'faculty', 'shanthadevi.ece@nscet.edu.in', 'NSCET-ECE-101', 'faculty123', 'Class Coordinator', 'Electronics and Communication Engineering'),
-('FAC_ECE_102', 'Mr. K. Bharathi Kannan', 'K. Bharathi Kannan', 'AP/ECE', 'faculty', 'bharathikannan.ece@nscet.edu.in', 'NSCET-ECE-102', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering'),
-('FAC_ECE_103', 'Mr. M. Idhayachandran', 'M. Idhayachandran', 'AP/ECE', 'faculty', 'idhayachandran.ece@nscet.edu.in', 'NSCET-ECE-103', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC_ECE_104', 'Mr. S. Prathap', 'S. Prathap', 'AP/ECE', 'faculty', 'prathap.ece@nscet.edu.in', 'NSCET-ECE-104', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering'),
-('FAC_ECE_105', 'Mrs. P. Gowthami', 'P. Gowthami', 'AP/ECE', 'faculty', 'gowthami.ece@nscet.edu.in', 'NSCET-ECE-105', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC_EEE_101', 'Mr. K. Ganesh', 'K. Ganesh', 'AP/EEE', 'faculty', 'ganesh.eee@nscet.edu.in', 'NSCET-EEE-101', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
-('FAC_EEE_102', 'Mr. C. Shiva', 'C. Shiva', 'AP/EEE', 'faculty', 'shiva.eee@nscet.edu.in', 'NSCET-EEE-102', 'faculty123', 'Assistant Coordinator', 'Electrical and Electronics Engineering'),
-('FAC_EEE_103', 'Mr. R. Rajakarthick', 'R. Rajakarthick', 'AP/EEE', 'faculty', 'rajakarthick.eee@nscet.edu.in', 'NSCET-EEE-103', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
-('FAC_IT_101', 'Mrs. M. Bhavani', 'M. Bhavani', 'AP', 'faculty', 'bhavani.it@nscet.edu.in', 'NSCET-IT-101', 'faculty123', 'Class Coordinator', 'Information Technology'),
-('FAC_IT_102', 'Mrs. B. Sai Suganya', 'B. Sai Suganya', 'AP', 'faculty', 'saisuganya.it@nscet.edu.in', 'NSCET-IT-102', 'faculty123', 'Class Coordinator', 'Information Technology'),
-('FAC_IT_103', 'Mr. G.R. Naveenkarthick', 'G.R. Naveenkarthick', 'AP', 'faculty', 'naveenkarthick.it@nscet.edu.in', 'NSCET-IT-103', 'faculty123', 'Assistant Coordinator', 'Information Technology'),
-('FAC_IT_104', 'Mr. K. Ram Kumar', 'K. Ram Kumar', 'AP', 'faculty', 'ramkumar.it@nscet.edu.in', 'NSCET-IT-104', 'faculty123', NULL, 'Information Technology'),
-('FAC_MECH_101', 'Mr. P. Surulimani', 'P. Surulimani', 'AP/MECH', 'faculty', 'surulimani.mech@nscet.edu.in', 'NSCET-MECH-101', 'faculty123', 'Class Coordinator', 'Mechanical Engineering'),
-('FAC_MECH_102', 'Mr. J. Chakravarthy Samy Durai', 'J. Chakravarthy', 'AP/MECH', 'faculty', 'chakravarthy.mech@nscet.edu.in', 'NSCET-MECH-102', 'faculty123', 'Assistant Coordinator', 'Mechanical Engineering'),
-('FAC_MECH_103', 'Mr. G. Arunkumar', 'G. Arunkumar', 'AP/MECH', 'faculty', 'arunkumar.mech@nscet.edu.in', 'NSCET-MECH-103', 'faculty123', 'Assistant Coordinator', 'Mechanical Engineering'),
-('FAC_MECH_104', 'Mr. V. Sivaganesan', 'V. Sivaganesan', 'AP/MECH', 'faculty', 'sivaganesan.mech@nscet.edu.in', 'NSCET-MECH-104', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC001', 'Mr. C. Prathap', 'C. Prathap', 'AP, HOD IT', 'hod', 'prathap.it@nscet.edu.in', 'NSCET-IT-001', 'faculty123', NULL, 'Information Technology'),
-('FAC002', 'Dr. C. Chithra', 'C. Chithra', 'AP', 'faculty', 'chithra.it@nscet.edu.in', 'NSCET-IT-002', 'faculty123', NULL, NULL),
-('FAC003', 'Mrs. P. Jasmine Jose', 'P. Jasmine Jose', 'AP', 'faculty', 'jasminejose.it@nscet.edu.in', 'NSCET-IT-003', 'faculty123', 'Assistant Coordinator', 'Information Technology'),
-('FAC004', 'Mr. R. Udhaya Kumar', 'R. Udhaya Kumar', 'AP', 'faculty', 'udhayakumar.it@nscet.edu.in', 'NSCET-IT-004', 'faculty123', NULL, 'Information Technology'),
-('FAC005', 'Mr. N. Kesavamoorthy', 'N. Kesavamoorthy', 'AP', 'faculty', 'kesavamoorthy.it@nscet.edu.in', 'NSCET-IT-005', 'faculty123', 'Class Coordinator', 'Information Technology'),
-('FAC006', 'Mrs. M. Mareeswari', 'M. Mareeswari', 'AP', 'faculty', 'mareeswari.it@nscet.edu.in', 'NSCET-IT-006', 'faculty123', NULL, 'Information Technology'),
-('FAC007', 'Dr.R.Valarmathi', NULL, 'AP', 'faculty', 'valarmathi.@nscet.org', 'NSCET-S&H-007', 'faculty123', NULL, 'Other'),
-('FAC010', 'Mrs. M. Karunyah', 'M. Karunyah', 'AP', 'faculty', 'karunyah.maths@nscet.edu.in', 'NSCET-MATHS-010', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC011', 'Mrs. V. Anusuya', 'V. Anusuya', 'AP', 'faculty', 'anusuya.cse@nscet.edu.in', 'NSCET-CSE-011', 'faculty123', 'Assistant Coordinator', 'Computer Science and Engineering'),
-('FAC012', 'Mrs. R. Archana', 'R. Archana', 'AP', 'faculty', 'archana.cse@nscet.edu.in', 'NSCET-CSE-012', 'faculty123', 'Class Coordinator', 'Computer Science and Engineering'),
-('FAC013', 'Mrs. M. Venkata Lakshmi', 'M. Venkata Lakshmi', 'AP', 'faculty', 'venkatalakshmi.cse@nscet.edu.in', 'NSCET-CSE-013', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC014', 'Dr. J. Mathalai Raj', 'J. Mathalai Raj', 'HOD CSE', 'hod', 'mathalairaj.cse@nscet.edu.in', 'NSCET-CSE-014', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC015', 'Mrs. V. Vinothini', 'V. Vinothini', 'AP', 'faculty', 'vinothini.cse@nscet.edu.in', 'NSCET-CSE-015', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC016', 'Mrs. T. Rathimala', 'T. Rathimala', 'AP', 'faculty', 'rathimala.cse@nscet.edu.in', 'NSCET-CSE-016', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC017', 'Mr. R. C. Richard Britto', 'R. C. Richard Britto', 'AP', 'faculty', 'richardbritto.eng@nscet.edu.in', 'NSCET-ENG-017', 'faculty123', NULL, 'Computer Science and Engineering'),
-('FAC021', 'Mrs. K. Jenifer', 'K. Jenifer', 'AP', 'faculty', 'jenifer.aids@nscet.edu.in', 'NSCET-AIDS-021', 'faculty123', 'Assistant Coordinator', 'Artificial Intelligence and Data Science'),
-('FAC022', 'Mrs. S. Sunitha', 'S. Sunitha', 'AP', 'faculty', 'sunitha.aids@nscet.edu.in', 'NSCET-AIDS-022', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
-('FAC023', 'Mr. S. Kodeeswaran', 'S. Kodeeswaran', 'AP', 'faculty', 'kodeeswaran.aids@nscet.edu.in', 'NSCET-AIDS-023', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science'),
-('FAC024', 'Mrs. V. Nithiyapriya', 'V. Nithiyapriya', 'AP', 'faculty', 'nithiyapriya.aids@nscet.edu.in', 'NSCET-AIDS-024', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
-('FAC025', 'Mrs. G. Geerthiga', 'G. Geerthiga', 'AP', 'faculty', 'geerthiga.aids@nscet.edu.in', 'NSCET-AIDS-025', 'faculty123', NULL, 'Artificial Intelligence and Data Science'),
-('FAC026', 'Mrs. Karunya', 'Karunya', 'AP/S&H', 'faculty', 'karunya.sh@nscet.edu.in', 'NSCET-SH-026', 'faculty123', NULL, 'Science and Humanities'),
-('FAC027', 'Dr. R. Valarmathi', 'R. Valarmathi', 'AP/S&H', 'faculty', 'valarmathi.sh@nscet.edu.in', 'NSCET-SH-027', 'faculty123', NULL, 'Science and Humanities'),
-('FAC031', 'Dr. B. Mallaiyasamy', 'B. Mallaiyasamy', 'ASP/S&H', 'faculty', 'mallaiyasamy.sh@nscet.edu.in', 'NSCET-SH-031', 'faculty123', NULL, 'Science and Humanities'),
-('FAC032', 'Mrs. A. Nishetha Jeflin Nixon', 'A. Nishetha Jeflin Nixon', 'AP/EEE', 'faculty', 'nishetha.eee@nscet.edu.in', 'NSCET-EEE-032', 'faculty123', NULL, 'Electrical and Electronics Engineering');
+INSERT INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`, `is_password_changed`) VALUES
+('ADM001', 'Admin User', 'Admin', 'System Administrator', 'admin', 'admin@nscet.edu.in', 'ADMIN-001', 'admin123', NULL, 'Information Technology', 0),
+('FAC_AIDS_101', 'Mr. L.S. Vignesh', 'L.S. Vignesh', 'AP/HOD', 'hod', 'vignesh.aids@nscet.edu.in', 'NSCET-AIDS-101', 'faculty123', NULL, 'Artificial Intelligence and Data Science', 0),
+('FAC_AIDS_102', 'Mrs. M. Pavithra', 'M. Pavithra', 'AP', 'faculty', 'pavithra.aids@nscet.edu.in', 'NSCET-AIDS-102', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science', 0),
+('FAC_AIDS_104', 'Mrs. R. Nathirun Sabinash', 'R. Nathirun Sabinash', 'AP/CE', 'faculty', 'sabinash.ce@nscet.edu.in', 'NSCET-CE-104', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC_AIDS_105', 'Dr. S. Premkumar', 'S. Premkumar', 'AP/CE', 'faculty', 'premkumar.ce@nscet.edu.in', 'NSCET-CE-105', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC_AIDS_106', 'Mr. A. Vembathurajesh', 'A. Vembathurajesh', 'AP', 'faculty', 'vembathurajesh.aids@nscet.edu.in', 'NSCET-AIDS-106', 'faculty123', NULL, 'Artificial Intelligence and Data Science', 0),
+('FAC_AIDS_107', 'Mr. J. Vinothkumar', 'J. Vinothkumar', 'AP', 'faculty', 'vinothkumar.aids@nscet.edu.in', 'NSCET-AIDS-107', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science', 0),
+('FAC_CSE_101', 'Mr. K. Velkumar', 'K. Velkumar', 'AP', 'faculty', 'velkumar.cse@nscet.edu.in', 'NSCET-CSE-101', 'faculty123', 'Assistant Coordinator', 'Computer Science and Engineering', 0),
+('FAC_CSE_102', 'Ms. S. Abirami Kayathri', 'S. Abirami Kayathri', 'AP', 'faculty', 'abiramikayathri.cse@nscet.edu.in', 'NSCET-CSE-102', 'faculty123', 'Class Coordinator', 'Computer Science and Engineering', 0),
+('FAC_CSE_104', 'Dr. M. Sathya', 'M. Sathya', 'PROF./CSE', 'faculty', 'sathya.cse@nscet.edu.in', 'NSCET-CSE-104', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC_ECE_101', 'Mrs. P. Shantha Devi', 'P. Shantha Devi', 'AP/ECE', 'faculty', 'shanthadevi.ece@nscet.edu.in', 'NSCET-ECE-101', 'faculty123', 'Class Coordinator', 'Electronics and Communication Engineering', 0),
+('FAC_ECE_102', 'Mr. K. Bharathi Kannan', 'K. Bharathi Kannan', 'AP/ECE', 'faculty', 'bharathikannan.ece@nscet.edu.in', 'NSCET-ECE-102', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering', 0),
+('FAC_ECE_103', 'Mr. M. Idhayachandran', 'M. Idhayachandran', 'AP/ECE', 'faculty', 'idhayachandran.ece@nscet.edu.in', 'NSCET-ECE-103', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC_ECE_104', 'Mr. S. Prathap', 'S. Prathap', 'AP/ECE', 'faculty', 'prathap.ece@nscet.edu.in', 'NSCET-ECE-104', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering', 0),
+('FAC_ECE_105', 'Mrs. P. Gowthami', 'P. Gowthami', 'AP/ECE', 'faculty', 'gowthami.ece@nscet.edu.in', 'NSCET-ECE-105', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC_EEE_101', 'Mr. K. Ganesh', 'K. Ganesh', 'AP/EEE', 'faculty', 'ganesh.eee@nscet.edu.in', 'NSCET-EEE-101', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0),
+('FAC_EEE_102', 'Mr. C. Shiva', 'C. Shiva', 'AP/EEE', 'faculty', 'shiva.eee@nscet.edu.in', 'NSCET-EEE-102', 'faculty123', 'Assistant Coordinator', 'Electrical and Electronics Engineering', 0),
+('FAC_EEE_103', 'Mr. R. Rajakarthick', 'R. Rajakarthick', 'AP/EEE', 'faculty', 'rajakarthick.eee@nscet.edu.in', 'NSCET-EEE-103', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0),
+('FAC_IT_101', 'Mrs. M. Bhavani', 'M. Bhavani', 'AP', 'faculty', 'bhavani.it@nscet.edu.in', 'NSCET-IT-101', 'faculty123', 'Class Coordinator', 'Information Technology', 0),
+('FAC_IT_102', 'Mrs. B. Sai Suganya', 'B. Sai Suganya', 'AP', 'faculty', 'saisuganya.it@nscet.edu.in', 'NSCET-IT-102', 'faculty123', 'Class Coordinator', 'Information Technology', 0),
+('FAC_IT_103', 'Mr. G.R. Naveenkarthick', 'G.R. Naveenkarthick', 'AP', 'faculty', 'naveenkarthick.it@nscet.edu.in', 'NSCET-IT-103', 'faculty123', 'Assistant Coordinator', 'Information Technology', 0),
+('FAC_IT_104', 'Mr. K. Ram Kumar', 'K. Ram Kumar', 'AP', 'faculty', 'ramkumar.it@nscet.edu.in', 'NSCET-IT-104', 'faculty123', NULL, 'Information Technology', 0),
+('FAC_MECH_101', 'Mr. P. Surulimani', 'P. Surulimani', 'AP/MECH', 'faculty', 'surulimani.mech@nscet.edu.in', 'NSCET-MECH-101', 'faculty123', 'Class Coordinator', 'Mechanical Engineering', 0),
+('FAC_MECH_102', 'Mr. J. Chakravarthy Samy Durai', 'J. Chakravarthy', 'AP/MECH', 'faculty', 'chakravarthy.mech@nscet.edu.in', 'NSCET-MECH-102', 'faculty123', 'Assistant Coordinator', 'Mechanical Engineering', 0),
+('FAC_MECH_103', 'Mr. G. Arunkumar', 'G. Arunkumar', 'AP/MECH', 'faculty', 'arunkumar.mech@nscet.edu.in', 'NSCET-MECH-103', 'faculty123', 'Assistant Coordinator', 'Mechanical Engineering', 0),
+('FAC_MECH_104', 'Mr. V. Sivaganesan', 'V. Sivaganesan', 'AP/MECH', 'faculty', 'sivaganesan.mech@nscet.edu.in', 'NSCET-MECH-104', 'faculty123', NULL, 'Mechanical Engineering', 0),
+('FAC001', 'Mr. C. Prathap', 'C. Prathap', 'AP, HOD IT', 'hod', 'prathap.it@nscet.edu.in', 'NSCET-IT-001', 'faculty123', NULL, 'Information Technology', 0),
+('FAC002', 'Dr. C. Chithra', 'C. Chithra', 'AP', 'faculty', 'chithra.it@nscet.edu.in', 'NSCET-IT-002', 'faculty123', NULL, NULL, 0),
+('FAC003', 'Mrs. P. Jasmine Jose', 'P. Jasmine Jose', 'AP', 'faculty', 'jasminejose.it@nscet.edu.in', 'NSCET-IT-003', 'faculty123', 'Assistant Coordinator', 'Information Technology', 0),
+('FAC004', 'Mr. R. Udhaya Kumar', 'R. Udhaya Kumar', 'AP', 'faculty', 'udhayakumar.it@nscet.edu.in', 'NSCET-IT-004', 'faculty123', NULL, 'Information Technology', 0),
+('FAC005', 'Mr. N. Kesavamoorthy', 'N. Kesavamoorthy', 'AP', 'faculty', 'kesavamoorthy.it@nscet.edu.in', 'NSCET-IT-005', 'faculty123', 'Class Coordinator', 'Information Technology', 0),
+('FAC006', 'Mrs. M. Mareeswari', 'M. Mareeswari', 'AP', 'faculty', 'mareeswari.it@nscet.edu.in', 'NSCET-IT-006', 'faculty123', NULL, 'Information Technology', 0),
+('FAC007', 'Dr.R.Valarmathi', NULL, 'AP', 'faculty', 'valarmathi.@nscet.org', 'NSCET-S&H-007', 'faculty123', NULL, 'Other', 0),
+('FAC010', 'Mrs. M. Karunyah', 'M. Karunyah', 'AP', 'faculty', 'karunyah.maths@nscet.edu.in', 'NSCET-MATHS-010', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC011', 'Mrs. V. Anusuya', 'V. Anusuya', 'AP', 'faculty', 'anusuya.cse@nscet.edu.in', 'NSCET-CSE-011', 'faculty123', 'Assistant Coordinator', 'Computer Science and Engineering', 0),
+('FAC012', 'Mrs. R. Archana', 'R. Archana', 'AP', 'faculty', 'archana.cse@nscet.edu.in', 'NSCET-CSE-012', 'faculty123', 'Class Coordinator', 'Computer Science and Engineering', 0),
+('FAC013', 'Mrs. M. Venkata Lakshmi', 'M. Venkata Lakshmi', 'AP', 'faculty', 'venkatalakshmi.cse@nscet.edu.in', 'NSCET-CSE-013', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC014', 'Dr. J. Mathalai Raj', 'J. Mathalai Raj', 'HOD CSE', 'hod', 'mathalairaj.cse@nscet.edu.in', 'NSCET-CSE-014', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC015', 'Mrs. V. Vinothini', 'V. Vinothini', 'AP', 'faculty', 'vinothini.cse@nscet.edu.in', 'NSCET-CSE-015', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC016', 'Mrs. T. Rathimala', 'T. Rathimala', 'AP', 'faculty', 'rathimala.cse@nscet.edu.in', 'NSCET-CSE-016', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC017', 'Mr. R. C. Richard Britto', 'R. C. Richard Britto', 'AP', 'faculty', 'richardbritto.eng@nscet.edu.in', 'NSCET-ENG-017', 'faculty123', NULL, 'Computer Science and Engineering', 0),
+('FAC021', 'Mrs. K. Jenifer', 'K. Jenifer', 'AP', 'faculty', 'jenifer.aids@nscet.edu.in', 'NSCET-AIDS-021', 'faculty123', 'Assistant Coordinator', 'Artificial Intelligence and Data Science', 0),
+('FAC022', 'Mrs. S. Sunitha', 'S. Sunitha', 'AP', 'faculty', 'sunitha.aids@nscet.edu.in', 'NSCET-AIDS-022', 'faculty123', NULL, 'Artificial Intelligence and Data Science', 0),
+('FAC023', 'Mr. S. Kodeeswaran', 'S. Kodeeswaran', 'AP', 'faculty', 'kodeeswaran.aids@nscet.edu.in', 'NSCET-AIDS-023', 'faculty123', 'Class Coordinator', 'Artificial Intelligence and Data Science', 0),
+('FAC024', 'Mrs. V. Nithiyapriya', 'V. Nithiyapriya', 'AP', 'faculty', 'nithiyapriya.aids@nscet.edu.in', 'NSCET-AIDS-024', 'faculty123', NULL, 'Artificial Intelligence and Data Science', 0),
+('FAC025', 'Mrs. G. Geerthiga', 'G. Geerthiga', 'AP', 'faculty', 'geerthiga.aids@nscet.edu.in', 'NSCET-AIDS-025', 'faculty123', NULL, 'Artificial Intelligence and Data Science', 0),
+('FAC026', 'Mrs. Karunya', 'Karunya', 'AP/S&H', 'faculty', 'karunya.sh@nscet.edu.in', 'NSCET-SH-026', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC027', 'Dr. R. Valarmathi', 'R. Valarmathi', 'AP/S&H', 'faculty', 'valarmathi.sh@nscet.edu.in', 'NSCET-SH-027', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC031', 'Dr. B. Mallaiyasamy', 'B. Mallaiyasamy', 'ASP/S&H', 'faculty', 'mallaiyasamy.sh@nscet.edu.in', 'NSCET-SH-031', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC032', 'Mrs. A. Nishetha Jeflin Nixon', 'A. Nishetha Jeflin Nixon', 'AP/EEE', 'faculty', 'nishetha.eee@nscet.edu.in', 'NSCET-EEE-032', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0);
 
-INSERT INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`) VALUES
-('FAC033', 'Mrs. R. Chitra', 'R. Chitra', 'AP/EEE', 'faculty', 'chitra.eee@nscet.edu.in', 'NSCET-EEE-033', 'faculty123', 'Assistant Coordinator', 'Electrical and Electronics Engineering'),
-('FAC034', 'Dr. R. Athilingam', 'R. Athilingam', 'HOD/EEE', 'hod', 'athilingam.eee@nscet.edu.in', 'NSCET-EEE-034', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
-('FAC035', 'Mrs. M. Vijayalakshmi', 'M. Vijayalakshmi', 'AP/EEE', 'faculty', 'vijayalakshmi.eee@nscet.edu.in', 'NSCET-EEE-035', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
-('FAC036', 'Mrs. H. Juriya Banu', 'H. Juriya Banu', 'AP/EEE', 'faculty', 'juriyabanu.eee@nscet.edu.in', 'NSCET-EEE-036', 'faculty123', 'Class Coordinator', 'Electrical and Electronics Engineering'),
-('FAC037', 'Dr. N. Pandi Selvi', 'N. Pandi Selvi', 'AP/EEE', 'faculty', 'pandiselvi.eee@nscet.edu.in', 'NSCET-EEE-037', 'faculty123', NULL, 'Electrical and Electronics Engineering'),
-('FAC038', 'Dr. P. Malarvizhi', 'P. Malarvizhi', 'ASP/S&H', 'faculty', 'malarvizhi.sh@nscet.edu.in', 'NSCET-SH-038', 'faculty123', NULL, 'Science and Humanities'),
-('FAC041', 'Mr. Murugan', 'Mr. Murugan', 'AP/S&H', 'faculty', 'murugan.sh@nscet.edu.in', 'NSCET-SH-041', 'faculty123', NULL, 'Science and Humanities'),
-('FAC042', 'Mrs. T. Tamilselvi', 'T. Tamilselvi', 'AP/ECE', 'faculty', 'tamilselvi.ece@nscet.edu.in', 'NSCET-ECE-042', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC043', 'Mrs. S. Rajeshshree', 'S. Rajeshshree', 'AP/ECE', 'faculty', 'rajeshshree.ece@nscet.edu.in', 'NSCET-ECE-043', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering'),
-('FAC044', 'Dr. N. Mathavan', 'N. Mathavan', 'ASP/ECE', 'faculty', 'mathavan.ece@nscet.edu.in', 'NSCET-ECE-044', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC045', 'Dr. T. Venish Kumar', 'T. Venish Kumar', 'ASP/ECE', 'faculty', 'venishkumar.ece@nscet.edu.in', 'NSCET-ECE-045', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC046', 'Mr. R. Pradeep Kumar', 'R. Pradeep Kumar', 'AP/ECE', 'faculty', 'pradeepkumar.ece@nscet.edu.in', 'NSCET-ECE-046', 'faculty123', 'Class Coordinator', 'Electronics and Communication Engineering'),
-('FAC047', 'S/H Staff', 'S/H Staff', 'AP/S&H', 'faculty', 'shstaff.eng@nscet.edu.in', 'NSCET-SH-047', 'faculty123', NULL, 'Science and Humanities'),
-('FAC048', 'Mrs. S. Kalaivani', 'S. Kalaivani', 'AP/ECE', 'faculty', 'kalaivani.ece@nscet.edu.in', 'NSCET-ECE-048', 'faculty123', NULL, 'Electronics and Communication Engineering'),
-('FAC052', 'Dr. A. Vennimalai Rajan', 'A. Vennimalai Rajan', 'ASP/Mech', 'faculty', 'vennimalairajan.mech@nscet.edu.in', 'NSCET-MECH-052', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC053', 'Dr. B. Nagarajan', 'B. Nagarajan', 'ASP/Mech', 'faculty', 'nagarajan.mech@nscet.edu.in', 'NSCET-MECH-053', 'faculty123', 'Class Coordinator', 'Mechanical Engineering'),
-('FAC054', 'Mr. S. Harikishore', 'S. Harikishore', 'AP/Mech', 'faculty', 'harikishore.mech@nscet.edu.in', 'NSCET-MECH-054', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC055', 'Mr. R. Nagaraja', 'R. Nagaraja', 'AP/Mech', 'faculty', 'nagaraja.mech@nscet.edu.in', 'NSCET-MECH-055', 'faculty123', 'Class Coordinator', 'Mechanical Engineering'),
-('FAC058', 'Dr. S. Sinthan', 'S. Sinthan', 'Librarian', 'faculty', 'sinthan.lib@nscet.edu.in', 'NSCET-LIB-058', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC059', 'Dr. B. Ratha Krishnan', 'B. Ratha Krishnan', 'HOD/Mech', 'hod', 'rathakrishnan.mech@nscet.edu.in', 'NSCET-MECH-HOD', 'faculty123', NULL, 'Mechanical Engineering'),
-('FAC062', 'Mrs. S. Gayathri', 'S. Gayathri', 'AP/Civil', 'faculty', 'gayathri.civil@nscet.edu.in', 'NSCET-CIVIL-062', 'faculty123', 'Class Coordinator', 'Civil Engineering'),
-('FAC063', 'Mr. P. Arul Jebaraj', 'P. Arul Jebaraj', 'AP/Civil', 'faculty', 'aruljebaraj.civil@nscet.edu.in', 'NSCET-CIVIL-063', 'faculty123', NULL, 'Civil Engineering'),
-('FAC064', 'Mr. R. Shanmugapriyan', 'R. Shanmugapriyan', 'AP/Civil', 'faculty', 'shanmugapriyan.civil@nscet.edu.in', 'NSCET-CIVIL-064', 'faculty123', NULL, 'Civil Engineering'),
-('FAC065', 'Mr. T. Hariprasath', 'T. Hariprasath', 'AP/Civil', 'faculty', 'hariprasath.civil@nscet.edu.in', 'NSCET-CIVIL-065', 'faculty123', 'Assistant Coordinator', 'Civil Engineering'),
-('FAC066', 'Mrs. M. Kanimozhi', 'M. Kanimozhi', 'AP/Civil', 'faculty', 'kanimozhi.civil@nscet.edu.in', 'NSCET-CIVIL-066', 'faculty123', NULL, 'Civil Engineering'),
-('FAC067', 'Mrs. M. Sindhu', 'M. Sindhu', 'AP/Civil', 'faculty', 'sindhu.civil@nscet.edu.in', 'NSCET-CIVIL-067', 'faculty123', NULL, 'Civil Engineering'),
-('FAC068', 'Mrs. P. Aadhitya', 'P. Aadhitya', 'AP/Civil', 'faculty', 'aadhitya.civil@nscet.edu.in', 'NSCET-CIVIL-068', 'faculty123', NULL, 'Civil Engineering'),
-('FAC069', 'Mrs. K. Benita Merlin Isabella', 'K. Benita Merlin Isabella', 'AP/Civil', 'faculty', 'benita.civil@nscet.edu.in', 'NSCET-CIVIL-069', 'faculty123', NULL, 'Civil Engineering'),
-('FAC070', 'Mrs. Devi Priya', 'Devi Priya', 'AP/Eng', 'faculty', 'devipriya.eng@nscet.edu.in', 'NSCET-ENG-070', 'faculty123', NULL, 'Civil Engineering'),
-('FAC071', 'Mr. N. Nagarathinam', 'N. Nagarathinam', 'HOD/Civil', 'hod', 'nagarathinam.civil@nscet.edu.in', 'NSCET-CIVIL-HOD', 'faculty123', NULL, 'Civil Engineering'),
-('PRN001', 'Dr. C. Mathalai Sundaram', 'Principal', 'Principal & Executive Head', 'principal', 'principal@nscet.edu.in', 'EXE-001', 'principal123', NULL, 'College Administration'),
-('VPN001', 'Dr. M. Sathya', 'Vice Principal', 'Vice Principal & Academic Head', 'vice_principal', 'viceprincipal@nscet.edu.in', 'EXE-002', 'vp123', NULL, 'Academic Administration');
+INSERT INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`, `employee_id`, `password`, `class_role`, `department`, `is_password_changed`) VALUES
+('FAC033', 'Mrs. R. Chitra', 'R. Chitra', 'AP/EEE', 'faculty', 'chitra.eee@nscet.edu.in', 'NSCET-EEE-033', 'faculty123', 'Assistant Coordinator', 'Electrical and Electronics Engineering', 0),
+('FAC034', 'Dr. R. Athilingam', 'R. Athilingam', 'HOD/EEE', 'hod', 'athilingam.eee@nscet.edu.in', 'NSCET-EEE-034', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0),
+('FAC035', 'Mrs. M. Vijayalakshmi', 'M. Vijayalakshmi', 'AP/EEE', 'faculty', 'vijayalakshmi.eee@nscet.edu.in', 'NSCET-EEE-035', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0),
+('FAC036', 'Mrs. H. Juriya Banu', 'H. Juriya Banu', 'AP/EEE', 'faculty', 'juriyabanu.eee@nscet.edu.in', 'NSCET-EEE-036', 'faculty123', 'Class Coordinator', 'Electrical and Electronics Engineering', 0),
+('FAC037', 'Dr. N. Pandi Selvi', 'N. Pandi Selvi', 'AP/EEE', 'faculty', 'pandiselvi.eee@nscet.edu.in', 'NSCET-EEE-037', 'faculty123', NULL, 'Electrical and Electronics Engineering', 0),
+('FAC038', 'Dr. P. Malarvizhi', 'P. Malarvizhi', 'ASP/S&H', 'faculty', 'malarvizhi.sh@nscet.edu.in', 'NSCET-SH-038', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC041', 'Mr. Murugan', 'Mr. Murugan', 'AP/S&H', 'faculty', 'murugan.sh@nscet.edu.in', 'NSCET-SH-041', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC042', 'Mrs. T. Tamilselvi', 'T. Tamilselvi', 'AP/ECE', 'faculty', 'tamilselvi.ece@nscet.edu.in', 'NSCET-ECE-042', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC043', 'Mrs. S. Rajeshshree', 'S. Rajeshshree', 'AP/ECE', 'faculty', 'rajeshshree.ece@nscet.edu.in', 'NSCET-ECE-043', 'faculty123', 'Assistant Coordinator', 'Electronics and Communication Engineering', 0),
+('FAC044', 'Dr. N. Mathavan', 'N. Mathavan', 'ASP/ECE', 'faculty', 'mathavan.ece@nscet.edu.in', 'NSCET-ECE-044', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC045', 'Dr. T. Venish Kumar', 'T. Venish Kumar', 'ASP/ECE', 'faculty', 'venishkumar.ece@nscet.edu.in', 'NSCET-ECE-045', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC046', 'Mr. R. Pradeep Kumar', 'R. Pradeep Kumar', 'AP/ECE', 'faculty', 'pradeepkumar.ece@nscet.edu.in', 'NSCET-ECE-046', 'faculty123', 'Class Coordinator', 'Electronics and Communication Engineering', 0),
+('FAC047', 'S/H Staff', 'S/H Staff', 'AP/S&H', 'faculty', 'shstaff.eng@nscet.edu.in', 'NSCET-SH-047', 'faculty123', NULL, 'Science and Humanities', 0),
+('FAC048', 'Mrs. S. Kalaivani', 'S. Kalaivani', 'AP/ECE', 'faculty', 'kalaivani.ece@nscet.edu.in', 'NSCET-ECE-048', 'faculty123', NULL, 'Electronics and Communication Engineering', 0),
+('FAC052', 'Dr. A. Vennimalai Rajan', 'A. Vennimalai Rajan', 'ASP/Mech', 'faculty', 'vennimalairajan.mech@nscet.edu.in', 'NSCET-MECH-052', 'faculty123', NULL, 'Mechanical Engineering', 0),
+('FAC053', 'Dr. B. Nagarajan', 'B. Nagarajan', 'ASP/Mech', 'faculty', 'nagarajan.mech@nscet.edu.in', 'NSCET-MECH-053', 'faculty123', 'Class Coordinator', 'Mechanical Engineering', 0),
+('FAC054', 'Mr. S. Harikishore', 'S. Harikishore', 'AP/Mech', 'faculty', 'harikishore.mech@nscet.edu.in', 'NSCET-MECH-054', 'faculty123', NULL, 'Mechanical Engineering', 0),
+('FAC055', 'Mr. R. Nagaraja', 'R. Nagaraja', 'AP/Mech', 'faculty', 'nagaraja.mech@nscet.edu.in', 'NSCET-MECH-055', 'faculty123', 'Class Coordinator', 'Mechanical Engineering', 0),
+('FAC058', 'Dr. S. Sinthan', 'S. Sinthan', 'Librarian', 'faculty', 'sinthan.lib@nscet.edu.in', 'NSCET-LIB-058', 'faculty123', NULL, 'Mechanical Engineering', 0),
+('FAC059', 'Dr. B. Ratha Krishnan', 'B. Ratha Krishnan', 'HOD/Mech', 'hod', 'rathakrishnan.mech@nscet.edu.in', 'NSCET-MECH-HOD', 'faculty123', NULL, 'Mechanical Engineering', 0),
+('FAC062', 'Mrs. S. Gayathri', 'S. Gayathri', 'AP/Civil', 'faculty', 'gayathri.civil@nscet.edu.in', 'NSCET-CIVIL-062', 'faculty123', 'Class Coordinator', 'Civil Engineering', 0),
+('FAC063', 'Mr. P. Arul Jebaraj', 'P. Arul Jebaraj', 'AP/Civil', 'faculty', 'aruljebaraj.civil@nscet.edu.in', 'NSCET-CIVIL-063', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC064', 'Mr. R. Shanmugapriyan', 'R. Shanmugapriyan', 'AP/Civil', 'faculty', 'shanmugapriyan.civil@nscet.edu.in', 'NSCET-CIVIL-064', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC065', 'Mr. T. Hariprasath', 'T. Hariprasath', 'AP/Civil', 'faculty', 'hariprasath.civil@nscet.edu.in', 'NSCET-CIVIL-065', 'faculty123', 'Assistant Coordinator', 'Civil Engineering', 0),
+('FAC066', 'Mrs. M. Kanimozhi', 'M. Kanimozhi', 'AP/Civil', 'faculty', 'kanimozhi.civil@nscet.edu.in', 'NSCET-CIVIL-066', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC067', 'Mrs. M. Sindhu', 'M. Sindhu', 'AP/Civil', 'faculty', 'sindhu.civil@nscet.edu.in', 'NSCET-CIVIL-067', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC068', 'Mrs. P. Aadhitya', 'P. Aadhitya', 'AP/Civil', 'faculty', 'aadhitya.civil@nscet.edu.in', 'NSCET-CIVIL-068', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC069', 'Mrs. K. Benita Merlin Isabella', 'K. Benita Merlin Isabella', 'AP/Civil', 'faculty', 'benita.civil@nscet.edu.in', 'NSCET-CIVIL-069', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC070', 'Mrs. Devi Priya', 'Devi Priya', 'AP/Eng', 'faculty', 'devipriya.eng@nscet.edu.in', 'NSCET-ENG-070', 'faculty123', NULL, 'Civil Engineering', 0),
+('FAC071', 'Mr. N. Nagarathinam', 'N. Nagarathinam', 'HOD/Civil', 'hod', 'nagarathinam.civil@nscet.edu.in', 'NSCET-CIVIL-HOD', 'faculty123', NULL, 'Civil Engineering', 0),
+('PRN001', 'Dr. C. Mathalai Sundaram', 'Principal', 'Principal & Executive Head', 'principal', 'principal@nscet.edu.in', 'EXE-001', 'principal123', NULL, 'College Administration', 0),
+('VPN001', 'Dr. M. Sathya', 'Vice Principal', 'Vice Principal & Academic Head', 'vice_principal', 'viceprincipal@nscet.edu.in', 'EXE-002', 'vp123', NULL, 'Academic Administration', 0);
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: SUBJECTS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `subjects` (
   `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `code` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -397,9 +383,6 @@ INSERT INTO `subjects` (`id`, `code`, `name`, `acronym`, `type`, `department`, `
 ('SUB080', 'EN25C03', 'English Communication Skills Laboratory – II', 'ECS LAB', 'Practical', 'Civil Engineering', 3, 'FAC070', 'CL007', '0-0-2-1', 30, 0, 0, 2, 1),
 ('SUBEN02', 'EN25C03', 'English Communication Skills Laboratory – II', NULL, 'Practical', NULL, NULL, 'FAC007', 'CL001', '0-0-2-1', 30, 0, 0, 2, 1);
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: STUDENTS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `students` (
   `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `s_no` int NOT NULL,
@@ -1305,9 +1288,6 @@ INSERT INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department
 ('STU631', 31, '921025103031', 'YAZHINI N', 'CL007', 'Civil Engineering'),
 ('STU632', 32, '921025103032', 'YUVASRI M', 'CL007', 'Civil Engineering');
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: SYSTEM_SETTINGS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `system_settings` (
   `setting_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `setting_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1318,9 +1298,6 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES
 ('marks_entry_deadline', '2026-07-24', '2026-07-23 05:15:26');
 
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: MARKS_SESSIONS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `marks_sessions` (
   `id` int NOT NULL AUTO_INCREMENT,
   `subject_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1345,11 +1322,6 @@ CREATE TABLE IF NOT EXISTS `marks_sessions` (
   CONSTRAINT `fk_session_subject` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in marks_sessions)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: ASSESSMENT_COMPONENTS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `assessment_components` (
   `id` int NOT NULL AUTO_INCREMENT,
   `session_id` int NOT NULL,
@@ -1365,11 +1337,6 @@ CREATE TABLE IF NOT EXISTS `assessment_components` (
   CONSTRAINT `fk_comp_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in assessment_components)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: MARKS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `marks` (
   `id` int NOT NULL AUTO_INCREMENT,
   `session_id` int NOT NULL,
@@ -1385,11 +1352,6 @@ CREATE TABLE IF NOT EXISTS `marks` (
   CONSTRAINT `fk_mark_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in marks)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: SESSION_ATTENDANCE
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `session_attendance` (
   `session_id` int NOT NULL,
   `student_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1403,11 +1365,6 @@ CREATE TABLE IF NOT EXISTS `session_attendance` (
   CONSTRAINT `fk_att_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in session_attendance)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: MARK_UNLOCK_REQUESTS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `mark_unlock_requests` (
   `id` int NOT NULL AUTO_INCREMENT,
   `session_id` int NOT NULL,
@@ -1425,11 +1382,6 @@ CREATE TABLE IF NOT EXISTS `mark_unlock_requests` (
   CONSTRAINT `fk_unlock_session` FOREIGN KEY (`session_id`) REFERENCES `marks_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in mark_unlock_requests)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: CLASS_ANALYSIS_REMARKS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `class_analysis_remarks` (
   `id` int NOT NULL AUTO_INCREMENT,
   `class_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1442,11 +1394,6 @@ CREATE TABLE IF NOT EXISTS `class_analysis_remarks` (
   CONSTRAINT `fk_rem_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in class_analysis_remarks)
-
--- ─────────────────────────────────────────
--- TABLE SCHEMA & DATA: NOTIFICATIONS
--- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
   `target_role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. hod, class_coordinator, or specific staff_id',
@@ -1459,10 +1406,4 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- (No data in notifications)
-
 SET FOREIGN_KEY_CHECKS = 1;
-
--- ============================================================
--- END OF MASTER DEPLOYMENT DUMP
--- ============================================================
