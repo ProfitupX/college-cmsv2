@@ -189,4 +189,136 @@ router.get('/college', async (req, res) => {
   }
 });
 
+// GET /api/stats/continuous-assessment?sessionLabel=internal1
+// Official Continuous Assessment Analysis Format for Principal / VP
+router.get('/continuous-assessment', async (req, res) => {
+  try {
+    const { sessionLabel = 'internal1' } = req.query;
+
+    const depts = [
+      { label: 'B.E., (Civil)', name: 'Civil Engineering' },
+      { label: 'B.E., (CSE)', name: 'Computer Science and Engineering' },
+      { label: 'B.E., (EEE)', name: 'Electrical and Electronics Engineering' },
+      { label: 'B.E., (ECE)', name: 'Electronics and Communication Engineering' },
+      { label: 'B.E., (Mech)', name: 'Mechanical Engineering' },
+      { label: 'B.Tech., (IT)', name: 'Information Technology' },
+      { label: 'B.Tech., (AI&DS)', name: 'Artificial Intelligence and Data Science' },
+    ];
+
+    const years = ['II', 'III', 'IV'];
+    const results = [];
+
+    let totalUgStrength = 0;
+    let totalUgPassed = 0;
+
+    for (const d of depts) {
+      let deptStrength = 0;
+      let deptPassed = 0;
+      const yearRows = [];
+
+      for (const y of years) {
+        const [classes] = await db.execute(
+          'SELECT id, name FROM classes WHERE department = ? AND year_label = ?',
+          [d.name, y]
+        );
+
+        let yearStrength = 0;
+        let yearPassed = 0;
+
+        if (classes.length > 0) {
+          const classIds = classes.map(c => c.id);
+          const placeholders = classIds.map(() => '?').join(',');
+          
+          const [students] = await db.execute(
+            `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
+            classIds
+          );
+          yearStrength = students.length;
+
+          // Sessions for these classes
+          const [sessions] = await db.execute(
+            `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
+            [...classIds, sessionLabel]
+          );
+
+          if (sessions.length > 0 && students.length > 0) {
+            const sessionIds = sessions.map(s => s.id);
+            const sessPlaceholders = sessionIds.map(() => '?').join(',');
+            const [attRows] = await db.execute(
+              `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
+              sessionIds
+            );
+
+            // Group attendance by student
+            const studentAttMap = {};
+            attRows.forEach(a => {
+              if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
+              studentAttMap[a.student_id].push(a);
+            });
+
+            // A student is passed if they passed all conducted sessions with >= 50
+            students.forEach(st => {
+              const records = studentAttMap[st.id] || [];
+              if (records.length === sessions.length && records.length > 0) {
+                const allPass = records.every(r => {
+                  const score = parseFloat(r.internal_exam_mark);
+                  return !isNaN(score) && score >= 50;
+                });
+                if (allPass) yearPassed++;
+              }
+            });
+          }
+        }
+
+        deptStrength += yearStrength;
+        deptPassed += yearPassed;
+
+        const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
+        yearRows.push({
+          year: y,
+          strength: yearStrength,
+          passed: yearPassed,
+          percentage: passPct
+        });
+      }
+
+      totalUgStrength += deptStrength;
+      totalUgPassed += deptPassed;
+
+      const deptOverallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';
+      results.push({
+        department: d.label,
+        departmentFullName: d.name,
+        years: yearRows,
+        deptStrength,
+        deptPassed,
+        deptOverallPct
+      });
+    }
+
+    const overallWithoutFirstYearPct = totalUgStrength > 0 ? ((totalUgPassed / totalUgStrength) * 100).toFixed(2) : '0.00';
+
+    res.json({
+      success: true,
+      sessionLabel,
+      departments: results,
+      summary: {
+        withoutFirstYear: {
+          strength: totalUgStrength,
+          passed: totalUgPassed,
+          percentage: overallWithoutFirstYearPct
+        },
+        collegeOverall: {
+          strength: totalUgStrength,
+          passed: totalUgPassed,
+          percentage: overallWithoutFirstYearPct
+        }
+      }
+    });
+  } catch (err) {
+    console.error('GET /stats/continuous-assessment error:', err);
+    res.status(500).json({ error: 'Failed to fetch continuous assessment stats: ' + err.message });
+  }
+});
+
 export default router;

@@ -37,8 +37,8 @@ export default function Sidebar({ collapsed, onToggle }) {
       ]
     : [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/marks-entry', icon: ClipboardEdit, label: isPrincipal ? 'Student Marks' : 'Marks Entry' },
-        { to: '/marks-entry-2021', icon: BookMarked, label: isPrincipal ? 'Student Marks (2021)' : '2021 Reg. Marks' },
+        { to: '/marks-entry', icon: ClipboardEdit, label: '2025 Reg. Marks' },
+        { to: '/marks-entry-2021', icon: BookMarked, label: '2021 Reg. Marks' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
 
@@ -81,20 +81,32 @@ export default function Sidebar({ collapsed, onToggle }) {
       <nav className={styles.nav}>
         {!collapsed && <span className={styles.navLabel}>MAIN MENU</span>}
         {navItems.map(({ to, icon: Icon, label }) => (
-          <>
-            {/* Section divider before 2021 Reg link */}
-            {to === '/marks-entry-2021' && !collapsed && (
+          <div key={to}>
+            {/* Section divider for 2025 Reg link */}
+            {to === '/marks-entry' && !collapsed && (
               <div style={{
-                fontSize: '0.65rem',
+                fontSize: '0.62rem',
                 color: 'var(--text-secondary)',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 padding: '10px 14px 4px',
-                opacity: 0.6,
-              }}>2021 Regulation</div>
+                opacity: 0.7,
+                fontWeight: 700
+              }}>2025 Reg (II Year)</div>
+            )}
+            {/* Section divider before 2021 Reg link */}
+            {to === '/marks-entry-2021' && !collapsed && (
+              <div style={{
+                fontSize: '0.62rem',
+                color: 'var(--text-secondary)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                padding: '10px 14px 4px',
+                opacity: 0.7,
+                fontWeight: 700
+              }}>2021 Reg (III & IV Year)</div>
             )}
             <NavLink
-              key={to}
               to={to}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.active : ''}`
@@ -105,14 +117,8 @@ export default function Sidebar({ collapsed, onToggle }) {
                 <Icon size={20} />
               </span>
               {!collapsed && <span className={styles.navItemLabel}>{label}</span>}
-              {!collapsed && to === '/marks-entry' && (
-                <span className={styles.badge}>New</span>
-              )}
-              {!collapsed && to === '/marks-entry-2021' && (
-                <span className={styles.badge} style={{ background: '#7c3aed' }}>3rd/4th</span>
-              )}
             </NavLink>
-          </>
+          </div>
         ))}
       </nav>
 

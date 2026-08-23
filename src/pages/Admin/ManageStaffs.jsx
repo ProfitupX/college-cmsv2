@@ -320,6 +320,8 @@ export default function ManageStaffs() {
                 <option value="faculty">Faculty Staff</option>
                 <option value="hod">HOD (Head of Department)</option>
                 <option value="class_coordinator">Class In-charge</option>
+                <option value="principal">Principal</option>
+                <option value="vice_principal">Vice Principal</option>
                 <option value="admin">Administrator</option>
               </select>
             </div>
@@ -360,6 +362,14 @@ export default function ManageStaffs() {
               roleLabel = 'Admin';
               roleBg = 'rgba(239, 68, 68, 0.1)';
               roleColor = 'var(--danger)';
+            } else if (s.role === 'principal') {
+              roleLabel = 'Principal';
+              roleBg = 'rgba(128, 0, 0, 0.15)';
+              roleColor = '#800000';
+            } else if (s.role === 'vice_principal') {
+              roleLabel = 'Vice Principal';
+              roleBg = 'rgba(59, 130, 246, 0.15)';
+              roleColor = '#2563eb';
             } else if (s.role === 'hod') {
               roleLabel = 'HOD';
               roleBg = 'rgba(245, 158, 11, 0.15)';

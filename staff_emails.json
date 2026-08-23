@@ -1,0 +1,452 @@
+[
+  {
+    "sno": 1,
+    "email": "principal@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 2,
+    "email": "vp_academic@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 3,
+    "email": "aaditya@nscet.org",
+    "dept": "Civil"
+  },
+  {
+    "sno": 4,
+    "email": "aruljebaraj@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 5,
+    "email": "benita@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 6,
+    "email": "gayathri@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 7,
+    "email": "kanimozhi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 8,
+    "email": "nathirunsabinash@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 9,
+    "email": "hariprasath@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 10,
+    "email": "nagarathinam@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 11,
+    "email": "shanmugapriyan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 12,
+    "email": "sindhu@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 13,
+    "email": "kodeeswaran@nscet.org",
+    "dept": "CSE, AI, IT"
+  },
+  {
+    "sno": 14,
+    "email": "nithyapriya@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 15,
+    "email": "jenifer@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 16,
+    "email": "rathimalat@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 17,
+    "email": "sunitha@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 18,
+    "email": "mareeswarim@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 19,
+    "email": "abiramikayathiri@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 20,
+    "email": "jasminejose@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 21,
+    "email": "saisuganya@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 22,
+    "email": "sathya@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 23,
+    "email": "anusuya@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 24,
+    "email": "archana@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 25,
+    "email": "mathalairaj@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 26,
+    "email": "snegapriyanaka@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 27,
+    "email": "naveenkarthickgr@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 28,
+    "email": "prathapc@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 29,
+    "email": "udhayakumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 30,
+    "email": "velkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 31,
+    "email": "venkatalakshmi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 32,
+    "email": "vinothini@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 33,
+    "email": "vinothkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 34,
+    "email": "vigneshls@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 35,
+    "email": "bharathikannan@nscet.org",
+    "dept": "ECE"
+  },
+  {
+    "sno": 36,
+    "email": "venishkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 37,
+    "email": "gowthami@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 38,
+    "email": "idhayachandran@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 39,
+    "email": "kalaivani@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 40,
+    "email": "mathavan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 41,
+    "email": "pradeepkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 42,
+    "email": "prathaps@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 43,
+    "email": "rajeshshree@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 44,
+    "email": "shanthadevi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 45,
+    "email": "tamilselvi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 46,
+    "email": "chitrar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 47,
+    "email": "athilingam@nscet.org",
+    "dept": "EEE"
+  },
+  {
+    "sno": 48,
+    "email": "ganesh@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 49,
+    "email": "juriyabanu@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 50,
+    "email": "nishethajeflinixon@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 51,
+    "email": "rajakarthick@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 52,
+    "email": "shiva@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 53,
+    "email": "vijayalakshmi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 54,
+    "email": "vembathurajesh@nscet.org",
+    "dept": "MECH"
+  },
+  {
+    "sno": 55,
+    "email": "nagarajan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 56,
+    "email": "radhakrishnan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 57,
+    "email": "nagaraja@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 58,
+    "email": "sivaganesan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 59,
+    "email": "surulimani@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 60,
+    "email": "vennimalairajan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 61,
+    "email": "arunkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 62,
+    "email": "chakravarthysamydurai@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 63,
+    "email": "harikishore@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 64,
+    "email": "richardbritto@nscet.org",
+    "dept": "ENGLISH"
+  },
+  {
+    "sno": 65,
+    "email": "subathamani@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 66,
+    "email": "malarvizhi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 67,
+    "email": "valarmathi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 68,
+    "email": "arulvizhi@nscet.org",
+    "dept": "MATHS"
+  },
+  {
+    "sno": 69,
+    "email": "mallaiyasamy@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 70,
+    "email": "chithra.c@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 71,
+    "email": "karunyah@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 72,
+    "email": "murugan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 73,
+    "email": "bhuvaneshwari@nscet.org",
+    "dept": "PHYSICS"
+  },
+  {
+    "sno": 74,
+    "email": "krishnamoorthi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 75,
+    "email": "dhandayuthapani@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 76,
+    "email": "diana@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 77,
+    "email": "antochristy@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 78,
+    "email": "rajaguru@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 79,
+    "email": "abinaya@nscet.org",
+    "dept": "CHEMISTRY"
+  },
+  {
+    "sno": 80,
+    "email": "davidmathan@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 81,
+    "email": "saravanakumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 82,
+    "email": "srinithi@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 83,
+    "email": "ponnaiah@nscet.org",
+    "dept": "PD"
+  },
+  {
+    "sno": 84,
+    "email": "vayalsamy@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 85,
+    "email": "thisha@nscet.org",
+    "dept": "Tamil"
+  },
+  {
+    "sno": 86,
+    "email": "sinthan@nscet.org",
+    "dept": "Library"
+  },
+  {
+    "sno": 87,
+    "email": "geethac@nscet.org",
+    "dept": "PLACEMENT"
+  },
+  {
+    "sno": 88,
+    "email": "megha@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 89,
+    "email": "ramkumar@nscet.org",
+    "dept": null
+  },
+  {
+    "sno": 90,
+    "email": "dm@nscet.org",
+    "dept": "Foreign Lan"
+  }
+]

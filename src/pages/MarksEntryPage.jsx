@@ -45,10 +45,17 @@ export default function MarksEntryPage() {
   const [unlockReason, setUnlockReason] = useState('');
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
-  // ── Load classes on mount ──────────────────────────────
+  // ── Load classes on mount (2025 Regulation: 2nd Year classes only) ────
   useEffect(() => {
     classesAPI.getAll()
-      .then(setClasses)
+      .then(allClasses => {
+        const filtered = allClasses.filter(c =>
+          c.year_label === 'II' ||
+          parseInt(c.semester) === 3 ||
+          parseInt(c.semester) === 4
+        );
+        setClasses(filtered);
+      })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
   }, []);

@@ -7,7 +7,8 @@ import NotificationsDropdown from './NotificationsDropdown';
 
 const pageTitles = {
   '/dashboard': { title: 'Dashboard', sub: 'Welcome back! Here\'s your overview.' },
-  '/marks-entry': { title: 'Marks Entry', sub: 'Enter and manage student assessment marks.' },
+  '/marks-entry': { title: '2025 Reg. Marks', sub: 'Continuous Assessment mark entry for II Year.' },
+  '/marks-entry-2021': { title: '2021 Reg. Marks', sub: 'Assessment mark entry for III & IV Year (2021 Regulation).' },
   '/students': { title: 'Students', sub: 'View and manage your student roster.' },
   '/reports': { title: 'Reports & Analytics', sub: 'Insights and performance data.' },
   '/settings': { title: 'Settings', sub: 'Manage your account and preferences.' },
@@ -15,7 +16,8 @@ const pageTitles = {
 
 const searchablePages = [
   { name: 'Dashboard Overview', path: '/dashboard', cat: 'Page', icon: FileText },
-  { name: 'Marks Entry Sheet', path: '/marks-entry', cat: 'Action', icon: BookOpen },
+  { name: '2025 Reg. Marks (II Year)', path: '/marks-entry', cat: 'Action', icon: BookOpen },
+  { name: '2021 Reg. Marks (III & IV Year)', path: '/marks-entry-2021', cat: 'Action', icon: BookOpen },
   { name: 'Manage Classes & Subjects', path: '/admin/classes', cat: 'Admin', icon: BookOpen },
   { name: 'Manage Staff Members & Credentials', path: '/admin/staffs', cat: 'Admin', icon: Users },
   { name: 'Manage Students Roster', path: '/admin/students', cat: 'Admin', icon: Users },
@@ -30,7 +32,7 @@ export default function Header({ onMobileToggle, darkMode, onToggleDark }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
 
-  const pageInfo = pageTitles[location.pathname] || { title: 'College CMS', sub: 'Management Portal' };
+  const pageInfo = pageTitles[location.pathname] || { title: 'NSCET-MarkHub', sub: 'Centralized Academic Mark Entry & Management System' };
 
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()

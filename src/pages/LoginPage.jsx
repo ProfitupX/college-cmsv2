@@ -31,8 +31,8 @@ export default function LoginPage() {
             <GraduationCap size={28} color="#fff" />
           </div>
           <div>
-            <h1 className={styles.appName}>College CMS</h1>
-            <p className={styles.appSub}>Marks Management System</p>
+            <h1 className={styles.appName}>NSCET-MarkHub</h1>
+            <p className={styles.appSub}>Centralized Academic Mark Entry & Management System</p>
           </div>
         </div>
 
@@ -52,7 +52,7 @@ export default function LoginPage() {
                 id="login-email"
                 type="email"
                 className={styles.input}
-                placeholder="faculty@nscet.edu.in"
+                placeholder="faculty@nscet.org"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 required

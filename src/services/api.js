@@ -127,7 +127,8 @@ export const statsAPI = {
     const q = params.toString();
     return get(`/stats${q ? '?' + q : ''}`);
   },
-  getCollegeStats: () => get('/stats/college')
+  getCollegeStats: () => get('/stats/college'),
+  getContinuousAssessment: (sessionLabel = 'internal1') => get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`)
 };
 
 // ─────────────────────────────────────────

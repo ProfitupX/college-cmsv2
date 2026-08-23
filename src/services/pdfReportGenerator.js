@@ -909,3 +909,97 @@ export const generateSubjectMarksListPDF2021 = async ({
 
   doc.save(`${subject?.code}_2021Reg_${isInternal2 ? 'IA2' : 'IA1'}_Marks.pdf`);
 };
+
+// ─────────────────────────────────────────────────────────────
+// REPORT: Continuous Assessment Analysis (Official Principal / VP Format)
+// Matches CONTINUOUS ASSESSMENT ANALYSIS FORMAT.xlsx
+// ─────────────────────────────────────────────────────────────
+export const generateContinuousAssessmentAnalysisPDF = async ({
+  caData, sessionLabel = 'internal1', user
+}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const isCA2 = sessionLabel === 'internal2';
+  const title = `CONTINUOUS ASSESSMENT - ${isCA2 ? '2' : '1'} ANALYSIS`;
+
+  await drawCollegeHeader(doc, title, 'NSCET/PRIN/CA-01', '01', null, '1 of 1');
+
+  let y = 46;
+
+  // Build table body with department spans
+  const bodyRows = [];
+
+  caData.departments.forEach((dept) => {
+    dept.years.forEach((yr, idx) => {
+      if (idx === 0) {
+        bodyRows.push([
+          { content: dept.department, rowSpan: dept.years.length, styles: { valign: 'middle', fontStyle: 'bold' } },
+          yr.year,
+          yr.strength,
+          yr.passed,
+          `${yr.percentage}%`,
+          { content: `${dept.deptOverallPct}%`, rowSpan: dept.years.length, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } }
+        ]);
+      } else {
+        bodyRows.push([
+          yr.year,
+          yr.strength,
+          yr.passed,
+          `${yr.percentage}%`
+        ]);
+      }
+    });
+  });
+
+  // Summary Row: Without First Year
+  bodyRows.push([
+    { content: 'Pass Percentage Without First Year', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248] } },
+    { content: caData.summary.withoutFirstYear.strength, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } },
+    { content: caData.summary.withoutFirstYear.passed, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } },
+    { content: `${caData.summary.withoutFirstYear.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } }
+  ]);
+
+  // Summary Row: College Overall Pass Percentage
+  bodyRows.push([
+    { content: 'College Overall Pass Percentage', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0] } },
+    { content: caData.summary.collegeOverall.strength, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } },
+    { content: caData.summary.collegeOverall.passed, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } },
+    { content: `${caData.summary.collegeOverall.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } }
+  ]);
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Department', 'Year', 'Strength', 'Passed', 'Percentage', 'Percentage (Over all)']],
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 8, halign: 'center', cellPadding: 2 },
+    headStyles: {
+      fillColor: [128, 0, 0],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 8
+    },
+    columnStyles: {
+      0: { cellWidth: 38, halign: 'left' },
+      1: { cellWidth: 16 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 34 },
+      5: { cellWidth: 44 }
+    }
+  });
+
+  // Footer Signatures
+  y = doc.lastAutoTable.finalY + 20;
+  if (y > 270) {
+    doc.addPage();
+    y = 30;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('VICE PRINCIPAL', 30, y);
+  doc.text('PRINCIPAL', 160, y);
+
+  doc.save(`NSCET_Continuous_Assessment_${isCA2 ? '2' : '1'}_Analysis.pdf`);
+};

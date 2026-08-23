@@ -11,24 +11,26 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    if (email.trim().toLowerCase() === 'admin@nscet.edu.in' && password === 'admin123') {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if ((cleanEmail === 'admin@nscet.org' || cleanEmail === 'admin@nscet.edu.in') && password === 'admin123') {
       return res.json({
         success: true,
-        user: { id: 'ADMIN', name: 'Admin User', shortName: 'Admin', designation: 'System Administrator', role: 'admin', email: 'admin@nscet.edu.in', employeeId: 'ADMIN-001', classRole: null, department: 'College Administration' }
+        user: { id: 'ADMIN', name: 'Admin User', shortName: 'Admin', designation: 'System Administrator', role: 'admin', email: 'admin@nscet.org', employeeId: 'ADMIN-001', classRole: null, department: 'College Administration' }
       });
     }
 
-    if (email.trim().toLowerCase() === 'principal@nscet.edu.in' && password === 'admin123') {
+    if ((cleanEmail === 'principal@nscet.org' || cleanEmail === 'principal@nscet.edu.in') && password === 'admin123') {
       return res.json({
         success: true,
-        user: { id: 'PRIN', name: 'Dr. C. Mathalai Sundaram', shortName: 'PRIN', designation: 'Principal, NSCET', role: 'principal', email: 'principal@nscet.edu.in', employeeId: 'PRIN-001', classRole: null, department: 'College Administration' }
+        user: { id: 'PRIN', name: 'Dr. C. Mathalai Sundaram', shortName: 'PRIN', designation: 'Principal, NSCET', role: 'principal', email: 'principal@nscet.org', employeeId: 'PRIN-001', classRole: null, department: 'College Administration' }
       });
     }
 
-    if (email.trim().toLowerCase() === 'vp@nscet.edu.in' && password === 'admin123') {
+    if ((cleanEmail === 'vp_academic@nscet.org' || cleanEmail === 'vp@nscet.org' || cleanEmail === 'vp@nscet.edu.in') && password === 'admin123') {
       return res.json({
         success: true,
-        user: { id: 'VP', name: 'Dr. M. Sathya', shortName: 'VP', designation: 'Vice Principal & Academic', role: 'vice_principal', email: 'vp@nscet.edu.in', employeeId: 'VP-001', classRole: null, department: 'College Administration' }
+        user: { id: 'VP', name: 'Dr. M. Sathya', shortName: 'VP', designation: 'Vice Principal & Academic', role: 'vice_principal', email: 'vp_academic@nscet.org', employeeId: 'VP-001', classRole: null, department: 'College Administration' }
       });
     }
 
