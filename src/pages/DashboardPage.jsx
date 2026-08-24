@@ -34,7 +34,9 @@ export default function DashboardPage() {
       user?.role === 'admin' 
         ? statsAPI.getCollegeStats()
         : statsAPI.get('', user?.id, user?.role, user?.department),
-      marksAPI.getSessions({}),
+      marksAPI.getSessions({ 
+        department: (user?.role === 'hod' || user?.role === 'faculty') ? user?.department : undefined
+      }),
       settingsAPI.getDeadline()
     ];
 

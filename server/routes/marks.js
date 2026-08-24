@@ -179,12 +179,12 @@ router.post('/submit', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.get('/sessions', async (req, res) => {
   try {
-    const { classId, staffId, subjectId, sessionLabel } = req.query;
+    const { classId, staffId, subjectId, sessionLabel, department } = req.query;
     let sql = `
       SELECT ms.id, ms.session_label, ms.total_max, ms.status,
              ms.avg_score, ms.student_count, ms.created_at, ms.subject_id,
-             sub.name AS subject, sub.code AS subject_code, sub.acronym,
-             cl.name  AS class_name,
+             sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
+             cl.name  AS class_name, cl.department AS class_department,
              st.name  AS staff_name
       FROM marks_sessions ms
       JOIN subjects sub ON sub.id = ms.subject_id
@@ -197,6 +197,10 @@ router.get('/sessions', async (req, res) => {
     if (staffId)      { where.push('ms.staff_id = ?');   params.push(staffId); }
     if (subjectId)    { where.push('ms.subject_id = ?'); params.push(subjectId); }
     if (sessionLabel) { where.push('ms.session_label = ?'); params.push(sessionLabel); }
+    if (department)   { 
+      where.push('(cl.department = ? OR sub.department = ?)'); 
+      params.push(department, department);
+    }
     if (where.length) sql += ' WHERE ' + where.join(' AND ');
     sql += ' ORDER BY ms.created_at DESC';
 

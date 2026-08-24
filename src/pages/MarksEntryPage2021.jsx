@@ -5,8 +5,8 @@ import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api'
 import ComponentBuilder2021 from '../components/MarksEntry/ComponentBuilder2021';
 import MarksTable2021 from '../components/MarksEntry/MarksTable2021';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
-import { generateSubjectMarksListPDF2021 } from '../services/pdfReportGenerator';
-import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock } from 'lucide-react';
+import { generateSubjectMarksListPDF2021, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
+import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, FileText } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
 /**
@@ -269,7 +269,42 @@ export default function MarksEntryPage2021() {
   // ── PDF Download ───────────────────────────────────────────
   const handleDownloadPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
-    await generateSubjectMarksListPDF2021({
+
+    if (reportType === 'subject_marks_list_2021') {
+      await generateSubjectMarksListPDF2021({
+        subject: selectedSubject,
+        classObj: selectedClass,
+        staff: user,
+        session: currentSession,
+        students,
+        marksData,
+        attendanceData,
+        totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
+        internalExamData,
+        labData,
+        assessmentMode,
+        components: assessmentComponents,
+      });
+    } else if (reportType === 'subject_analysis') {
+      await generateSubjectAnalysisPDF({
+        subject: selectedSubject,
+        classObj: selectedClass,
+        staff: user,
+        session: currentSession,
+        students,
+        marksData,
+        attendanceData,
+        internalExamData,
+        labData,
+        assessmentMode,
+        remedialAction
+      });
+    }
+  };
+
+  const handleDownloadSubjectAnalysisPDF = async () => {
+    if (!selectedClass || !selectedSubject) return;
+    await generateSubjectAnalysisPDF({
       subject: selectedSubject,
       classObj: selectedClass,
       staff: user,
@@ -277,11 +312,10 @@ export default function MarksEntryPage2021() {
       students,
       marksData,
       attendanceData,
-      totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
       internalExamData,
       labData,
       assessmentMode,
-      components: assessmentComponents,
+      remedialAction
     });
   };
 
@@ -522,8 +556,12 @@ export default function MarksEntryPage2021() {
           </div>
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
+              <select className={styles.downloadSelect} value={reportType} onChange={(e) => setReportType(e.target.value)}>
+                <option value="subject_marks_list_2021">Subject Marks List (2021 Reg)</option>
+                <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
+              </select>
               <button className={styles.downloadBtn} onClick={handleDownloadPDF}>
-                <Download size={15} /> Download PDF Statement (2021 Reg)
+                <Download size={15} /> Download PDF
               </button>
             </div>
             {!isPrincipal && (
