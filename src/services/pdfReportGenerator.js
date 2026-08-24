@@ -267,10 +267,12 @@ export const generateSubjectMarksListPDF = async ({
     headRow.push('Lab Attd (Hrs)', 'Lab Mark');
   }
   
-  headRow.push('Attendance (Hrs)', 'Attd Mark (5)', 'Activities Total (100)');
+  headRow.push('Attd Mark (5)', 'Attendance');
   headRow.push(isInternal2 ? 'Internal 02 Mark (100)' : 'Internal 01 Mark (100)');
+  headRow.push('Activities Total (100)');
 
   // Prepare Table Body
+  let finalTotalMaxHours = 0;
   const bodyRows = students.map((student, idx) => {
     // 1. Calculate Internal Marks
     let convertedTotal = 0;
@@ -298,10 +300,11 @@ export const generateSubjectMarksListPDF = async ({
     if (!isInternal2) {
       const tHours = parseInt(int1Hours || 0);
       const aHours = parseInt(attendanceData[student.id] || 0);
+      finalTotalMaxHours = tHours;
       if (tHours > 0 && !isNaN(aHours)) {
         attendanceMark = getAttendanceMark(aHours, tHours);
       }
-      attendanceDaysStr = `${aHours}/${tHours}`;
+      attendanceDaysStr = isNaN(aHours) ? '-' : `${aHours}`;
     } else {
       const i1Attd = parseInt(int1AttendanceData[student.id] || 0);
       const i2Attd = parseInt(attendanceData[student.id] || 0);
@@ -312,11 +315,13 @@ export const generateSubjectMarksListPDF = async ({
       const i2Max = parseInt(int2Hours || 0);
       const lMax  = hasLab ? parseInt(labHours || 0) : 0;
       const cumulativeMaxHours = i1Max + i2Max + lMax;
+      
+      finalTotalMaxHours = cumulativeMaxHours;
 
       if (cumulativeMaxHours > 0) {
         attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
       }
-      attendanceDaysStr = `${cumulativeAttended}/${cumulativeMaxHours}`;
+      attendanceDaysStr = `${cumulativeAttended}`;
     }
 
     const finalScore = convertedTotal + attendanceMark;
@@ -338,22 +343,30 @@ export const generateSubjectMarksListPDF = async ({
     const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
 
     row.push(
-      attendanceDaysStr,
       attendanceMark,
-      finalScore,
-      internalExamMarkStr
+      attendanceDaysStr,
+      internalExamMarkStr,
+      finalScore
     );
 
     return row;
   });
 
+  const footRow = Array(headRow.length).fill('');
+  const attdColIdx = headRow.indexOf('Attendance');
+  if (attdColIdx !== -1 && finalTotalMaxHours > 0) {
+    footRow[attdColIdx] = `Total Hrs:\n${finalTotalMaxHours}`;
+  }
+
   autoTable(doc, {
     startY: y,
     head: [headRow],
     body: bodyRows,
+    foot: [footRow],
     theme: 'grid',
     styles: { fontSize: 8, halign: 'center' },
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
     columnStyles: { 2: { halign: 'left' } }
   });
 
