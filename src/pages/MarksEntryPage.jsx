@@ -45,20 +45,38 @@ export default function MarksEntryPage() {
   const [unlockReason, setUnlockReason] = useState('');
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
-  // ── Load classes on mount (2025 Regulation: 2nd Year classes only) ────
+  // ── Load classes on mount (2025 Regulation: 2nd Year classes only, filtered by role) ────
   useEffect(() => {
     classesAPI.getAll()
       .then(allClasses => {
-        const filtered = allClasses.filter(c =>
+        let filtered = allClasses.filter(c =>
           c.year_label === 'II' ||
           parseInt(c.semester) === 3 ||
           parseInt(c.semester) === 4
         );
+
+        if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
+          // All 2nd year classes
+        } else if (user?.role === 'hod') {
+          filtered = filtered.filter(c => c.department === user.department);
+        } else if (user?.isClassCoordinator) {
+          const coordIds = (user.coordinatedClasses || []).map(c => c.id);
+          const teachIds = (user.teachingClasses || []).map(c => c.id);
+          filtered = filtered.filter(c => 
+            coordIds.includes(c.id) || 
+            (user.coordinatedClassId && c.id === user.coordinatedClassId) || 
+            teachIds.includes(c.id)
+          );
+        } else {
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          filtered = filtered.filter(c => teachIds.includes(c.id));
+        }
+
         setClasses(filtered);
       })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   // ── Load subjects when class changes (Role-Based Subject Filtering) ──
   useEffect(() => {

@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, BookOpen, ClipboardCheck, TrendingUp,
-  AlertCircle, Calendar, CheckCircle2, Loader, Key, Check, X, ShieldAlert, FileText, Download
+  AlertCircle, Calendar, CheckCircle2, Loader, Key, Check, X, ShieldAlert, FileText, Download,
+  ExternalLink, Sparkles, BookMarked, Award, Clock
 } from 'lucide-react';
 import StatsGrid from '../components/Dashboard/StatsGrid';
 import PerformanceChart from '../components/Dashboard/PerformanceChart';
 import SubjectBreakdown from '../components/Dashboard/SubjectBreakdown';
 import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
-import { statsAPI, marksAPI, settingsAPI } from '../services/api';
+import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { generateClassAnalysisPDF, generateConsolidatedMarksPDF } from '../services/pdfReportGenerator';
+import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data,     setData]     = useState(null);
   const [sessions, setSessions] = useState([]);
   const [unlockRequests, setUnlockRequests] = useState([]);
@@ -22,6 +25,8 @@ export default function DashboardPage() {
   const [error,    setError]    = useState('');
   const [deadline, setDeadline] = useState('');
   const [newDeadline, setNewDeadline] = useState('');
+  const [inchargeSession, setInchargeSession] = useState('internal1');
+  const [genLoading, setGenLoading] = useState(false);
 
   const loadData = () => {
     setLoading(true);
@@ -33,8 +38,6 @@ export default function DashboardPage() {
       settingsAPI.getDeadline()
     ];
 
-    // Removed unlock requests for Admin since they have direct unlock button.
-    // HOD still gets unlock requests.
     if (user?.role === 'hod') {
       promises.push(marksAPI.getUnlockRequests(user.department).catch(() => []));
     } else {
@@ -84,13 +87,15 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDownloadClassPDF = async (type) => {
+  const handleDownloadClassPDF = async (type, targetClassId, period = inchargeSession) => {
+    const classId = targetClassId || user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+    setGenLoading(true);
     try {
-      const summary = await marksAPI.getClassSummary('CL001', 'internal1');
+      const summary = await marksAPI.getClassSummary(classId, period);
       if (type === 'class_analysis') {
         await generateClassAnalysisPDF({
           classObj: summary.classObj,
-          sessionLabel: 'internal1',
+          sessionLabel: period,
           subjects: summary.subjects,
           students: summary.students,
           allSessions: summary.sessions,
@@ -99,7 +104,7 @@ export default function DashboardPage() {
       } else {
         await generateConsolidatedMarksPDF({
           classObj: summary.classObj,
-          sessionLabel: 'internal1',
+          sessionLabel: period,
           subjects: summary.subjects,
           students: summary.students,
           allSessions: summary.sessions,
@@ -108,6 +113,37 @@ export default function DashboardPage() {
       }
     } catch (err) {
       alert('Failed to generate PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleDownloadSubjectPDF = async (subject, period = 'internal1') => {
+    setGenLoading(true);
+    try {
+      const students = await studentsAPI.getByClass(subject.class_id);
+      const sessDetail = await marksAPI.getSessions({ classId: subject.class_id, subjectId: subject.id, sessionLabel: period });
+      let detail = null;
+      if (sessDetail.length > 0) {
+        detail = await marksAPI.getSessionDetail(sessDetail[0].id);
+      }
+
+      await generateSubjectAnalysisPDF({
+        subject: { code: subject.code, name: subject.name, department: subject.class_department || user?.department },
+        classObj: { id: subject.class_id, name: subject.class_name || 'Class', department: subject.class_department || user?.department, semester: subject.semester, year_label: subject.year_label },
+        staff: user,
+        session: detail?.session,
+        students,
+        marksData: {},
+        attendanceData: detail?.attendance || {},
+        internalExamData: detail?.internalExam || {},
+        labData: detail?.labData || {},
+        assessmentMode: period
+      });
+    } catch (err) {
+      alert('Failed to generate Subject PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
     }
   };
 
@@ -153,11 +189,11 @@ export default function DashboardPage() {
   const roleTitle = user?.role === 'hod'
     ? 'HOD Panel (Department Overview)'
     : user?.isClassCoordinator
-    ? 'Class In-charge Panel'
+    ? `Class In-charge (${user?.coordinatedClasses?.[0]?.name || user?.department})`
     : 'Faculty Staff Panel';
 
   const isHodOrAdmin = user?.role === 'hod' || user?.role === 'admin';
-  const assignedClassList = data?.assignedClasses || [];
+  const assignedClassList = data?.assignedClasses || (user?.teachingClasses || []).map(c => c.name);
   
   let studentSubtext = `${user?.department || 'Information Technology'} Department (All Years)`;
   if (!isHodOrAdmin) {
@@ -176,7 +212,7 @@ export default function DashboardPage() {
 
   const subjectValue = isHodOrAdmin
     ? (data?.myTeachingSubjects > 0 ? data.myTeachingSubjects : (data?.totalSubjects ?? 0))
-    : (data?.totalSubjects ?? 0);
+    : ((user?.assignedSubjects?.length) || (data?.totalSubjects ?? 0));
 
   const subjectSubtext = isHodOrAdmin
     ? (data?.myTeachingSubjects > 0 
@@ -212,7 +248,7 @@ export default function DashboardPage() {
   } else {
     stats = [
       {
-        icon: Users, label: isHodOrAdmin ? 'Department Total Students' : 'Total Students',
+        icon: Users, label: isHodOrAdmin ? 'Department Total Students' : (user?.isClassCoordinator ? 'Total Students' : 'Assigned Students'),
         value: data?.totalStudents ?? 0,
         sub: studentSubtext, color: '#6C63FF',
       },
@@ -271,7 +307,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Ensure AreaChart has at least 2 points to draw a line
   let perfData = (user?.role === 'admin' ? data?.performanceTrend : data?.performanceData) || [];
   if (perfData.length === 1) {
     perfData = [
@@ -279,6 +314,10 @@ export default function DashboardPage() {
       ...perfData
     ];
   }
+
+  const assignedSubjects = user?.assignedSubjects || [];
+  const teachingClasses = user?.teachingClasses || [];
+  const coordinatedClass = user?.coordinatedClasses?.[0] || null;
 
   return (
     <div>
@@ -306,6 +345,136 @@ export default function DashboardPage() {
 
       <StatsGrid stats={stats} />
 
+      {/* Class In-charge Dedicated Command Center */}
+      {user?.isClassCoordinator && coordinatedClass && (
+        <div className={styles.inchargeCard}>
+          <div className={styles.inchargeHeader}>
+            <div>
+              <div className={styles.inchargeTitle}>
+                <Sparkles size={20} color="#059669" />
+                <span>Class In-charge Executive Portal: {coordinatedClass.name}</span>
+              </div>
+              <div className={styles.inchargeSub}>
+                Official Continuous Assessment Reports &amp; Consolidated Statements for your in-charge class.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select 
+                value={inchargeSession}
+                onChange={e => setInchargeSession(e.target.value)}
+                style={{
+                  padding: '6px 12px', borderRadius: '6px', border: '1px solid #10B981',
+                  background: '#fff', fontSize: '0.82rem', fontWeight: '700', color: '#065F46'
+                }}
+              >
+                <option value="internal1">Internal 1 (CA-1)</option>
+                <option value="internal2">Internal 2 (CA-2)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={styles.inchargeButtons}>
+            <button 
+              style={{
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
+                padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px'
+              }}
+              onClick={() => handleDownloadClassPDF('class_analysis', coordinatedClass.id, inchargeSession)}
+              disabled={genLoading}
+            >
+              <FileText size={16} /> Download Class Performance Report (NAC/TLP-20)
+            </button>
+
+            <button 
+              style={{
+                background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
+                padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px'
+              }}
+              onClick={() => handleDownloadClassPDF('consolidated_statement', coordinatedClass.id, inchargeSession)}
+              disabled={genLoading}
+            >
+              <Download size={16} /> Download Consolidated Mark Statement (NAC/TLP-07a.20)
+            </button>
+
+            <button 
+              style={{
+                background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
+                padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}
+              onClick={() => navigate('/reports')}
+            >
+              <ExternalLink size={15} /> Open Full Reports Portal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Teaching Workload & Schedule Section */}
+      {assignedSubjects.length > 0 && (
+        <div className={styles.workloadCard}>
+          <div className={styles.workloadHeader}>
+            <div className={styles.workloadTitle}>
+              <BookMarked size={20} color="var(--primary)" />
+              <span>My Teaching Classes &amp; Assigned Subjects</span>
+            </div>
+
+            <div className={styles.workloadBadges}>
+              <span className={styles.workloadPill}>
+                📚 {teachingClasses.length} Active Class{teachingClasses.length !== 1 ? 'es' : ''}
+              </span>
+              <span className={styles.workloadPill}>
+                📖 {assignedSubjects.length} Subject{assignedSubjects.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.subjectGrid}>
+            {assignedSubjects.map((sub) => {
+              const is2021 = sub.year_label === 'III' || sub.year_label === 'IV' || parseInt(sub.semester) >= 5;
+              const targetRoute = is2021 ? '/marks-entry-2021' : '/marks-entry';
+
+              return (
+                <div key={sub.id} className={styles.subjectCard}>
+                  <div>
+                    <div className={styles.subjectTop}>
+                      <span className={styles.subjectCode}>{sub.code}</span>
+                      <span className={styles.subjectTypeBadge}>{sub.type || 'Theory'}</span>
+                    </div>
+
+                    <h4 className={styles.subjectName}>{sub.name}</h4>
+                    <div className={styles.subjectClassMeta}>
+                      🏛 <strong>{sub.class_name || 'Class'}</strong> · Sem {sub.semester || '-'} {sub.ltpc ? `· LTPC: ${sub.ltpc}` : ''}
+                    </div>
+                  </div>
+
+                  <div className={styles.subjectActions}>
+                    <button 
+                      className={styles.enterMarksBtn}
+                      onClick={() => navigate(targetRoute)}
+                    >
+                      <ClipboardCheck size={14} /> Enter Marks
+                    </button>
+                    <button 
+                      className={styles.subReportBtn}
+                      onClick={() => handleDownloadSubjectPDF(sub, 'internal1')}
+                      title="Download Subject Analysis PDF"
+                      disabled={genLoading}
+                    >
+                      <Download size={13} /> Report
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Performance Charts */}
       <div className={styles.chartsRow}>
         <div className={styles.chartMain}>
           <PerformanceChart data={perfData} />
@@ -319,7 +488,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: (user?.role === 'hod' || user?.role === 'admin') ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '12px' }}>
         {/* HOD Deadline Engine */}
         {(user?.role === 'hod' || user?.role === 'admin') && (
           <div style={{
@@ -357,43 +526,31 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Quick Official Report Downloads for Class Coordinator / HOD */}
-        {(user?.isClassCoordinator || user?.role === 'hod' || user?.role === 'admin') && (
-          <div style={{
-            background: 'var(--surface)', border: '1px solid var(--border-solid)',
-            borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)',
-            display: 'flex', flexDirection: 'column', justifyContent: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileText size={22} color="var(--primary)" /> Official Reports Download
-            </h3>
-            <p style={{ margin: '0 0 18px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Generate and download class-wise performance analytics and consolidated mark statements.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button 
-                style={{
-                  background: 'var(--bg)', border: '1px solid var(--border-solid)', color: 'var(--text-primary)',
-                  padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: '600'
-                }}
-                onClick={() => handleDownloadClassPDF('class_analysis')}
-              >
-                <FileText size={18} color="var(--primary)" /> Class Performance Report (NAC/TLP-20)
-              </button>
-              <button 
-                style={{
-                  background: 'var(--bg)', border: '1px solid var(--border-solid)', color: 'var(--text-primary)',
-                  padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: '600'
-                }}
-                onClick={() => handleDownloadClassPDF('consolidated_statement')}
-              >
-                <Download size={18} color="#10B981" /> Consolidated Mark Statement (NAC/TLP-07a.20)
-              </button>
-            </div>
+        {/* Quick Report Portal Access */}
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border-solid)',
+          borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center'
+        }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FileText size={22} color="var(--primary)" /> Official Reports Portal
+          </h3>
+          <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Access all Anna University compliant PDF assessment reports, Consolidated Mark Statements, and Class Performance Sheets.
+          </p>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              style={{
+                background: 'var(--primary)', color: '#fff', border: 'none',
+                padding: '11px 20px', borderRadius: '8px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '700'
+              }}
+              onClick={() => navigate('/reports')}
+            >
+              <ExternalLink size={16} /> Open Reports Portal
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* HOD Unlock Request Approval Center */}

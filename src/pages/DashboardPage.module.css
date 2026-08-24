@@ -199,3 +199,189 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+/* Teaching Workload & Schedule Section */
+.workloadCard {
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.workloadHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-solid);
+}
+
+.workloadTitle {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workloadBadges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workloadPill {
+  background: var(--bg);
+  border: 1px solid var(--border-solid);
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.subjectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+}
+
+.subjectCard {
+  background: var(--bg);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.subjectCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.subjectTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.subjectCode {
+  font-family: monospace;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--primary);
+  background: rgba(108, 99, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.subjectTypeBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.subjectName {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 6px 0 4px;
+  line-height: 1.3;
+}
+
+.subjectClassMeta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.subjectActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.enterMarksBtn {
+  flex: 1;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.subReportBtn {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-solid);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Class In-charge Command Center */
+.inchargeCard {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.inchargeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.inchargeTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #065F46;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inchargeSub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.inchargeButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

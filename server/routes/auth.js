@@ -45,17 +45,41 @@ router.post('/login', async (req, res) => {
 
     const staff = rows[0];
 
-    // Fetch assigned subjects for this staff member
-    const [assignedSubs] = await db.execute(
-      'SELECT id, code, name FROM subjects WHERE faculty_id = ?',
-      [staff.id]
-    );
+    // Fetch detailed assigned subjects for this staff member
+    const [assignedSubs] = await db.execute(`
+      SELECT s.id, s.code, s.name, s.type, s.class_id, s.ltpc, s.total_hours,
+             c.name as class_name, c.department as class_department, c.year_label, c.semester
+      FROM subjects s
+      LEFT JOIN classes c ON c.id = s.class_id
+      WHERE s.faculty_id = ?
+      ORDER BY c.year_label, s.code
+    `, [staff.id]);
 
-    // Fetch classes where staff is class coordinator
-    const [coordClasses] = await db.execute(
-      'SELECT id, name FROM classes WHERE class_coordinator LIKE ? OR asst_coordinator LIKE ?',
-      [`%${staff.name}%`, `%${staff.name}%`]
-    );
+    // Fetch distinct classes taught by this staff member
+    const [teachingClasses] = await db.execute(`
+      SELECT DISTINCT c.id, c.name, c.department, c.year_label, c.semester, c.batch, c.academic_year
+      FROM subjects s
+      JOIN classes c ON c.id = s.class_id
+      WHERE s.faculty_id = ?
+      ORDER BY c.year_label, c.name
+    `, [staff.id]);
+
+    // Fetch all classes to perform normalized coordinator matching
+    const [allClasses] = await db.execute('SELECT id, name, department, year_label, semester, batch, academic_year, class_coordinator, asst_coordinator FROM classes');
+
+    const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sNorm = normalize(staff.name);
+    const shortNorm = normalize(staff.short_name);
+
+    const coordClasses = allClasses.filter(c => {
+      const cNorm = normalize(c.class_coordinator);
+      const aNorm = normalize(c.asst_coordinator);
+      return (cNorm && (sNorm.includes(cNorm) || cNorm.includes(sNorm) || (shortNorm && cNorm.includes(shortNorm)))) ||
+             (aNorm && (sNorm.includes(aNorm) || aNorm.includes(sNorm) || (shortNorm && aNorm.includes(shortNorm))));
+    });
+
+    const isCoord = coordClasses.length > 0 || staff.class_role === 'Class Coordinator';
+    const primaryCoordClass = coordClasses.length > 0 ? coordClasses[0] : null;
 
     res.json({
       success: true,
@@ -72,8 +96,10 @@ router.post('/login', async (req, res) => {
         isPasswordChanged:  !!staff.is_password_changed,
         assignedSubjectIds: assignedSubs.map(s => s.id),
         assignedSubjects:   assignedSubs,
-        isClassCoordinator: coordClasses.length > 0 || staff.class_role === 'Class Coordinator',
-        coordinatedClasses: coordClasses
+        isClassCoordinator: isCoord,
+        coordinatedClasses: coordClasses.map(c => ({ id: c.id, name: c.name, department: c.department, year_label: c.year_label, semester: c.semester })),
+        coordinatedClassId: primaryCoordClass ? primaryCoordClass.id : null,
+        teachingClasses:    teachingClasses
       },
     });
   } catch (err) {

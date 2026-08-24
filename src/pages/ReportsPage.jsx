@@ -39,7 +39,7 @@ export default function ReportsPage() {
   const [subjects, setSubjects] = useState([]);
   const [students, setStudents] = useState([]);
 
-  const [selectedClassId, setSelectedClassId]     = useState('CL001');
+  const [selectedClassId, setSelectedClassId]     = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionLabel, setSessionLabel]           = useState('internal1');
   const [classRemarks, setClassRemarks]           = useState('');
@@ -49,27 +49,104 @@ export default function ReportsPage() {
   const [error,    setError]    = useState('');
   const [genLoading, setGenLoading] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      statsAPI.get(),
-      marksAPI.getSessions(),
-      classesAPI.getAll(),
-      subjectsAPI.getByClass('CL001'),
-      studentsAPI.getByClass('CL001')
-    ])
-      .then(([s, sess, cls, subs, stds]) => { 
-        setStats(s); 
-        setSessions(sess); 
-        setClasses(cls);
-        setSubjects(subs);
-        setStudents(stds);
-        if (subs.length > 0) setSelectedSubjectId(subs[0].id);
-      })
-      .catch(() => setError('Failed to load reports. Is the server running?'))
-      .finally(() => setLoading(false));
-  }, []);
+  const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
+  const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
+    user.coordinatedClassId === selectedClassId || 
+    (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+  );
 
+  // 1. Initial Load: Fetch and filter allowed classes based on User Role
   useEffect(() => {
+    classesAPI.getAll()
+      .then((allClasses) => {
+        let allowed = [];
+        if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
+          allowed = allClasses;
+        } else if (user?.role === 'hod') {
+          allowed = allClasses.filter(c => c.department === user.department);
+        } else if (user?.isClassCoordinator) {
+          const coordIds = (user.coordinatedClasses || []).map(c => c.id);
+          const teachIds = (user.teachingClasses || []).map(c => c.id);
+          allowed = allClasses.filter(c => 
+            coordIds.includes(c.id) || 
+            (user.coordinatedClassId && c.id === user.coordinatedClassId) ||
+            teachIds.includes(c.id)
+          );
+        } else {
+          // Pure Faculty
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          allowed = allClasses.filter(c => teachIds.includes(c.id));
+        }
+
+        setClasses(allowed);
+
+        // Pick initial class: prioritized to coordinated class, or first allowed class
+        const initialClsId = user?.coordinatedClassId || (allowed.length > 0 ? allowed[0].id : '');
+        setSelectedClassId(initialClsId);
+
+        return Promise.all([
+          statsAPI.get(initialClsId, user?.id, user?.role, user?.department),
+          marksAPI.getSessions({ classId: initialClsId || undefined }),
+          initialClsId ? subjectsAPI.getByClass(initialClsId) : Promise.resolve([]),
+          initialClsId ? studentsAPI.getByClass(initialClsId) : Promise.resolve([])
+        ]);
+      })
+      .then(([s, sess, subs, stds]) => {
+        setStats(s);
+        setSessions(sess);
+
+        // Filter subjects based on role
+        let filteredSubs = subs;
+        if (!isElevated && !user?.isClassCoordinator) {
+          filteredSubs = subs.filter(sub => user?.assignedSubjectIds?.includes(sub.id));
+        }
+        setSubjects(filteredSubs);
+        setStudents(stds);
+        if (filteredSubs.length > 0) setSelectedSubjectId(filteredSubs[0].id);
+      })
+      .catch(() => setError('Failed to load reports data. Is the server running?'))
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  // 2. When Selected Class changes: Reload subjects, students, remarks, and stats
+  useEffect(() => {
+    if (!selectedClassId) return;
+
+    // Fetch subjects for this class
+    subjectsAPI.getByClass(selectedClassId)
+      .then((allSubs) => {
+        let visibleSubs = allSubs;
+        // If not elevated and not coordinator of this class, only show staff's assigned subjects
+        const isCoordOfThis = user?.isClassCoordinator && (
+          user.coordinatedClassId === selectedClassId || 
+          (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+        );
+        if (!isElevated && !isCoordOfThis) {
+          visibleSubs = allSubs.filter(sub => user?.assignedSubjectIds?.includes(sub.id));
+        }
+        setSubjects(visibleSubs);
+        if (visibleSubs.length > 0) {
+          setSelectedSubjectId(visibleSubs[0].id);
+        } else {
+          setSelectedSubjectId('');
+        }
+      })
+      .catch(() => setSubjects([]));
+
+    // Fetch students
+    studentsAPI.getByClass(selectedClassId)
+      .then(setStudents)
+      .catch(() => setStudents([]));
+
+    // Fetch stats
+    statsAPI.get(selectedClassId, user?.id, user?.role, user?.department)
+      .then(setStats)
+      .catch(() => {});
+  }, [selectedClassId, user]);
+
+  // 3. Load Remarks for Class & Session
+  useEffect(() => {
+    if (!selectedClassId) return;
     import('../services/api').then(({ remarksAPI }) => {
       remarksAPI.get(selectedClassId, sessionLabel).then(data => {
         setClassRemarks(data.remarks || '');
@@ -93,7 +170,7 @@ export default function ReportsPage() {
 
   const handleDownloadSubjectPDF = async () => {
     const sub = subjects.find(s => s.id === selectedSubjectId);
-    const cls = classes.find(c => c.id === selectedClassId) || { id: 'CL001', name: 'IT - II Year - III Sem', department: 'Information Technology', semester: 4, year_label: 'II', academic_year: '2025-26' };
+    const cls = classes.find(c => c.id === selectedClassId) || { id: selectedClassId, name: 'Target Class', department: user?.department, semester: 4, year_label: 'II', academic_year: '2025-26' };
     
     setGenLoading(true);
     try {
@@ -104,7 +181,7 @@ export default function ReportsPage() {
       }
 
       await generateSubjectAnalysisPDF({
-        subject: sub || { code: 'GE3451', name: 'Environmental Sciences and Sustainability', department: 'IT' },
+        subject: sub || { code: 'SUB', name: 'Subject Analysis', department: cls.department },
         classObj: cls,
         staff: user,
         session: detail?.session,
@@ -123,7 +200,7 @@ export default function ReportsPage() {
   };
 
   const handleDownloadClassPDF = async (pdfType) => {
-    const cls = classes.find(c => c.id === selectedClassId) || { id: 'CL001', name: 'IT - II Year - III Sem', department: 'Information Technology', semester: 4, year_label: 'II', academic_year: '2025-26' };
+    const cls = classes.find(c => c.id === selectedClassId) || { id: selectedClassId, name: 'Target Class', department: user?.department, semester: 4, year_label: 'II', academic_year: '2025-26' };
 
     setGenLoading(true);
     try {
@@ -161,7 +238,7 @@ export default function ReportsPage() {
     return (
       <div className={styles.loadingState}>
         <Loader size={28} />
-        <p>Loading reports from database…</p>
+        <p>Loading official reports portal…</p>
       </div>
     );
   }
@@ -180,6 +257,8 @@ export default function ReportsPage() {
   const performanceData   = stats?.performanceData    || [];
   const subjectDist       = stats?.subjectDistribution || [];
 
+  const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
+
   return (
     <div>
       {/* Official PDF Statement Generator Portal Box */}
@@ -187,67 +266,94 @@ export default function ReportsPage() {
         background: 'var(--surface)', border: '1px solid var(--border-solid)',
         borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: 'var(--shadow-sm)'
       }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <FileText size={22} color="#6C63FF" /> Official College PDF Statement Generation Portal
-        </h3>
-        <p style={{ margin: '0 0 18px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-          Nadar Saraswathi College of Engineering & Technology — Generate official Format NAC/TLP statements for HOD, Class In-charge, and Staff.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
           <div>
-            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Target Class:</label>
+            <h3 style={{ margin: '0 0 4px', fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FileText size={22} color="#6C63FF" /> Official College PDF Statement Generation Portal
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Nadar Saraswathi College of Engineering &amp; Technology — Anna University Format NAC/TLP Statements
+            </p>
+          </div>
+
+          {user?.isClassCoordinator && (
+            <span style={{
+              background: 'rgba(16, 185, 129, 0.12)', color: '#047857', border: '1px solid rgba(16, 185, 129, 0.25)',
+              padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700
+            }}>
+              ★ Class In-charge: {user.coordinatedClasses?.[0]?.name || 'Assigned Class'}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', margin: '20px 0' }}>
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {user?.isClassCoordinator ? 'My In-charge / Teaching Class:' : 'Select Target Class:'}
+            </label>
             <select 
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
               value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
             >
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {user?.coordinatedClassId === c.id ? '(In-charge)' : ''}
+                </option>
+              ))}
+              {classes.length === 0 && <option value="">No Assigned Classes</option>}
             </select>
           </div>
 
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Assessment Period:</label>
             <select 
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
               value={sessionLabel} onChange={(e) => setSessionLabel(e.target.value)}
             >
-              <option value="internal1">Internal Test 1 with Assignment</option>
-              <option value="internal2">Internal Test 2 with Assignment</option>
+              <option value="internal1">Internal Test 1 with Assignment (CA-1)</option>
+              <option value="internal2">Internal Test 2 with Assignment (CA-2)</option>
             </select>
           </div>
 
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject (For Subject Report):</label>
             <select 
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
               value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
             >
               {subjects.map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              {subjects.length === 0 && <option value="">No Subjects Available</option>}
             </select>
           </div>
         </div>
 
-        {/* Raw Marks Reports */}
-        <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ margin: '0 0 12px', color: 'var(--text-secondary)' }}>1. Raw Mark Statements</h4>
+        {/* 1. Raw Mark Statements */}
+        <div style={{ marginBottom: '22px' }}>
+          <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>1. Raw Mark Statements</h4>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-            <button 
-              style={{
-                background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
-                padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '8px'
-              }}
-              onClick={() => handleDownloadClassPDF('consolidated_statement')}
-              disabled={genLoading}
-            >
-              <Download size={15} /> Consolidated Mark Statement (NAC/TLP-07a.20)
-            </button>
+            {canDownloadClassReports ? (
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={() => handleDownloadClassPDF('consolidated_statement')}
+                disabled={genLoading || !selectedClassId}
+              >
+                <Download size={15} /> Consolidated Mark Statement (NAC/TLP-07a.20)
+              </button>
+            ) : (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+                🔒 Consolidated Mark Statement is generated by the Class In-charge &amp; HOD for this class.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Full Analysis Reports */}
+        {/* 2. Full Analysis Reports */}
         <div>
-          <h4 style={{ margin: '0 0 12px', color: 'var(--text-secondary)' }}>2. Full Performance Analysis Reports</h4>
+          <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>2. Performance Analysis Reports</h4>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
             <button 
               style={{
@@ -256,46 +362,50 @@ export default function ReportsPage() {
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
               onClick={handleDownloadSubjectPDF}
-              disabled={genLoading}
+              disabled={genLoading || !selectedSubjectId}
             >
               <Download size={15} /> Subject Test Analysis Report (NAC/TLP-07a.21)
             </button>
 
-            <button 
-              style={{
-                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
-                padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '8px'
-              }}
-              onClick={() => handleDownloadClassPDF('class_analysis')}
-              disabled={genLoading}
-            >
-              <Download size={15} /> Class Performance Report (NAC/TLP-20)
-            </button>
+            {canDownloadClassReports && (
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={() => handleDownloadClassPDF('class_analysis')}
+                disabled={genLoading || !selectedClassId}
+              >
+                <Download size={15} /> Class Performance Report (NAC/TLP-20)
+              </button>
+            )}
           </div>
         </div>
 
         {/* Class Coordinator Remarks (Only visible if role allows) */}
-        {(user?.isClassCoordinator || user?.role === 'hod' || user?.role === 'admin') && (
-          <div style={{ marginTop: '30px', padding: '20px', background: 'var(--bg)', borderRadius: '12px', border: '1px solid var(--border-solid)' }}>
-            <h4 style={{ margin: '0 0 10px', fontSize: '1rem', color: 'var(--text-primary)' }}>Class In-charge Remarks (For Class Analysis Report)</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {canDownloadClassReports && (
+          <div style={{ marginTop: '26px', padding: '18px', background: 'var(--bg)', borderRadius: '12px', border: '1px solid var(--border-solid)' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+              Class In-charge Remarks &amp; Action Plan (For Class Analysis Report)
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <textarea 
                 placeholder="Overall Class Performance Remarks..." 
                 value={classRemarks} 
                 onChange={e => setClassRemarks(e.target.value)}
-                style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '60px', resize: 'vertical' }}
+                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem' }}
               />
               <textarea 
                 placeholder="Remedial / Improvement Plan for the Class..." 
                 value={improvementPlan} 
                 onChange={e => setImprovementPlan(e.target.value)}
-                style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '60px', resize: 'vertical' }}
+                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem' }}
               />
               <button 
                 onClick={handleSaveRemarks}
                 disabled={savingRemarks}
-                style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
               >
                 {savingRemarks ? 'Saving...' : 'Save Remarks for PDF'}
               </button>

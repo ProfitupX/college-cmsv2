@@ -54,20 +54,38 @@ export default function MarksEntryPage2021() {
   const [unlockReason,   setUnlockReason]       = useState('');
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
-  // ── Load classes on mount — filter to 3rd/4th year only ────
+  // ── Load classes on mount — filter to 3rd/4th year only, restricted by user role ────
   useEffect(() => {
     classesAPI.getAll()
       .then(allClasses => {
         // 2021 Regulation: only show III and IV year classes (semester 5,6,7,8)
-        const filtered = allClasses.filter(c =>
+        let filtered = allClasses.filter(c =>
           c.year_label === 'III' || c.year_label === 'IV' ||
           parseInt(c.semester) >= 5
         );
+
+        if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
+          // All 3rd/4th year classes
+        } else if (user?.role === 'hod') {
+          filtered = filtered.filter(c => c.department === user.department);
+        } else if (user?.isClassCoordinator) {
+          const coordIds = (user.coordinatedClasses || []).map(c => c.id);
+          const teachIds = (user.teachingClasses || []).map(c => c.id);
+          filtered = filtered.filter(c => 
+            coordIds.includes(c.id) || 
+            (user.coordinatedClassId && c.id === user.coordinatedClassId) || 
+            teachIds.includes(c.id)
+          );
+        } else {
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          filtered = filtered.filter(c => teachIds.includes(c.id));
+        }
+
         setClasses(filtered);
       })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
