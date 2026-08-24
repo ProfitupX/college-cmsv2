@@ -91,7 +91,7 @@ export const generateSubjectAnalysisPDF = async ({
   doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year    : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -250,7 +250,7 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year    : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -396,7 +396,7 @@ export const generateClassAnalysisPDF = async ({
   doc.text(`Dept                  : ${classObj?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  doc.text(`Academic Year : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Student Strength : ${students.length}`, 14, y);
   doc.text(`Date                 : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -638,7 +638,7 @@ export const generateConsolidatedMarksPDF = async ({
   doc.text(`Department      : ${classObj?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : ${classObj?.academic_year || '2025-26'}`, 120, y);
+  doc.text(`Academic Year : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
@@ -792,7 +792,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Dept                   : ${subject?.department || 'CSE'}`, 120, y);
   y += 5;
   doc.text(`Staff Name         : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year  : ${classObj?.academic_year || '2026-27'}`, 120, y);
+  doc.text(`Academic Year  : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
