@@ -13,6 +13,7 @@ import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
 import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
+import DeclarationModal from '../components/Reports/DeclarationModal';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -27,6 +28,8 @@ export default function DashboardPage() {
   const [newDeadline, setNewDeadline] = useState('');
   const [inchargeSession, setInchargeSession] = useState('internal1');
   const [genLoading, setGenLoading] = useState(false);
+  const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
+  const [pdfPayload, setPdfPayload] = useState(null);
 
   const loadData = () => {
     setLoading(true);
@@ -110,7 +113,9 @@ export default function DashboardPage() {
           subjects: summary.subjects,
           students: summary.students,
           allSessions: summary.sessions,
-          allAttendance: summary.allAttendance
+          allAttendance: summary.allAttendance,
+          allMarks: summary.allMarks,
+          allComponents: summary.allComponents
         });
       }
     } catch (err) {
@@ -130,22 +135,40 @@ export default function DashboardPage() {
         detail = await marksAPI.getSessionDetail(sessDetail[0].id);
       }
 
-      await generateSubjectAnalysisPDF({
+      setPdfPayload({
         subject: { code: subject.code, name: subject.name, department: subject.class_department || user?.department },
         classObj: { id: subject.class_id, name: subject.class_name || 'Class', department: subject.class_department || user?.department, semester: subject.semester, year_label: subject.year_label },
         staff: user,
         session: detail?.session,
         students,
-        marksData: {},
+        allMarks: detail?.marks || [],
+        components: detail?.components || [],
         attendanceData: detail?.attendance || {},
         internalExamData: detail?.internalExam || {},
         labData: detail?.labData || {},
         assessmentMode: period
       });
+      setDeclarationModalOpen(true);
     } catch (err) {
-      alert('Failed to generate Subject PDF: ' + err.message);
+      alert('Failed to fetch data for PDF: ' + err.message);
     } finally {
       setGenLoading(false);
+    }
+  };
+
+  const handleGenerateSubjectPDF = async (declarationData) => {
+    setDeclarationModalOpen(false);
+    setGenLoading(true);
+    try {
+      await generateSubjectAnalysisPDF({
+        ...pdfPayload,
+        declarationData
+      });
+    } catch (err) {
+      alert('Failed to generate Subject Analysis PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+      setPdfPayload(null);
     }
   };
 

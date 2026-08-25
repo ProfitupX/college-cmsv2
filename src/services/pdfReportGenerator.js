@@ -76,7 +76,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
 // REPORT 1: Test Analysis Report (Subject Wise) - Format NAC/TLP-07a.21
 // ─────────────────────────────────────────────────────────────
 export const generateSubjectAnalysisPDF = async ({
-  subject, classObj, staff, session, remedialAction, students, marksData, attendanceData, internalExamData, labData, assessmentMode
+  subject, classObj, staff, session, remedialAction, students, marksData, components, attendanceData, internalExamData, labData, assessmentMode, declarationData
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -109,14 +109,65 @@ export const generateSubjectAnalysisPDF = async ({
   let maxMark = 0;
   let minMark = 100;
 
+  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
+  const ciaMax = isLabType ? 50 : 40;
+  const examConvertedMax = isLabType ? 50 : 60;
+
   students.forEach(st => {
-    const rawVal = internalExamData[st.id];
-    if (rawVal === '' || rawVal === undefined || rawVal === null) {
+    let mark = 0;
+    let isAbsent = false;
+
+    if (is2021) {
+      let rawCIA = 0;
+      if (components && marksData) {
+        const isArray = Array.isArray(marksData);
+        components.forEach(comp => {
+          let val = 0;
+          if (isArray) {
+            const markObj = marksData.find(m => m.component_id === comp.id && m.student_id === st.id);
+            val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          } else {
+            // Support MarksEntryPage2021 marksData format which could be { [st.id]: { [uid]: mark } }
+            val = (marksData[st.id] && marksData[st.id][comp.uid || comp.id]) ? parseFloat(marksData[st.id][comp.uid || comp.id]) : 0;
+          }
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+      }
+      
+      const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+      const examRaw = parseFloat(internalExamData[st.id]) || 0;
+      const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+      
+      const labExamRaw = labData[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
+      const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+      if (isLabType && assessmentMode === 'internal2') {
+        mark = Math.min(ciaTotal + labExamConverted, 100);
+      } else {
+        mark = Math.min(ciaTotal + examConverted, 100);
+      }
+
+      const rawVal = internalExamData[st.id];
+      if ((rawVal === '' || rawVal === undefined || rawVal === null) && (!isLabType || assessmentMode !== 'internal2')) {
+         isAbsent = true; 
+      }
+    } else {
+      const rawVal = internalExamData[st.id];
+      if (rawVal === '' || rawVal === undefined || rawVal === null) {
+        isAbsent = true;
+      } else {
+        mark = parseFloat(rawVal) || 0;
+      }
+    }
+
+    if (isAbsent) {
       absent++;
       return;
     }
+    
     appeared++;
-    const mark = parseFloat(rawVal) || 0;
     if (mark > maxMark) maxMark = mark;
     if (mark < minMark) minMark = mark;
 
@@ -192,36 +243,37 @@ export const generateSubjectAnalysisPDF = async ({
   doc.setFont('helvetica', 'normal');
   doc.text('   I Certify that:', 14, y);
   y += 5;
-  doc.text('   a) The Classes were conducted as per the course plan given to the students.   True', 14, y);
+  doc.text(`   a) The Classes were conducted as per the course plan given to the students.   ${declarationData?.conductedAsPerPlan || 'Yes'}`, 14, y);
   y += 5;
-  doc.text('   b) The Number of classes   As per Plan: 20       Actually taken: 23', 14, y);
+  doc.text(`   b) The Number of classes   As per Plan: ${declarationData?.classesPlanned || '20'}       Actually taken: ${declarationData?.classesTaken || '23'}`, 14, y);
   y += 5;
-  doc.text('   c) The result according to my opinion is: Moderate / Good', 14, y);
+  doc.text(`   c) The result according to my opinion is: ${declarationData?.resultOpinion || 'Moderate / Good'}`, 14, y);
   y += 8;
 
   // Questions
   doc.setFont('helvetica', 'bold');
-  doc.text('3. Is the pass percentage is less than 75%?   No', 14, y);
+  doc.text(`3. Is the pass percentage is less than 75%?   ${declarationData?.lessThan75 || 'No'}`, 14, y);
   y += 5;
-  doc.text('4. If yes write the reason for more failures: -', 14, y);
+  doc.text(`4. If yes write the reason for more failures: ${declarationData?.reasonForFailures || '-'}`, 14, y);
   y += 5;
-  doc.text('5. Is the pass percentage is less than previous Internal Test?   No', 14, y);
+  doc.text(`5. Is the pass percentage is less than previous Internal Test?   ${declarationData?.lessThanPrevTest || 'No'}`, 14, y);
   y += 5;
-  doc.text('6. If yes write the reason: -', 14, y);
+  doc.text(`6. If yes write the reason: ${declarationData?.reasonForPrevTest || '-'}`, 14, y);
   y += 8;
 
   // Remedial Actions
   doc.text('7. Plan of Remedial actions to improve the pass percentage:', 14, y);
   y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.text(`   ${remedialAction || session?.remedial_action || 'Regular Writing practice with the previous year Anna University Questions.'}`, 14, y);
+  doc.text(`   ${declarationData?.remedialActions || remedialAction || session?.remedial_action || 'Regular Writing practice.'}`, 14, y);
   y += 8;
 
   doc.setFont('helvetica', 'bold');
-  doc.text('8. Principal\'s suggestions to improve the pass percentage: -', 14, y);
-  y += 18;
-
-  // Signature Block
+  doc.text(`8. Principal's suggestions to improve the pass percentage: ${declarationData?.principalSuggestions || '-'}`, 14, y);
+  
+  // Signature Block - Pushed down lower for better alignment
+  y = doc.internal.pageSize.getHeight() - 30; // 30mm from the bottom of the page
+  
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.text('STAFF INCHARGE', 20, y);
@@ -625,7 +677,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 // REPORT 3: Consolidated Unit / Internal Test Mark Statement - Format NAC/TLP-07a.20
 // ─────────────────────────────────────────────────────────────
 export const generateConsolidatedMarksPDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = []
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -643,8 +695,11 @@ export const generateConsolidatedMarksPDF = async ({
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
 
+  // Remove Library
+  const filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+
   // Subject Columns (up to 7 subjects)
-  const targetSubjects = subjects.slice(0, 7);
+  const targetSubjects = filteredSubjects.slice(0, 7);
   const subCols = targetSubjects.map(s => s.code);
   const headRow = ['Reg.No', 'Name', ...subCols, 'No.of Sub Failed', 'No. of sub Passed', 'No. of sub Absent'];
 
@@ -660,13 +715,49 @@ export const generateConsolidatedMarksPDF = async ({
         absentCount++;
         return '-';
       }
-      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-      if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-        absentCount++;
-        return 'AB';
+      const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+      
+      let score;
+      if (is2021) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          // Use conducted_max, fallback to max_marks, default to 100
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        
+        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const ciaMax = isLabType ? 50 : 40;
+        const examConvertedMax = isLabType ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const examRaw = parseFloat(att?.internal_exam_mark) || 0;
+        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+        
+        const labExamRaw = parseFloat(att?.lab_mark) || 0;
+        const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+        if (isLabType && sessionLabel === 'internal2') {
+          score = Math.min(ciaTotal + labExamConverted, 100);
+        } else {
+          score = Math.min(ciaTotal + examConverted, 100);
+        }
+      } else {
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+          absentCount++;
+          return 'AB';
+        }
+        score = parseFloat(att.internal_exam_mark);
       }
-      const score = parseFloat(att.internal_exam_mark);
-      if (isNaN(score)) {
+
+      if (isNaN(score) || score === null) {
         absentCount++;
         return 'AB';
       }
@@ -700,18 +791,56 @@ export const generateConsolidatedMarksPDF = async ({
         ab++;
         return;
       }
-      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-      if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-        ab++;
-      } else {
-        const score = parseFloat(att.internal_exam_mark);
-        if (isNaN(score)) {
-          ab++;
-        } else if (score >= 50) {
-          p++;
+      const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+      
+      let score;
+      let isAbsent = false;
+      
+      if (is2021) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        
+        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const ciaMax = isLabType ? 50 : 40;
+        const examConvertedMax = isLabType ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const examRaw = parseFloat(att?.internal_exam_mark) || 0;
+        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+        
+        const labExamRaw = parseFloat(att?.lab_mark) || 0;
+        const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+        if (isLabType && sessionLabel === 'internal2') {
+          score = Math.min(ciaTotal + labExamConverted, 100);
         } else {
-          f++;
+          score = Math.min(ciaTotal + examConverted, 100);
         }
+      } else {
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+          isAbsent = true;
+        } else {
+          score = parseFloat(att.internal_exam_mark);
+          if (isNaN(score)) isAbsent = true;
+        }
+      }
+
+      if (isAbsent || isNaN(score) || score === null) {
+        ab++;
+      } else if (score >= 50) {
+        p++;
+      } else {
+        f++;
       }
     });
     perSubjectPassed.push(p);

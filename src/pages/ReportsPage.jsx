@@ -11,6 +11,7 @@ import {
   generateClassAnalysisPDF, 
   generateConsolidatedMarksPDF 
 } from '../services/pdfReportGenerator';
+import DeclarationModal from '../components/Reports/DeclarationModal';
 import styles from './ReportsPage.module.css';
 
 const PIE_COLORS = ['#6C63FF', '#A78BFA', '#22D3EE', '#F472B6', '#FB923C'];
@@ -48,6 +49,8 @@ export default function ReportsPage() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
   const [genLoading, setGenLoading] = useState(false);
+  const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
+  const [pdfPayload, setPdfPayload] = useState(null);
 
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
@@ -180,22 +183,40 @@ export default function ReportsPage() {
         detail = await marksAPI.getSessionDetail(sessDetail[0].id);
       }
 
-      await generateSubjectAnalysisPDF({
+      setPdfPayload({
         subject: sub || { code: 'SUB', name: 'Subject Analysis', department: cls.department },
         classObj: cls,
         staff: user,
         session: detail?.session,
         students,
-        marksData: {},
+        allMarks: detail?.marks || [],
+        components: detail?.components || [],
         attendanceData: detail?.attendance || {},
         internalExamData: detail?.internalExam || {},
         labData: detail?.labData || {},
         assessmentMode: sessionLabel
       });
+      setDeclarationModalOpen(true);
+    } catch (err) {
+      alert('Failed to fetch data for PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleGenerateSubjectPDF = async (declarationData) => {
+    setDeclarationModalOpen(false);
+    setGenLoading(true);
+    try {
+      await generateSubjectAnalysisPDF({
+        ...pdfPayload,
+        declarationData
+      });
     } catch (err) {
       alert('Failed to generate Subject Analysis PDF: ' + err.message);
     } finally {
       setGenLoading(false);
+      setPdfPayload(null);
     }
   };
 
@@ -224,7 +245,9 @@ export default function ReportsPage() {
           subjects: summary.subjects || subjects,
           students: summary.students || students,
           allSessions: summary.sessions || [],
-          allAttendance: summary.allAttendance || []
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || []
         });
       }
     } catch (err) {
@@ -413,6 +436,13 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+
+      <DeclarationModal 
+        isOpen={declarationModalOpen} 
+        onClose={() => setDeclarationModalOpen(false)} 
+        onSubmit={handleGenerateSubjectPDF}
+        session={pdfPayload?.session}
+      />
 
       {/* Summary Row */}
       <div className={styles.summaryRow}>

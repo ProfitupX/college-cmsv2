@@ -6,6 +6,7 @@ import ComponentBuilder2021 from '../components/MarksEntry/ComponentBuilder2021'
 import MarksTable2021 from '../components/MarksEntry/MarksTable2021';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
 import { generateSubjectMarksListPDF2021, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
+import DeclarationModal from '../components/Reports/DeclarationModal';
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, FileText } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
@@ -53,6 +54,8 @@ export default function MarksEntryPage2021() {
   const [showUnlockModal, setShowUnlockModal]   = useState(false);
   const [unlockReason,   setUnlockReason]       = useState('');
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
+  const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
+  const [pdfPayload, setPdfPayload] = useState(null);
 
   // ── Load classes on mount — filter to 3rd/4th year only, restricted by user role ────
   useEffect(() => {
@@ -286,37 +289,56 @@ export default function MarksEntryPage2021() {
         components: assessmentComponents,
       });
     } else if (reportType === 'subject_analysis') {
-      await generateSubjectAnalysisPDF({
+      setPdfPayload({
         subject: selectedSubject,
         classObj: selectedClass,
         staff: user,
         session: currentSession,
+        remedialAction, // Pass state
         students,
-        marksData,
+        allMarks: marksData,
+        components: assessmentComponents,
         attendanceData,
         internalExamData,
         labData,
-        assessmentMode,
-        remedialAction
+        assessmentMode
       });
+      setDeclarationModalOpen(true);
+    }
+  };
+
+  const handleGenerateSubjectPDF = async (declarationData) => {
+    setDeclarationModalOpen(false);
+    try {
+      await generateSubjectAnalysisPDF({
+        ...pdfPayload,
+        marksData: pdfPayload.allMarks, // Map allMarks to marksData for pdfReportGenerator
+        declarationData
+      });
+    } catch (err) {
+      alert('Failed to generate Subject Analysis PDF: ' + err.message);
+    } finally {
+      setPdfPayload(null);
     }
   };
 
   const handleDownloadSubjectAnalysisPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
-    await generateSubjectAnalysisPDF({
+    setPdfPayload({
       subject: selectedSubject,
       classObj: selectedClass,
       staff: user,
       session: currentSession,
       students,
-      marksData,
+      allMarks: marksData,
+      components: assessmentComponents,
       attendanceData,
       internalExamData,
       labData,
       assessmentMode,
       remedialAction
     });
+    setDeclarationModalOpen(true);
   };
 
   const handleClassChange   = (val) => { setClass(val); setAssessmentComponents([]); setSaved(false); setSaveErr(''); };
@@ -622,6 +644,13 @@ export default function MarksEntryPage2021() {
           </div>
         </div>
       )}
+
+      <DeclarationModal 
+        isOpen={declarationModalOpen} 
+        onClose={() => setDeclarationModalOpen(false)} 
+        onSubmit={handleGenerateSubjectPDF}
+        session={currentSession}
+      />
     </div>
   );
 }
