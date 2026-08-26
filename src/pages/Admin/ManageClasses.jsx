@@ -86,7 +86,10 @@ export default function ManageClasses() {
 
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
-      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.id.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchName = c.name ? c.name.toLowerCase().includes(q) : false;
+      const matchId = c.id ? c.id.toLowerCase().includes(q) : false;
+      const matchesSearch = matchName || matchId;
       const matchesDept = !deptFilter || c.department === deptFilter;
       const matchesSem = !semFilter || c.semester === parseInt(semFilter);
       return matchesSearch && matchesDept && matchesSem;

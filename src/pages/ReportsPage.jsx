@@ -9,7 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { 
   generateSubjectAnalysisPDF, 
   generateClassAnalysisPDF, 
-  generateConsolidatedMarksPDF 
+  generateConsolidatedMarksPDF,
+  generateOverallMarksAndAttendancePDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import styles from './ReportsPage.module.css';
@@ -238,6 +239,17 @@ export default function ReportsPage() {
           remarks: classRemarks,
           remedialAction: improvementPlan
         });
+      } else if (pdfType === 'overall_statement') {
+        await generateOverallMarksAndAttendancePDF({
+          classObj: summary.classObj || cls,
+          sessionLabel,
+          subjects: summary.subjects || subjects,
+          students: summary.students || students,
+          allSessions: summary.sessions || [],
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || []
+        });
       } else {
         await generateConsolidatedMarksPDF({
           classObj: summary.classObj || cls,
@@ -401,6 +413,20 @@ export default function ReportsPage() {
                 disabled={genLoading || !selectedClassId}
               >
                 <Download size={15} /> Class Performance Report (NAC/TLP-20)
+              </button>
+            )}
+
+            {canDownloadClassReports && (
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={() => handleDownloadClassPDF('overall_statement')}
+                disabled={genLoading || !selectedClassId}
+              >
+                <FileText size={15} /> Overall Mark Statement
               </button>
             )}
           </div>

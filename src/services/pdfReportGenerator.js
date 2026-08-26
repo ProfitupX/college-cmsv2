@@ -1165,3 +1165,176 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`NSCET_Continuous_Assessment_${isCA2 ? '2' : '1'}_Analysis.pdf`);
 };
+
+// ─────────────────────────────────────────────────────────────
+// REPORT 4: Overall Marks & Attendance Statement (Based on Photo)
+// ─────────────────────────────────────────────────────────────
+export const generateOverallMarksAndAttendancePDF = async ({
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = []
+}) => {
+  // Landscape orientation to fit all columns
+  const doc = new jsPDF('l', 'mm', 'a4');
+
+  // Custom Simple Header
+  const title = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY';
+  const subtitle = '(Approved by AICTE-New Delhi & Affiliated to Anna University-Chennai)';
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(title, 148, 15, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(subtitle, 148, 20, { align: 'center' });
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB');
+
+  doc.setFontSize(11);
+  doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, 148, 28, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  const deptLabel = `Dept: ${classObj?.department || 'IT'}`;
+  const secLabel = `Section: ${classObj?.section || 'A'}`;
+  const semLabel = `Semester: ${classObj?.semester || '4'}`;
+  
+  doc.text(deptLabel, 80, 36);
+  doc.text(secLabel, 130, 36);
+  doc.text(semLabel, 180, 36);
+
+  let y = 42;
+
+  // Filter out library/seminar if they are not subjects
+  const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+
+  // Top header row
+  const headRow1 = [
+    { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+    { content: 'Roll.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+    { content: 'Student Name', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+  ];
+
+  targetSubjects.forEach(sub => {
+    headRow1.push({ content: sub.code, colSpan: 3, styles: { halign: 'center' } });
+  });
+  headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
+
+  // Second header row
+  const headRow2 = [];
+  targetSubjects.forEach(() => {
+    headRow2.push('W.Hrs', 'P.Hrs', 'Marks');
+  });
+  headRow2.push('W.Hrs', 'P.Hrs', '(%)');
+
+  const headRows = [headRow1, headRow2];
+
+  const bodyRows = students.map((st, idx) => {
+    let overallWHrs = 0;
+    let overallPHrs = 0;
+    
+    const row = [
+      idx + 1,
+      st.roll_no || st.rollNo || st.id,
+      st.name
+    ];
+
+    targetSubjects.forEach(sub => {
+      const sess = allSessions.find(s => s.subject_id === sub.id);
+      if (!sess) {
+        row.push('0', '0', '-');
+        return;
+      }
+      
+      const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+      
+      // Try to determine total hours
+      const wHrs = parseInt(sess.total_hours) || parseInt(sess.int1_hours) || parseInt(sess.int2_hours) || 45;
+      const pHrs = att ? (parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
+      
+      overallWHrs += wHrs;
+      overallPHrs += pHrs;
+      
+      const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+      let score;
+      if (is2021) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        
+        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const ciaMax = isLabType ? 50 : 40;
+        const examConvertedMax = isLabType ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+        const examRaw = parseFloat(att?.internal_exam_mark) || 0;
+        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+        
+        const labExamRaw = parseFloat(att?.lab_mark) || 0;
+        const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+        if (isLabType && sessionLabel === 'internal2') {
+          score = Math.min(ciaTotal + labExamConverted, 100);
+        } else {
+          score = Math.min(ciaTotal + examConverted, 100);
+        }
+      } else {
+        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+          score = null;
+        } else {
+          score = parseFloat(att.internal_exam_mark);
+        }
+      }
+
+      const markStr = (score === null || isNaN(score)) ? 'AB' : Math.round(score);
+      
+      row.push(wHrs, pHrs, markStr);
+    });
+
+    const pct = overallWHrs > 0 ? Math.round((overallPHrs / overallWHrs) * 100) : 0;
+    row.push(overallWHrs, overallPHrs, pct);
+    
+    return row;
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head: headRows,
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 7, halign: 'center', valign: 'middle', cellPadding: 1.5 },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.1, lineColor: [0,0,0] },
+    bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },
+    columnStyles: { 
+      1: { halign: 'center', cellWidth: 20 },
+      2: { halign: 'left', cellWidth: 35 } 
+    }
+  });
+
+  y = doc.lastAutoTable.finalY + 12;
+  if (y > 185) { // A4 landscape height is 210mm
+    doc.addPage();
+    y = 30;
+  }
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('*** W.Hrs=Working Hours, P.Hrs=Present Hours, %=Attendance Percentage', 14, y);
+  
+  y += 20;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('Class Incharge', 20, y);
+  doc.text('H.O.D', 110, y);
+  doc.text('Principal', 220, y);
+  doc.text('Signature of Faculty\\nwith date', 260, y, { align: 'center' });
+
+  addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
+  doc.save(`${classObj?.name}_Overall_Mark_Statement.pdf`);
+};

@@ -44,10 +44,12 @@ export default function AdminPage() {
     }
   };
 
-  const filteredStaffs = staffs.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
-    s.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStaffs = staffs.filter(s => {
+    const q = search.toLowerCase();
+    const matchName = s.name ? s.name.toLowerCase().includes(q) : false;
+    const matchEmail = s.email ? s.email.toLowerCase().includes(q) : false;
+    return matchName || matchEmail;
+  });
 
   return (
     <div style={{ padding: '24px' }}>

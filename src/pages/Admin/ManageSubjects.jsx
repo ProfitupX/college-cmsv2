@@ -120,8 +120,10 @@ export default function ManageSubjects() {
 
   const filteredSubjects = useMemo(() => {
     return subjects.filter(s => {
-      const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
-                            s.code.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchName = s.name ? s.name.toLowerCase().includes(q) : false;
+      const matchCode = s.code ? s.code.toLowerCase().includes(q) : false;
+      const matchesSearch = matchName || matchCode;
       
       const subClass = classesList.find(c => c.id === s.class_id);
       

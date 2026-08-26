@@ -81,39 +81,61 @@ router.get('/', async (req, res) => {
       totalSubjects = subCount;
     }
 
-    const [[{ totalSessions }]] = await db.execute('SELECT COUNT(*) AS totalSessions FROM marks_sessions');
+    let msJoin = '';
+    let msWhere = '1=1';
+    let msParams = [];
+
+    if (role === 'hod' && department) {
+      msJoin = 'JOIN subjects sub ON sub.id = ms.subject_id JOIN classes c ON c.id = sub.class_id';
+      msWhere = 'c.department LIKE ?';
+      msParams = [`%${department}%`];
+    } else if (staffId && role !== 'admin') {
+      msJoin = 'JOIN subjects sub ON sub.id = ms.subject_id';
+      msWhere = 'sub.faculty_id = ?';
+      msParams = [staffId];
+    }
+
+    const [[{ totalSessions }]] = await db.execute(
+      `SELECT COUNT(ms.id) AS totalSessions FROM marks_sessions ms ${msJoin} WHERE ${msWhere}`,
+      msParams
+    );
     const [[{ pendingCount }]] = await db.execute(
-      "SELECT COUNT(*) AS pendingCount FROM marks_sessions WHERE status = 'draft'"
+      `SELECT COUNT(ms.id) AS pendingCount FROM marks_sessions ms ${msJoin} WHERE ${msWhere} AND ms.status = 'draft'`,
+      msParams
     );
 
     // Avg score across all sessions
     const [[{ globalAvg }]] = await db.execute(
-      'SELECT ROUND(AVG(avg_score), 1) AS globalAvg FROM marks_sessions WHERE avg_score IS NOT NULL'
+      `SELECT ROUND(AVG(ms.avg_score), 1) AS globalAvg FROM marks_sessions ms ${msJoin} WHERE ${msWhere} AND ms.avg_score IS NOT NULL`,
+      msParams
     );
 
     // Sessions this month
     const [[{ thisMonth }]] = await db.execute(
-      "SELECT COUNT(*) AS thisMonth FROM marks_sessions WHERE MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW())"
+      `SELECT COUNT(ms.id) AS thisMonth FROM marks_sessions ms ${msJoin} WHERE ${msWhere} AND MONTH(ms.created_at) = MONTH(NOW()) AND YEAR(ms.created_at) = YEAR(NOW())`,
+      msParams
     );
 
     // Monthly chart data (last 6 months)
     const [monthly] = await db.execute(`
-      SELECT DATE_FORMAT(created_at, '%b') AS month,
-             ROUND(AVG(avg_score), 1)      AS avgScore,
-             COUNT(*)                      AS submissions
-      FROM marks_sessions
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-      GROUP BY YEAR(created_at), MONTH(created_at), DATE_FORMAT(created_at, '%b')
-      ORDER BY YEAR(created_at), MONTH(created_at)
-    `);
+      SELECT DATE_FORMAT(ms.created_at, '%b') AS month,
+             ROUND(AVG(ms.avg_score), 1)      AS avgScore,
+             COUNT(ms.id)                     AS submissions
+      FROM marks_sessions ms
+      ${msJoin}
+      WHERE ${msWhere} AND ms.created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY YEAR(ms.created_at), MONTH(ms.created_at), DATE_FORMAT(ms.created_at, '%b')
+      ORDER BY YEAR(ms.created_at), MONTH(ms.created_at)
+    `, msParams);
 
     // Per-subject avg
     const [subjectDist] = await db.execute(`
       SELECT sub.acronym AS name, ROUND(AVG(ms.avg_score), 1) AS value
       FROM marks_sessions ms
-      JOIN subjects sub ON sub.id = ms.subject_id
+      ${msJoin || 'JOIN subjects sub ON sub.id = ms.subject_id'}
+      WHERE ${msWhere}
       GROUP BY ms.subject_id, sub.acronym
-    `);
+    `, msParams);
 
     res.json({
       totalStudents,

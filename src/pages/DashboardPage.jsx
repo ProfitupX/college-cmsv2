@@ -618,6 +618,13 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <DeclarationModal 
+        isOpen={declarationModalOpen} 
+        onClose={() => setDeclarationModalOpen(false)} 
+        onSubmit={handleGenerateSubjectPDF}
+        session={pdfPayload?.session}
+      />
+
       <RecentEntries entries={entries} />
     </div>
   );

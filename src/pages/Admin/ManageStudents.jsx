@@ -96,9 +96,11 @@ export default function ManageStudents() {
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
-      const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
-                            s.roll_no.toLowerCase().includes(search.toLowerCase()) ||
-                            s.id.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchName = s.name ? s.name.toLowerCase().includes(q) : false;
+      const matchRoll = s.roll_no ? s.roll_no.toLowerCase().includes(q) : false;
+      const matchId = s.id ? s.id.toLowerCase().includes(q) : false;
+      const matchesSearch = matchName || matchRoll || matchId;
       
       // Find the class for this student to match department/sem filters
       const stuClass = classesList.find(c => c.id === s.class_id);

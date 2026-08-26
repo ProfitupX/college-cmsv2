@@ -56,9 +56,12 @@ export default function StudentsPage() {
   }, [user]);
 
   const filtered = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.roll_no.includes(search)
+    (s) => {
+      const q = search.toLowerCase();
+      const matchName = s.name ? s.name.toLowerCase().includes(q) : false;
+      const matchRoll = s.roll_no ? s.roll_no.toLowerCase().includes(q) : false;
+      return matchName || matchRoll;
+    }
   );
 
   if (loading) {

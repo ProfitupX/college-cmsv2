@@ -163,11 +163,12 @@ export default function ManageStaffs() {
 
   const filteredStaffs = useMemo(() => {
     return staffs.filter((s) => {
-      const matchesSearch =
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.email.toLowerCase().includes(search.toLowerCase()) ||
-        s.id.toLowerCase().includes(search.toLowerCase()) ||
-        (s.employee_id && s.employee_id.toLowerCase().includes(search.toLowerCase()));
+      const q = search.toLowerCase();
+      const matchName = s.name ? s.name.toLowerCase().includes(q) : false;
+      const matchEmail = s.email ? s.email.toLowerCase().includes(q) : false;
+      const matchId = s.id ? s.id.toLowerCase().includes(q) : false;
+      const matchEmpId = s.employee_id ? s.employee_id.toLowerCase().includes(q) : false;
+      const matchesSearch = matchName || matchEmail || matchId || matchEmpId;
       const matchesDept = !deptFilter || s.department === deptFilter;
       return matchesSearch && matchesDept;
     });

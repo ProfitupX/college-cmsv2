@@ -82,30 +82,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         {!collapsed && <span className={styles.navLabel}>MAIN MENU</span>}
         {navItems.map(({ to, icon: Icon, label }) => (
           <div key={to}>
-            {/* Section divider for 2025 Reg link */}
-            {to === '/marks-entry' && !collapsed && (
-              <div style={{
-                fontSize: '0.62rem',
-                color: 'var(--text-secondary)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                padding: '10px 14px 4px',
-                opacity: 0.7,
-                fontWeight: 700
-              }}>2025 Reg (II Year)</div>
-            )}
-            {/* Section divider before 2021 Reg link */}
-            {to === '/marks-entry-2021' && !collapsed && (
-              <div style={{
-                fontSize: '0.62rem',
-                color: 'var(--text-secondary)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                padding: '10px 14px 4px',
-                opacity: 0.7,
-                fontWeight: 700
-              }}>2021 Reg (III & IV Year)</div>
-            )}
+
             <NavLink
               to={to}
               className={({ isActive }) =>
@@ -122,18 +99,6 @@ export default function Sidebar({ collapsed, onToggle }) {
         ))}
       </nav>
 
-      {/* Notifications quick card (bottom) */}
-      {!collapsed && (
-        <div className={styles.notifCard}>
-          <div className={styles.notifIcon}>
-            <Bell size={18} color="#fff" />
-          </div>
-          <div className={styles.notifContent}>
-            <p className={styles.notifTitle}>Notifications</p>
-            <p className={styles.notifSub}>3 updates pending</p>
-          </div>
-        </div>
-      )}
 
       {/* Logout Action */}
       <div className={styles.bottomBar}>
