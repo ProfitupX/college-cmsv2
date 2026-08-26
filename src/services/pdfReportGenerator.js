@@ -20,6 +20,17 @@ const getImageDataUrl = (url) => {
   });
 };
 
+const addFooterToAllPages = (doc, dateStr, timeStr) => {
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generated on: ${dateStr} at ${timeStr} via NSCET Mark Hub`, 14, 290);
+  }
+};
+
 // Helper for Header Box matching College Format
 const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) => {
   const logoBase64 = await getImageDataUrl(logoImg);
@@ -65,11 +76,6 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   doc.text(title, 105, 38.5, { align: 'center' });
-
-  // Add generation timestamp footer
-  doc.setFontSize(6);
-  doc.setTextColor(150, 150, 150);
-  doc.text(`Generated on: ${currentDate} at ${currentTime} via College CMS System`, 14, 290);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -281,6 +287,8 @@ export const generateSubjectAnalysisPDF = async ({
   doc.text('VICE PRINCIPAL', 120, y);
   doc.text('PRINCIPAL', 170, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${subject?.code}_Subject_Analysis_Report.pdf`);
 };
 
@@ -428,6 +436,8 @@ export const generateSubjectMarksListPDF = async ({
   doc.text('STAFF INCHARGE', 20, y);
   doc.text('HOD', 170, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${subject?.code}_Marks_List.pdf`);
 };
 
@@ -604,6 +614,8 @@ export const generateClassAnalysisPDF = async ({
   doc.text('VICE PRINCIPAL', 125, y);
   doc.text('PRINCIPAL', 172, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_Class_Analysis_Report.pdf`);
 };
 
@@ -670,6 +682,8 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
     doc.text('Principal', doc.internal.pageSize.getWidth() - 40, finalY);
   }
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`College_Overview_${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
@@ -881,6 +895,8 @@ export const generateConsolidatedMarksPDF = async ({
   doc.text('CLASS IN-CHARGE', 24, y);
   doc.text('HOD', 160, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_Consolidated_Mark_Statement.pdf`);
 };
 
@@ -1049,6 +1065,8 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text('STAFF INCHARGE', 20, y);
   doc.text('HOD', 170, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${subject?.code}_2021Reg_${isInternal2 ? 'IA2' : 'IA1'}_Marks.pdf`);
 };
 
@@ -1143,5 +1161,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
   doc.text('VICE PRINCIPAL', 30, y);
   doc.text('PRINCIPAL', 160, y);
 
+  const now = new Date();
+  addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`NSCET_Continuous_Assessment_${isCA2 ? '2' : '1'}_Analysis.pdf`);
 };
