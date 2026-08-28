@@ -52,6 +52,9 @@ export default function ReportsPage() {
   const [genLoading, setGenLoading] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  
+  const [overallFromDate, setOverallFromDate] = useState('');
+  const [overallToDate, setOverallToDate] = useState('');
 
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
@@ -248,7 +251,9 @@ export default function ReportsPage() {
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],
           allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || []
+          allComponents: summary.allComponents || [],
+          fromDate: overallFromDate,
+          toDate: overallToDate
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -417,17 +422,35 @@ export default function ReportsPage() {
             )}
 
             {canDownloadClassReports && (
-              <button 
-                style={{
-                  background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
-                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '8px'
-                }}
-                onClick={() => handleDownloadClassPDF('overall_statement')}
-                disabled={genLoading || !selectedClassId}
-              >
-                <FileText size={15} /> Overall Mark Statement
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: 'var(--bg)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-solid)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Overall Statement Period:</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input 
+                    type="date" 
+                    value={overallFromDate} 
+                    onChange={e => setOverallFromDate(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--bg-elevated)' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>to</span>
+                  <input 
+                    type="date" 
+                    value={overallToDate} 
+                    onChange={e => setOverallToDate(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--bg-elevated)' }}
+                  />
+                </div>
+                <button 
+                  style={{
+                    background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
+                    padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', justifyContent: 'center'
+                  }}
+                  onClick={() => handleDownloadClassPDF('overall_statement')}
+                  disabled={genLoading || !selectedClassId}
+                >
+                  <FileText size={15} /> Overall Mark Statement
+                </button>
+              </div>
             )}
           </div>
         </div>

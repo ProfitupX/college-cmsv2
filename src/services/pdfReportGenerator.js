@@ -1170,7 +1170,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 // REPORT 4: Overall Marks & Attendance Statement (Based on Photo)
 // ─────────────────────────────────────────────────────────────
 export const generateOverallMarksAndAttendancePDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = []
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate
 }) => {
   // Landscape orientation to fit all columns
   const doc = new jsPDF('l', 'mm', 'a4');
@@ -1190,7 +1190,13 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const dateStr = now.toLocaleDateString('en-GB');
 
   doc.setFontSize(11);
-  doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, 148, 28, { align: 'center' });
+  if (fromDate && toDate) {
+    const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
+    const toStr = new Date(toDate).toLocaleDateString('en-GB');
+    doc.text(`Student Attendance Details for the Period of ${fromStr} To ${toStr}`, 148, 28, { align: 'center' });
+  } else {
+    doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, 148, 28, { align: 'center' });
+  }
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
@@ -1249,7 +1255,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
       
       // Try to determine total hours
       const wHrs = parseInt(sess.total_hours) || parseInt(sess.int1_hours) || parseInt(sess.int2_hours) || 45;
-      const pHrs = att ? (parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
+      const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
       
       overallWHrs += wHrs;
       overallPHrs += pHrs;
