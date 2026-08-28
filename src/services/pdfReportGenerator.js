@@ -122,6 +122,7 @@ export const generateSubjectAnalysisPDF = async ({
 
   students.forEach(st => {
     let mark = 0;
+    let examForPassFail = 0;
     let isAbsent = false;
 
     if (is2021) {
@@ -151,8 +152,10 @@ export const generateSubjectAnalysisPDF = async ({
 
       if (isLabType && assessmentMode === 'internal2') {
         mark = Math.min(ciaTotal + labExamConverted, 100);
+        examForPassFail = labExamRaw;
       } else {
         mark = Math.min(ciaTotal + examConverted, 100);
+        examForPassFail = examRaw;
       }
 
       const rawVal = internalExamData[st.id];
@@ -165,6 +168,7 @@ export const generateSubjectAnalysisPDF = async ({
         isAbsent = true;
       } else {
         mark = parseFloat(rawVal) || 0;
+        examForPassFail = mark;
       }
     }
 
@@ -177,7 +181,12 @@ export const generateSubjectAnalysisPDF = async ({
     if (mark > maxMark) maxMark = mark;
     if (mark < minMark) minMark = mark;
 
-    if (mark >= 50) passed++;
+    let passMarkThreshold = 60; // Default for Theory
+    if (isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) {
+      passMarkThreshold = 50; // Theory-cum-Lab / Lab
+    }
+
+    if (examForPassFail >= passMarkThreshold) passed++;
     else failed++;
 
     if (mark < 50) gradeCounts.U++;
