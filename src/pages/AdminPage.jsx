@@ -61,13 +61,10 @@ export default function AdminPage() {
   };
 
   const handleSaveEnv = async () => {
-    const pwd = window.prompt("Enter the dedicated SETTINGS_PASSWORD to modify the environment configuration:");
-    if (!pwd) return;
-
     if (!window.confirm('WARNING: If you enter incorrect database credentials, the system will lose its connection. Are you sure you want to proceed?')) return;
     setEnvSaving(true);
     try {
-      const res = await settingsAPI.setEnv(envContent, pwd);
+      const res = await settingsAPI.setEnv(envContent, "");
       alert(res.message || '.env saved successfully!');
     } catch (err) {
       alert(err.message || 'Failed to save .env file.');

@@ -56,13 +56,6 @@ router.post('/:key', async (req, res) => {
 
     // Special case for .env file editor
     if (key === 'env') {
-      if (!adminPassword) return res.status(403).json({ error: 'Settings password required.' });
-    
-      // Dedicated password for editing settings (more secure than just admin DB password)
-      const expectedPassword = process.env.SETTINGS_PASSWORD || 'admin123';
-      if (adminPassword !== expectedPassword) {
-        return res.status(401).json({ error: 'Invalid settings authorization password.' });
-      }
 
       const envPath = path.join(__dirname, '..', '.env');
       fs.writeFileSync(envPath, value, 'utf8');
