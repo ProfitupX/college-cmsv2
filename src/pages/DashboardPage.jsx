@@ -310,6 +310,7 @@ export default function DashboardPage() {
   let sideChartSub = 'Average % per subject';
 
   const colors = ['#6C63FF', '#10B981', '#F59E0B', '#22D3EE', '#EF4444', '#EC4899', '#8B5CF6'];
+  let sideChartData = [];
 
   if (user?.role === 'admin') {
     sideChartTitle = 'Department Scores';

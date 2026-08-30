@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api';
@@ -21,6 +22,13 @@ export default function MarksEntryPage() {
     marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
     setClass, setSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks,
   } = useMarks();
+
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.classId) setClass(location.state.classId);
+    if (location.state?.subjectId) setTimeout(() => setSubject(location.state.subjectId), 100);
+  }, [location.state]);
 
   // Remote data
   const [classes,   setClasses]   = useState([]);

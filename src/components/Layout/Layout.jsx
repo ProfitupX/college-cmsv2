@@ -30,6 +30,7 @@ export default function Layout({ children }) {
         collapsed={collapsed} 
         mobileOpen={mobileOpen}
         onToggle={() => setCollapsed((c) => !c)} 
+        onMobileClose={() => setMobileOpen(false)}
       />
       <Header
         onMobileToggle={() => setMobileOpen(true)}

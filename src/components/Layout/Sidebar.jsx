@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import styles from './Sidebar.module.css';
 
-export default function Sidebar({ collapsed, mobileOpen, onToggle }) {
+export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -87,6 +87,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle }) {
 
             <NavLink
               to={to}
+              onClick={onMobileClose}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.active : ''}`
               }

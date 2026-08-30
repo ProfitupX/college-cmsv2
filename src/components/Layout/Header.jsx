@@ -78,7 +78,7 @@ export default function Header({ onMobileToggle, darkMode, onToggleDark }) {
               <input
                 className={styles.searchInput}
                 type="text"
-                placeholder="Search pages, marks, students..."
+                placeholder="Search pages, actions, settings..."
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
                 autoFocus
