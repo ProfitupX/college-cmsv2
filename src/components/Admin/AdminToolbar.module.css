@@ -32,7 +32,7 @@
   border: 1px solid var(--border-solid);
   border-radius: var(--radius-full);
   background: var(--bg);
-  color: var(--text-main);
+  color: var(--text-primary);
   transition: all 0.2s;
 }
 
@@ -65,7 +65,7 @@
   border: 1px solid var(--border-solid);
   border-radius: var(--radius-md);
   background: var(--bg);
-  color: var(--text-main);
+  color: var(--text-primary);
   appearance: none;
   cursor: pointer;
   min-width: 160px;

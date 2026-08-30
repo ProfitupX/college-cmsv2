@@ -108,7 +108,7 @@
 /* Unlock Requests & Role Panel Styles */
 .requestsCard {
   background: var(--surface);
-  border: 1.5px solid #FCD34D;
+  border: 1.5px solid var(--warning);
   border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 12px;
@@ -125,15 +125,15 @@
 .requestsTitle {
   font-size: 1.05rem;
   font-weight: 800;
-  color: #92400E;
+  color: var(--warning);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .requestsBadge {
-  background: #FEF3C7;
-  color: #B45309;
+  background: var(--warning-bg);
+  color: var(--warning);
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.78rem;
@@ -147,8 +147,8 @@
 }
 
 .requestItem {
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
+  background: var(--surface-hover);
+  border: 1px solid var(--border-solid);
   border-radius: var(--radius-md);
   padding: 14px;
   display: flex;
@@ -158,14 +158,14 @@
 
 .requestInfo {
   font-size: 0.85rem;
-  color: #78350F;
+  color: var(--text-primary);
 }
 
 .requestReason {
   font-size: 0.8rem;
   font-style: italic;
-  color: #92400E;
-  background: rgba(253, 230, 138, 0.4);
+  color: var(--warning);
+  background: var(--warning-bg);
   padding: 6px 10px;
   border-radius: 4px;
 }
@@ -348,8 +348,8 @@
 
 /* Class In-charge Command Center */
 .inchargeCard {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%);
-  border: 1.5px solid rgba(16, 185, 129, 0.3);
+  background: var(--surface);
+  border: 1.5px solid var(--success);
   border-radius: var(--radius-lg);
   padding: 22px;
   margin-bottom: 20px;
@@ -368,7 +368,7 @@
 .inchargeTitle {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #065F46;
+  color: var(--success);
   display: flex;
   align-items: center;
   gap: 8px;

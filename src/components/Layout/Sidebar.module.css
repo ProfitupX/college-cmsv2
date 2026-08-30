@@ -251,3 +251,16 @@
   background: rgba(239, 68, 68, 0.25);
   color: #FF8A8A;
 }
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: var(--sidebar-width) !important;
+  }
+  .sidebar.mobileOpen {
+    transform: translateX(0);
+  }
+  .toggleBtn {
+    display: none;
+  }
+}

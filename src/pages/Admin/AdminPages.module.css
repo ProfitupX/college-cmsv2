@@ -20,7 +20,7 @@
 .titleWrap h2 {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-main);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -48,7 +48,7 @@
   align-items: center;
   gap: 8px;
   background: var(--bg);
-  color: var(--text-main);
+  color: var(--text-primary);
   border: 1px solid var(--border-solid);
   padding: 10px 16px;
   border-radius: var(--radius-md);
@@ -89,7 +89,7 @@
   margin-top: 0;
   margin-bottom: 20px;
   font-size: 1.1rem;
-  color: var(--text-main);
+  color: var(--text-primary);
 }
 
 .grid {
@@ -105,7 +105,7 @@
   border: 1px solid var(--border-solid);
   border-radius: var(--radius-md);
   background: var(--bg);
-  color: var(--text-main);
+  color: var(--text-primary);
   font-size: 0.9rem;
   transition: border-color var(--transition-base);
 }
@@ -132,7 +132,7 @@
 
 .formActions button[type="button"] {
   background: var(--bg);
-  color: var(--text-main);
+  color: var(--text-primary);
   border: 1px solid var(--border-solid);
 }
 
@@ -161,7 +161,15 @@
   background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-solid);
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow responsive scrolling if applied */
+}
+
+@media (max-width: 1024px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
 }
 
 .table th, .table td {
@@ -185,7 +193,7 @@
 
 .table td {
   font-size: 0.95rem;
-  color: var(--text-main);
+  color: var(--text-primary);
 }
 
 .table td small {

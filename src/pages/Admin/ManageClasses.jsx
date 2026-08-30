@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Loader, AlertTriangle, BookOpen, UploadCloud } from 'lucide-react';
-import { classesAPI } from '../../services/api';
+import { classesAPI, adminAPI } from '../../services/api';
 import AdminToolbar from '../../components/Admin/AdminToolbar';
 import BulkUploadModal from '../../components/Admin/BulkUploadModal';
 import styles from './AdminPages.module.css';
@@ -15,7 +15,9 @@ export default function ManageClasses() {
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const [formData, setFormData] = useState({ id: '', name: '', department: 'Information Technology', semester: '', year_label: '' });
+  const [formData, setFormData] = useState({ id: '', name: '', department: 'Information Technology', semester: '', year_label: '', class_coordinator: '' });
+  
+  const [staffs, setStaffs] = useState([]);
   
   // Filters
   const [search, setSearch] = useState('');
@@ -30,7 +32,10 @@ export default function ManageClasses() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadClasses(); }, []);
+  useEffect(() => { 
+    loadClasses(); 
+    adminAPI.getCredentials().then(setStaffs).catch(console.error);
+  }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -79,7 +84,7 @@ export default function ManageClasses() {
   };
 
   const openAdd = () => {
-    setFormData({ id: '', name: '', department: 'Information Technology', semester: '', year_label: '' });
+    setFormData({ id: '', name: '', department: 'Information Technology', semester: '', year_label: '', class_coordinator: '' });
     setIsEditing(false);
     setShowForm(true);
   };
@@ -139,11 +144,24 @@ export default function ManageClasses() {
               <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option>
               <option value="Civil Engineering">Civil Engineering</option>
               <option value="Mechanical Engineering">Mechanical Engineering</option>
+              <option value="Science and Humanities">Science and Humanities</option>
               <option value="Other">Other</option>
             </select>
 
-            <input type="number" placeholder="Semester (e.g. 3)" value={formData.semester} onChange={e => setFormData({...formData, semester: e.target.value})} />
-            <input placeholder="Year Label (e.g. II)" value={formData.year_label} onChange={e => setFormData({...formData, year_label: e.target.value})} />
+            <select value={formData.semester || ''} onChange={e => setFormData({...formData, semester: e.target.value})}>
+              <option value="">-- Semester --</option>
+              {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <select value={formData.year_label || ''} onChange={e => setFormData({...formData, year_label: e.target.value})}>
+              <option value="">-- Year --</option>
+              {['I', 'II', 'III', 'IV'].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+
+            <select value={formData.class_coordinator || ''} onChange={e => setFormData({...formData, class_coordinator: e.target.value})}>
+              <option value="">-- Select Class In-charge --</option>
+              {staffs.map(s => <option key={s.id} value={s.name}>{s.name} ({s.id})</option>)}
+            </select>
           </div>
           <div className={styles.formActions}>
             <button type="button" onClick={() => setShowForm(false)}>Cancel</button>

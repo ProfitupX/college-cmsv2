@@ -1,5 +1,11 @@
 import express from 'express';
 import db from '../db.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -10,6 +16,18 @@ const router = express.Router();
 router.get('/:key', async (req, res) => {
   try {
     const { key } = req.params;
+    
+    // Special case for .env file editor
+    if (key === 'env') {
+      const envPath = path.join(__dirname, '..', '.env');
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        return res.json({ value: envContent });
+      } else {
+        return res.json({ value: '' });
+      }
+    }
+
     const [rows] = await db.execute(
       'SELECT setting_value FROM system_settings WHERE setting_key = ?',
       [key]
@@ -32,9 +50,28 @@ router.get('/:key', async (req, res) => {
 router.post('/:key', async (req, res) => {
   try {
     const { key } = req.params;
-    const { value } = req.body;
+    const { value, adminPassword } = req.body;
     
-    if (!value) return res.status(400).json({ error: 'Value is required' });
+    if (value === undefined) return res.status(400).json({ error: 'Value is required' });
+
+    // Special case for .env file editor
+    if (key === 'env') {
+      if (!adminPassword) return res.status(403).json({ error: 'Settings password required.' });
+    
+      // Dedicated password for editing settings (more secure than just admin DB password)
+      const expectedPassword = process.env.SETTINGS_PASSWORD || 'admin123';
+      if (adminPassword !== expectedPassword) {
+        return res.status(401).json({ error: 'Invalid settings authorization password.' });
+      }
+
+      const envPath = path.join(__dirname, '..', '.env');
+      fs.writeFileSync(envPath, value, 'utf8');
+      
+      // Dynamically reload connection pool with new credentials
+      db.reconnect();
+      
+      return res.json({ success: true, message: 'Environment settings updated and applied instantly! The database connection has been reloaded.' });
+    }
 
     // Insert or update
     await db.execute(

@@ -8,7 +8,8 @@ export const DEPARTMENTS = [
   'Electronics and Communication Engineering',
   'Electrical and Electronics Engineering',
   'Civil Engineering',
-  'Mechanical Engineering'
+  'Mechanical Engineering',
+  'Science and Humanities'
 ];
 export const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 

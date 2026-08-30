@@ -356,29 +356,29 @@ export default function ManageStaffs() {
             
             // Format role label badge
             let roleLabel = 'Faculty';
-            let roleBg = 'rgba(108, 99, 255, 0.1)';
+            let roleBg = 'var(--primary-glow)';
             let roleColor = 'var(--primary)';
 
             if (s.role === 'admin') {
               roleLabel = 'Admin';
-              roleBg = 'rgba(239, 68, 68, 0.1)';
+              roleBg = 'var(--danger-bg)';
               roleColor = 'var(--danger)';
             } else if (s.role === 'principal') {
               roleLabel = 'Principal';
-              roleBg = 'rgba(128, 0, 0, 0.15)';
-              roleColor = '#800000';
+              roleBg = 'var(--primary-glow)';
+              roleColor = 'var(--primary-light)';
             } else if (s.role === 'vice_principal') {
               roleLabel = 'Vice Principal';
-              roleBg = 'rgba(59, 130, 246, 0.15)';
-              roleColor = '#2563eb';
+              roleBg = 'var(--info-bg)';
+              roleColor = 'var(--info)';
             } else if (s.role === 'hod') {
               roleLabel = 'HOD';
-              roleBg = 'rgba(245, 158, 11, 0.15)';
-              roleColor = '#b45309';
+              roleBg = 'var(--warning-bg)';
+              roleColor = 'var(--warning)';
             } else if (s.role === 'class_coordinator' || s.class_role) {
               roleLabel = 'Class In-charge';
-              roleBg = 'rgba(16, 185, 129, 0.15)';
-              roleColor = '#047857';
+              roleBg = 'var(--success-bg)';
+              roleColor = 'var(--success)';
             }
 
             return (

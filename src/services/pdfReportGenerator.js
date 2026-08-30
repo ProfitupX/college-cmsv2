@@ -122,7 +122,6 @@ export const generateSubjectAnalysisPDF = async ({
 
   students.forEach(st => {
     let mark = 0;
-    let examForPassFail = 0;
     let isAbsent = false;
 
     if (is2021) {
@@ -152,10 +151,8 @@ export const generateSubjectAnalysisPDF = async ({
 
       if (isLabType && assessmentMode === 'internal2') {
         mark = Math.min(ciaTotal + labExamConverted, 100);
-        examForPassFail = labExamRaw;
       } else {
         mark = Math.min(ciaTotal + examConverted, 100);
-        examForPassFail = examRaw;
       }
 
       const rawVal = internalExamData[st.id];
@@ -168,7 +165,6 @@ export const generateSubjectAnalysisPDF = async ({
         isAbsent = true;
       } else {
         mark = parseFloat(rawVal) || 0;
-        examForPassFail = mark;
       }
     }
 
@@ -186,7 +182,7 @@ export const generateSubjectAnalysisPDF = async ({
       passMarkThreshold = 50; // Theory-cum-Lab / Lab
     }
 
-    if (examForPassFail >= passMarkThreshold) passed++;
+    if (mark >= passMarkThreshold) passed++;
     else failed++;
 
     if (mark < 50) gradeCounts.U++;
@@ -321,7 +317,8 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
   doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
-  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
+  const totHoursDisplay = parseInt(int1Hours || 0) + parseInt(int2Hours || 0) + parseInt(labHours || 0) || totalHours || 0;
+  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 8;
 
@@ -329,16 +326,7 @@ export const generateSubjectMarksListPDF = async ({
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
   // Prepare Table Headers
-  const headRow = ['S.No', 'Roll No', 'Name'];
-  headRow.push('Activities (95)');
-  
-  if (isInternal2 && hasLab) {
-    headRow.push('Lab Attd (Hrs)', 'Lab Mark');
-  }
-  
-  headRow.push('Attd Mark (5)', 'Attendance');
-  headRow.push(isInternal2 ? 'Internal 02 Mark (100)' : 'Internal 01 Mark (100)');
-  headRow.push('Activities Total (100)');
+  const headRow = ['S.No', 'Roll No', 'Name', 'P Hrs', '100 marks internal', 'Activities mark'];
 
   // Prepare Table Body
   let finalTotalMaxHours = 0;
@@ -395,28 +383,17 @@ export const generateSubjectMarksListPDF = async ({
 
     const finalScore = convertedTotal + attendanceMark;
 
+    const internalExamMark = internalExamData[student.id];
+    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
+
     const row = [
       idx + 1,
       student.roll_no,
       student.name,
-      convertedTotal
+      attendanceDaysStr,          // P Hrs
+      internalExamMarkStr,        // 100 marks internal
+      convertedTotal              // Activities mark
     ];
-
-    if (isInternal2 && hasLab) {
-      const lMark = Math.round(parseFloat(labData[student.id]?.labMark || 0));
-      const lAttd = parseInt(labData[student.id]?.labAttendance || 0);
-      row.push(`${lAttd}/${labHours || 0}`, lMark);
-    }
-
-    const internalExamMark = internalExamData[student.id];
-    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
-
-    row.push(
-      attendanceMark,
-      attendanceDaysStr,
-      internalExamMarkStr,
-      finalScore
-    );
 
     return row;
   });
@@ -950,6 +927,8 @@ export const generateSubjectMarksListPDF2021 = async ({
   y += 5;
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  y += 5;
+  doc.text(`Calendar           : From Date: _________________    To Date: _________________`, 14, y);
   y += 5;
   doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}${totHours > 0 ? `   |   Total Classes: ${totHours}` : ''}`, 14, y);
   y += 6;

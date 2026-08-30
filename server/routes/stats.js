@@ -128,7 +128,7 @@ router.get('/', async (req, res) => {
       ORDER BY YEAR(ms.created_at), MONTH(ms.created_at)
     `, msParams);
 
-    // Per-subject avg
+    // Per-subject avg (Keeping for compatibility if needed, but adding yearPerformance)
     const [subjectDist] = await db.execute(`
       SELECT sub.acronym AS name, ROUND(AVG(ms.avg_score), 1) AS value
       FROM marks_sessions ms
@@ -136,6 +136,25 @@ router.get('/', async (req, res) => {
       WHERE ${msWhere}
       GROUP BY ms.subject_id, sub.acronym
     `, msParams);
+
+    // Year-wise Performance (II, III, IV)
+    let yearParams = [];
+    let yearWhere = '1=1';
+    if (role === 'hod' && department) {
+      yearWhere = 'c.department LIKE ?';
+      yearParams.push(`%${department}%`);
+    } else if (staffId && role !== 'admin') {
+      yearWhere = 'ms.staff_id = ?';
+      yearParams.push(staffId);
+    }
+    const [yearPerf] = await db.execute(`
+      SELECT c.year_label AS name, ROUND(AVG(ms.avg_score), 1) AS value
+      FROM marks_sessions ms
+      JOIN classes c ON c.id = ms.class_id
+      WHERE ${yearWhere} AND c.year_label IN ('II', 'III', 'IV')
+      GROUP BY c.year_label
+      ORDER BY FIELD(c.year_label, 'II', 'III', 'IV')
+    `, yearParams);
 
     res.json({
       totalStudents,
@@ -148,6 +167,7 @@ router.get('/', async (req, res) => {
       submittedThisMonth: thisMonth,
       performanceData:    monthly,
       subjectDistribution: subjectDist,
+      yearPerformance:    yearPerf,
     });
   } catch (err) {
     console.error('GET /stats error:', err);

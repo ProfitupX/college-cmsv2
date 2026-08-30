@@ -56,6 +56,15 @@ export default function NotificationsDropdown() {
     setIsOpen(false);
     if (notif.link) {
       navigate(notif.link);
+      
+      // Scroll to hash if present in link
+      if (notif.link.includes('#')) {
+        const hash = notif.link.split('#')[1];
+        setTimeout(() => {
+          const el = document.getElementById(hash);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150); // slight delay to allow page render
+      }
     }
   };
 

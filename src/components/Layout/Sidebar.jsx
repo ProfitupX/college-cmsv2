@@ -13,11 +13,12 @@ import {
   Bell,
   KeyRound,
   BookMarked,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Sidebar.module.css';
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed, mobileOpen, onToggle }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -33,6 +34,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         { to: '/admin/staffs', icon: Users, label: 'Manage Staffs' },
         { to: '/admin/students', icon: GraduationCap, label: 'Manage Students' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
+        { to: '/admin', icon: Shield, label: 'Admin Panel' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ]
     : [
@@ -52,7 +54,7 @@ export default function Sidebar({ collapsed, onToggle }) {
     : 'FA';
 
   return (
-    <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
+    <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
       {/* Top Section: User Profile & First-Letter Avatar */}
       <div className={styles.sidebarUserHeader}>
         <div className={styles.headerAvatar} title={user?.name || 'User'}>

@@ -332,7 +332,7 @@ export default function ReportsPage() {
               {user?.isClassCoordinator ? 'My In-charge / Teaching Class:' : 'Select Target Class:'}
             </label>
             <select 
-              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
             >
               {classes.map(c => (
@@ -347,7 +347,7 @@ export default function ReportsPage() {
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Assessment Period:</label>
             <select 
-              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={sessionLabel} onChange={(e) => setSessionLabel(e.target.value)}
             >
               <option value="internal1">Internal Test 1 with Assignment (CA-1)</option>
@@ -358,7 +358,7 @@ export default function ReportsPage() {
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject (For Subject Report):</label>
             <select 
-              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600 }}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
             >
               {subjects.map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
@@ -429,14 +429,14 @@ export default function ReportsPage() {
                     type="date" 
                     value={overallFromDate} 
                     onChange={e => setOverallFromDate(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--bg-elevated)' }}
+                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
                   />
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>to</span>
                   <input 
                     type="date" 
                     value={overallToDate} 
                     onChange={e => setOverallToDate(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--bg-elevated)' }}
+                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
                   />
                 </div>
                 <button 
@@ -466,13 +466,13 @@ export default function ReportsPage() {
                 placeholder="Overall Class Performance Remarks..." 
                 value={classRemarks} 
                 onChange={e => setClassRemarks(e.target.value)}
-                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem' }}
+                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem', background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               />
               <textarea 
                 placeholder="Remedial / Improvement Plan for the Class..." 
                 value={improvementPlan} 
                 onChange={e => setImprovementPlan(e.target.value)}
-                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem' }}
+                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', minHeight: '55px', resize: 'vertical', fontSize: '0.85rem', background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               />
               <button 
                 onClick={handleSaveRemarks}

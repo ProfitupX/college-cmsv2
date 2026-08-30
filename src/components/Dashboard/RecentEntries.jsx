@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import styles from './RecentEntries.module.css';
 
 function StatusBadge({ status }) {
-  const isSubmitted = status === 'submitted';
+  const isFrozen = status === 'locked' || status === 'unlock_requested' || status === 'submitted';
   return (
-    <span className={`${styles.badge} ${isSubmitted ? styles.submitted : styles.draft}`}>
-      {isSubmitted ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-      {isSubmitted ? 'Submitted' : 'Draft'}
+    <span className={`${styles.badge} ${isFrozen ? styles.submitted : styles.draft}`}>
+      {isFrozen ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+      {isFrozen ? 'Frozen' : 'Draft'}
     </span>
   );
 }
@@ -59,7 +59,12 @@ export default function RecentEntries({ entries }) {
           <div
             key={e.id}
             className={styles.row}
-            style={{ animationDelay: `${i * 60}ms` }}
+            style={{ animationDelay: `${i * 60}ms`, cursor: 'pointer' }}
+            onClick={() => {
+              const route = (e.yearLabel === 'III' || e.yearLabel === 'IV') ? '/marks-entry-2021' : '/marks-entry';
+              navigate(route, { state: { loadSessionId: e.id, classId: e.classId, subjectId: e.subjectId } });
+            }}
+            title="Click to view full marks entry"
           >
             <span className={styles.subject}>{e.subject}</span>
             <span className={styles.class}>{e.class}</span>

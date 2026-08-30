@@ -150,7 +150,9 @@ export const notificationsAPI = {
 
 export const settingsAPI = {
   getDeadline: () => get('/settings/marks_entry_deadline'),
-  setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr })
+  setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr }),
+  getEnv: () => get('/settings/env'),
+  setEnv: (content, adminPassword) => post('/settings/env', { value: content, adminPassword })
 };
 
 export const remarksAPI = {

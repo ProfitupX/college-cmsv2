@@ -182,9 +182,9 @@ router.get('/sessions', async (req, res) => {
     const { classId, staffId, subjectId, sessionLabel, department } = req.query;
     let sql = `
       SELECT ms.id, ms.session_label, ms.total_max, ms.status,
-             ms.avg_score, ms.student_count, ms.created_at, ms.subject_id,
+             ms.avg_score, ms.student_count, ms.created_at, ms.subject_id, ms.class_id,
              sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
-             cl.name  AS class_name, cl.department AS class_department,
+             cl.name  AS class_name, cl.department AS class_department, cl.year_label,
              st.name  AS staff_name
       FROM marks_sessions ms
       JOIN subjects sub ON sub.id = ms.subject_id
@@ -306,6 +306,22 @@ router.post('/request-unlock', async (req, res) => {
       `INSERT INTO mark_unlock_requests (session_id, subject_id, class_id, staff_id, reason, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
       [sessionId, subjectId || '', classId || '', staffId, reason || 'Requesting edit permission for marks sheet']
+    );
+
+    // Get names for notification
+    const [staffs] = await db.execute('SELECT name FROM staffs WHERE id = ?', [staffId]);
+    const staffName = staffs[0]?.name || 'A staff member';
+    
+    let subjectName = 'a subject';
+    if (subjectId) {
+       const [subs] = await db.execute('SELECT name, code FROM subjects WHERE id = ?', [subjectId]);
+       if (subs[0]) subjectName = `${subs[0].code} ${subs[0].name}`;
+    }
+
+    // Notify HOD
+    await db.execute(
+      `INSERT INTO notifications (target_role, title, message, link) VALUES ('hod', 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
+      [`${staffName} requested to unlock marks for ${subjectName}.`]
     );
 
     res.json({ success: true, message: 'Unlock request submitted to HOD successfully.' });

@@ -6,8 +6,7 @@ import {
   ExternalLink, Sparkles, BookMarked, Award, Clock
 } from 'lucide-react';
 import StatsGrid from '../components/Dashboard/StatsGrid';
-import PerformanceChart from '../components/Dashboard/PerformanceChart';
-import SubjectBreakdown from '../components/Dashboard/SubjectBreakdown';
+import YearPerformanceChart from '../components/Dashboard/YearPerformanceChart';
 import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
 import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../services/api';
@@ -304,10 +303,10 @@ export default function DashboardPage() {
     status:      s.status,
     count:       s.student_count,
     avgScore:    s.avg_score,
-  }));
-
-  let sideChartData = [];
-  let sideChartTitle = 'Subject Scores';
+    classId:     s.class_id,
+    subjectId:   s.subject_id,
+    yearLabel:   s.year_label
+  }));let sideChartTitle = 'Subject Scores';
   let sideChartSub = 'Average % per subject';
 
   const colors = ['#6C63FF', '#10B981', '#F59E0B', '#22D3EE', '#EF4444', '#EC4899', '#8B5CF6'];
@@ -499,18 +498,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Performance Charts */}
-      <div className={styles.chartsRow}>
-        <div className={styles.chartMain}>
-          <PerformanceChart data={perfData} />
-        </div>
-        <div className={styles.chartSide}>
-          <SubjectBreakdown 
-            data={sideChartData} 
-            title={sideChartTitle} 
-            sub={sideChartSub} 
-          />
-        </div>
+      {/* Year-wise Performance Chart */}
+      <div style={{ marginBottom: '24px' }}>
+        <YearPerformanceChart data={data?.yearPerformance || []} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: (user?.role === 'hod' || user?.role === 'admin') ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '12px' }}>
@@ -545,7 +535,7 @@ export default function DashboardPage() {
             </div>
             {deadline && (
               <div style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                Current Deadline: <strong>{new Date(deadline).toLocaleDateString()}</strong>
+                Current Deadline: <strong>{new Date(deadline).toLocaleDateString('en-GB')}</strong>
               </div>
             )}
           </div>
@@ -580,7 +570,7 @@ export default function DashboardPage() {
 
       {/* HOD Unlock Request Approval Center */}
       {(user?.role === 'hod' || user?.role === 'admin') && unlockRequests.length > 0 && (
-        <div className={styles.requestsCard} style={{ marginBottom: '12px' }}>
+        <div id="unlocks" className={styles.requestsCard} style={{ marginBottom: '12px' }}>
           <div className={styles.requestsHeader}>
             <div className={styles.requestsTitle}>
               <Key size={20} color="#D97706" />

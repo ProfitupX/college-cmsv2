@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api';
@@ -56,6 +57,16 @@ export default function MarksEntryPage2021() {
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+
+  const location = useLocation();
+
+  // ── Handle incoming navigation state ────────────────────────
+  useEffect(() => {
+    if (location.state?.classId && location.state?.subjectId) {
+      setClass(location.state.classId);
+      setSubject(location.state.subjectId);
+    }
+  }, [location.state, setClass, setSubject]);
 
   // ── Load classes on mount — filter to 3rd/4th year only, restricted by user role ────
   useEffect(() => {

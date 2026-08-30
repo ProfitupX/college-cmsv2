@@ -35,7 +35,7 @@ export default function MarksEntryPage() {
   const [saveErr, setSaveErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [isComponentsDirty, setIsComponentsDirty] = useState(false);
-  const [reportType, setReportType] = useState('subject_marks_list');
+  const [reportType, setReportType] = useState('subject_analysis');
   const [int1AttendanceData, setInt1AttendanceData] = useState({});
 
   // Lock / Unlock Request State
@@ -598,10 +598,10 @@ export default function MarksEntryPage() {
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
               >
-                <option value="subject_marks_list">Subject Marks List</option>
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
                 {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
                   <>
+                    <option value="subject_marks_list">Subject Marks List</option>
                     <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
                     <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
                   </>

@@ -1,7 +1,8 @@
 .root {
   min-height: 100vh;
   background: var(--bg);
-  transition: background var(--transition-base);
+  color: var(--text-primary);
+  transition: background var(--transition-base), color var(--transition-base);
 }
 
 .dark {
@@ -18,8 +19,18 @@
 
 .main {
   padding-top: var(--header-height);
+  margin-left: var(--layout-sidebar-width, var(--sidebar-width));
   transition: margin-left var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 100vh;
+}
+
+.mobileOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 95;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.3s ease;
 }
 
 .content {
