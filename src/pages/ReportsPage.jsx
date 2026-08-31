@@ -10,7 +10,8 @@ import {
   generateSubjectAnalysisPDF, 
   generateClassAnalysisPDF, 
   generateConsolidatedMarksPDF,
-  generateOverallMarksAndAttendancePDF
+  generateOverallMarksAndAttendancePDF,
+  generateHodMarksPDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import styles from './ReportsPage.module.css';
@@ -268,7 +269,19 @@ export default function ReportsPage() {
         });
       }
     } catch (err) {
-      alert('Failed to generate Class PDF: ' + err.message);
+      alert('Failed to generate Class Report: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleDownloadHodPDF = async () => {
+    setGenLoading(true);
+    try {
+      const data = await statsAPI.getHodMarks(user.department, sessionLabel);
+      await generateHodMarksPDF(user.department, sessionLabel, data);
+    } catch (err) {
+      alert('Failed to generate HOD Marks Report: ' + err.message);
     } finally {
       setGenLoading(false);
     }
@@ -454,6 +467,31 @@ export default function ReportsPage() {
             )}
           </div>
         </div>
+
+        {/* 3. HOD Marks (Continuous Assessment) */}
+        {user?.role === 'hod' && (
+          <div style={{ marginTop: '22px' }}>
+            <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>3. HOD Marks (Continuous Assessment)</h4>
+            <div style={{ padding: '15px', background: 'var(--bg)', borderRadius: '12px', border: '1px solid var(--border-solid)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Overall Continuous Assessment Pass % for <strong>{user.department}</strong>
+                </span>
+                <button 
+                  style={{
+                    background: 'linear-gradient(135deg, #EC4899 0%, #BE185D 100%)', color: '#fff', border: 'none',
+                    padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                  onClick={() => handleDownloadHodPDF()}
+                  disabled={genLoading}
+                >
+                  <Download size={14} /> Download HOD Marks (PDF)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Class Coordinator Remarks (Only visible if role allows) */}
         {canDownloadClassReports && (

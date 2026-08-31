@@ -213,10 +213,7 @@ export default function ManageSubjects() {
         <tbody>
           {filteredSubjects.map(s => (
             <tr key={s.id}>
-              <td>
-                <strong>{s.code}</strong><br/>
-                <small style={{ color: 'var(--text-muted)' }}>{s.id}</small>
-              </td>
+              <td><strong>{s.code}</strong></td>
               <td>{s.name}</td>
               <td>{s.type}</td>
               <td>{s.ltpc ? `${s.ltpc} (${s.total_hours}h)` : '-'}</td>

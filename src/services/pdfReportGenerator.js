@@ -1332,3 +1332,58 @@ export const generateOverallMarksAndAttendancePDF = async ({
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_Overall_Mark_Statement.pdf`);
 };
+
+export const generateHodMarksPDF = async (department, sessionLabel, data) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB');
+  
+  await drawCollegeHeader(doc, 'DEPARTMENT CONTINUOUS ASSESSMENT REPORT', 'NAC/TLP-XX', '01', dateStr, '01');
+
+  let y = 45;
+  
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Department: ${department}`, 14, y);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const sessionName = sessionLabel === 'internal1' ? 'Internal Test 1 (CA-1)' : sessionLabel === 'internal2' ? 'Internal Test 2 (CA-2)' : 'Model Exam';
+  doc.text(`Assessment Mode: ${sessionName}`, 140, y);
+  y += 10;
+
+  const tableBody = data.years.map(yData => [
+    `${yData.year} Year (Sem ${yData.semester})`,
+    yData.strength,
+    yData.passed,
+    `${yData.passPct}%`
+  ]);
+
+  tableBody.push([
+    { content: 'OVERALL DEPARTMENT TOTAL', styles: { fontStyle: 'bold' } },
+    { content: data.overall.strength, styles: { fontStyle: 'bold' } },
+    { content: data.overall.passed, styles: { fontStyle: 'bold' } },
+    { content: `${data.overall.passPct}%`, styles: { fontStyle: 'bold' } }
+  ]);
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Year / Semester', 'Total Students', 'Passed Students', 'Pass Percentage']],
+    body: tableBody,
+    theme: 'grid',
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 10 },
+    bodyStyles: { halign: 'center', fontSize: 10 },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    margin: { left: 14, right: 14 }
+  });
+
+  y = doc.lastAutoTable.finalY + 30;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('H.O.D', 40, y);
+  doc.text('Principal', 160, y);
+
+  addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
+  doc.save(`${department.replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
+};

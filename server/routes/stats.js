@@ -363,4 +363,100 @@ router.get('/continuous-assessment', async (req, res) => {
   }
 });
 
+// GET /api/stats/hod-marks?department=XYZ&sessionLabel=internal1
+router.get('/hod-marks', async (req, res) => {
+  try {
+    const { department, sessionLabel = 'internal1' } = req.query;
+    if (!department) return res.status(400).json({ error: 'Department is required.' });
+
+    const years = ['II', 'III', 'IV'];
+    const results = [];
+    let deptStrength = 0;
+    let deptPassed = 0;
+
+    for (const year of years) {
+      let yearStrength = 0;
+      let yearPassed = 0;
+      
+      const [students] = await db.execute(`
+        SELECT st.id, st.name, c.name as class_name, c.semester
+        FROM students st
+        JOIN classes c ON c.id = st.class_id
+        WHERE c.department = ? AND c.year_label = ?
+      `, [department, year]);
+
+      yearStrength = students.length;
+      deptStrength += yearStrength;
+      
+      let yearSem = 0;
+
+      for (const st of students) {
+        yearSem = st.semester;
+        const [marks] = await db.execute(`
+          SELECT m.marks_obtained, m.component_index, c.max_marks
+          FROM marks m
+          JOIN marks_sessions ms ON ms.id = m.session_id
+          JOIN json_table(
+            ms.components,
+            '$[*]' COLUMNS (
+              idx FOR ORDINALITY,
+              max_marks VARCHAR(10) PATH '$.maxMarks'
+            )
+          ) c ON c.idx = m.component_index + 1
+          WHERE m.student_id = ? AND ms.session_label = ?
+        `, [st.id, sessionLabel]);
+        
+        if (marks.length > 0) {
+          // Group by session to calculate total marks per subject for this session
+          const [sessions] = await db.execute(
+            'SELECT id FROM marks_sessions WHERE class_id IN (SELECT id FROM classes WHERE department = ? AND year_label = ?) AND session_label = ?',
+            [department, year, sessionLabel]
+          );
+          
+          let allPass = true;
+          for (const s of sessions) {
+             const [subMarks] = await db.execute(
+               'SELECT SUM(m.marks_obtained) as total FROM marks m WHERE m.student_id = ? AND m.session_id = ?',
+               [st.id, s.id]
+             );
+             if (!subMarks[0].total || subMarks[0].total < 50) {
+                allPass = false;
+                break;
+             }
+          }
+          if (allPass) yearPassed++;
+        }
+      }
+      
+      deptPassed += yearPassed;
+      const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
+      
+      results.push({
+        year,
+        semester: yearSem,
+        strength: yearStrength,
+        passed: yearPassed,
+        passPct
+      });
+    }
+
+    const overallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';
+
+    res.json({
+      success: true,
+      department,
+      years: results,
+      overall: {
+        strength: deptStrength,
+        passed: deptPassed,
+        passPct: overallPct
+      }
+    });
+
+  } catch (err) {
+    console.error('GET /stats/hod-marks error:', err);
+    res.status(500).json({ error: 'Failed to fetch HOD marks.' });
+  }
+});
+
 export default router;

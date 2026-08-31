@@ -41,6 +41,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/marks-entry', icon: ClipboardEdit, label: '2025 Reg. Marks' },
         { to: '/marks-entry-2021', icon: BookMarked, label: '2021 Reg. Marks' },
+        ...(user?.role === 'hod' || user?.isClassCoordinator || isPrincipal ? [{ to: '/reports', icon: BarChart3, label: 'Reports' }] : []),
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
 
