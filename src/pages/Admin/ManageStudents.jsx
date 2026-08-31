@@ -89,7 +89,7 @@ export default function ManageStudents() {
   };
 
   const openAdd = () => {
-    setFormData({ id: '', s_no: '', roll_no: '', name: '', class_id: '' });
+    setFormData({ id: `STU_${Math.floor(Date.now() / 1000)}`, s_no: '', roll_no: '', name: '', class_id: '' });
     setIsEditing(false);
     setShowForm(true);
   };
@@ -143,7 +143,7 @@ export default function ManageStudents() {
         <form className={styles.formCard} onSubmit={handleSave}>
           <h3>{isEditing ? 'Edit Student' : 'Add New Student'}</h3>
           <div className={styles.grid}>
-            <input required placeholder="Student ID (e.g. STU123)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={isEditing} />
+            <input required placeholder="Student ID (e.g. STU123)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={true} />
             <input type="number" placeholder="S.No" value={formData.s_no} onChange={e => setFormData({...formData, s_no: e.target.value})} />
             <input required placeholder="Roll No (e.g. 921021205001)" value={formData.roll_no} onChange={e => setFormData({...formData, roll_no: e.target.value})} />
             <input required placeholder="Full Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />

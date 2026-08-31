@@ -84,7 +84,7 @@ export default function ManageClasses() {
   };
 
   const openAdd = () => {
-    setFormData({ id: '', name: '', department: 'Information Technology', semester: '', year_label: '', class_coordinator: '' });
+    setFormData({ id: `CL_${Math.floor(Date.now() / 1000)}`, name: '', department: 'Information Technology', semester: '', year_label: '', class_coordinator: '' });
     setIsEditing(false);
     setShowForm(true);
   };
@@ -132,7 +132,7 @@ export default function ManageClasses() {
         <form className={styles.formCard} onSubmit={handleSave}>
           <h3>{isEditing ? 'Edit Class' : 'Add New Class'}</h3>
           <div className={styles.grid}>
-            <input required placeholder="Class ID (e.g. IT-A-2025)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={isEditing} />
+            <input required placeholder="Class ID (e.g. IT-A-2025)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={true} />
             <input required placeholder="Class Name (e.g. II Year IT A)" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             
             <select value={formData.department || ''} onChange={e => setFormData({...formData, department: e.target.value})}>

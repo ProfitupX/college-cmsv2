@@ -147,7 +147,7 @@ export default function ManageStaffs() {
 
   const openAdd = () => {
     setFormData({
-      id: '',
+      id: `FAC_${Math.floor(Date.now() / 1000)}`,
       name: '',
       short_name: '',
       designation: '',
@@ -233,7 +233,7 @@ export default function ManageStaffs() {
                 placeholder="e.g. FAC001"
                 value={formData.id}
                 onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                disabled={isEditing}
+                disabled={true}
               />
             </div>
 

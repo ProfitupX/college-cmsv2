@@ -113,7 +113,7 @@ export default function ManageSubjects() {
   };
 
   const openAdd = () => {
-    setFormData({ id: '', code: '', name: '', type: 'Theory', class_id: '', faculty_id: '', ltpc: '', total_hours: '' });
+    setFormData({ id: `SUB_${Math.floor(Date.now() / 1000)}`, code: '', name: '', type: 'Theory', class_id: '', faculty_id: '', ltpc: '', total_hours: '' });
     setIsEditing(false);
     setShowForm(true);
   };
@@ -165,7 +165,7 @@ export default function ManageSubjects() {
         <form className={styles.formCard} onSubmit={handleSave}>
           <h3>{isEditing ? 'Edit Subject' : 'Add New Subject'}</h3>
           <div className={styles.grid}>
-            <input required placeholder="Subject ID (e.g. SUB-01)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={isEditing} />
+            <input required placeholder="Subject ID (e.g. SUB101)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} disabled={true} />
             <input required placeholder="Subject Code (e.g. IT301)" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
             <input required placeholder="Subject Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             
