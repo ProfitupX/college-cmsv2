@@ -1367,22 +1367,21 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
   ]);
 
   autoTable(doc, {
-    startY: y,
+    startY: y + 10,
     head: [['Year / Semester', 'Total Students', 'Passed Students', 'Pass Percentage']],
     body: tableBody,
     theme: 'grid',
-    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 10 },
-    bodyStyles: { halign: 'center', fontSize: 10 },
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 12, cellPadding: 10 },
+    bodyStyles: { halign: 'center', fontSize: 12, cellPadding: 10 },
     alternateRowStyles: { fillColor: [245, 245, 245] },
     margin: { left: 14, right: 14 }
   });
 
-  y = doc.lastAutoTable.finalY + 30;
+  y = doc.lastAutoTable.finalY + 40;
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('H.O.D', 40, y);
-  doc.text('Principal', 160, y);
+  doc.setFontSize(12);
+  doc.text('H.O.D Signature', 160, y, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${department.replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
