@@ -56,6 +56,7 @@ export default function ReportsPage() {
   
   const [overallFromDate, setOverallFromDate] = useState('');
   const [overallToDate, setOverallToDate] = useState('');
+  const [hodMarksData, setHodMarksData] = useState(null);
 
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
@@ -162,6 +163,17 @@ export default function ReportsPage() {
       }).catch(err => console.error(err));
     });
   }, [selectedClassId, sessionLabel]);
+
+  // 4. Load HOD Marks if user is HOD
+  useEffect(() => {
+    if (user?.role === 'hod') {
+      import('../services/api').then(({ statsAPI }) => {
+        statsAPI.getHodMarks(user.department, sessionLabel)
+          .then(setHodMarksData)
+          .catch(err => console.error('Failed to load HOD marks:', err));
+      });
+    }
+  }, [user, sessionLabel]);
 
   const handleSaveRemarks = async () => {
     setSavingRemarks(true);
@@ -278,7 +290,7 @@ export default function ReportsPage() {
   const handleDownloadHodPDF = async () => {
     setGenLoading(true);
     try {
-      const data = await statsAPI.getHodMarks(user.department, sessionLabel);
+      const data = hodMarksData || await statsAPI.getHodMarks(user.department, sessionLabel);
       await generateHodMarksPDF(user.department, sessionLabel, data);
     } catch (err) {
       alert('Failed to generate HOD Marks Report: ' + err.message);
@@ -484,11 +496,42 @@ export default function ReportsPage() {
                     display: 'flex', alignItems: 'center', gap: '6px'
                   }}
                   onClick={() => handleDownloadHodPDF()}
-                  disabled={genLoading}
+                  disabled={genLoading || !hodMarksData}
                 >
                   <Download size={14} /> Download HOD Marks (PDF)
                 </button>
               </div>
+              
+              {hodMarksData && (
+                <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+                  <table className={styles.table} style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Year / Sem</th>
+                        <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Total Students</th>
+                        <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Passed Students</th>
+                        <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Pass %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hodMarksData.years.map((y, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-solid)' }}>
+                          <td style={{ padding: '10px', fontWeight: 600 }}>{y.year} Year (Sem {y.semester})</td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>{y.strength}</td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>{y.passed}</td>
+                          <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{y.passPct}%</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: 'var(--surface-hover)' }}>
+                        <td style={{ padding: '10px', fontWeight: 700 }}>OVERALL TOTAL</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>{hodMarksData.overall.strength}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>{hodMarksData.overall.passed}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--danger)' }}>{hodMarksData.overall.passPct}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
