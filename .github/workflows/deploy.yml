@@ -20,3 +20,7 @@ jobs:
             cd ${{ secrets.VPS_PATH }}
             git fetch origin
             git reset --hard origin/main
+            npm install
+            npm run build
+            # Try to restart pm2 if it is being used (safely ignores if not)
+            pm2 restart all || true
