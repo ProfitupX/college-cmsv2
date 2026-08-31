@@ -78,7 +78,7 @@ router.post('/login', async (req, res) => {
              (aNorm && (sNorm.includes(aNorm) || aNorm.includes(sNorm) || (shortNorm && aNorm.includes(shortNorm))));
     });
 
-    const isCoord = coordClasses.length > 0 || staff.class_role === 'Class Coordinator';
+    const isCoord = coordClasses.length > 0 || staff.class_role === 'Class Coordinator' || staff.role === 'class_coordinator';
     const primaryCoordClass = coordClasses.length > 0 ? coordClasses[0] : null;
 
     res.json({
