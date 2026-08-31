@@ -393,17 +393,11 @@ router.get('/hod-marks', async (req, res) => {
       for (const st of students) {
         yearSem = st.semester;
         const [marks] = await db.execute(`
-          SELECT m.marks_obtained, m.component_index, c.max_marks
+          SELECT m.marks_obtained
           FROM marks m
           JOIN marks_sessions ms ON ms.id = m.session_id
-          JOIN json_table(
-            ms.components,
-            '$[*]' COLUMNS (
-              idx FOR ORDINALITY,
-              max_marks VARCHAR(10) PATH '$.maxMarks'
-            )
-          ) c ON c.idx = m.component_index + 1
           WHERE m.student_id = ? AND ms.session_label = ?
+          LIMIT 1
         `, [st.id, sessionLabel]);
         
         if (marks.length > 0) {

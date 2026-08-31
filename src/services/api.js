@@ -128,7 +128,13 @@ export const statsAPI = {
     return get(`/stats${q ? '?' + q : ''}`);
   },
   getCollegeStats: () => get('/stats/college'),
-  getContinuousAssessment: (sessionLabel = 'internal1') => get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`)
+  getContinuousAssessment: (sessionLabel = 'internal1') => get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`),
+  getHodMarks: (department, sessionLabel) => {
+    const params = new URLSearchParams();
+    if (department) params.append('department', department);
+    if (sessionLabel) params.append('sessionLabel', sessionLabel);
+    return get(`/stats/hod-marks?${params.toString()}`);
+  }
 };
 
 // ─────────────────────────────────────────
