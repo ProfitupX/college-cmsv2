@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Loader, Download, FileText, CheckCircle2, BookOpen, Users } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
 import { statsAPI, marksAPI, classesAPI, subjectsAPI, studentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -584,44 +584,29 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className={styles.chartsRow}>
-        <div className={styles.chartCard}>
-          <h3 className={styles.chartTitle}>Monthly Submissions</h3>
-          <p className={styles.chartSub}>Marks entries submitted per month</p>
-          {performanceData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(108,99,255,0.08)" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="submissions" name="Submissions" fill="#6C63FF" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <p className={styles.noData}>No submission data yet. Submit marks to see charts.</p>}
+      {/* HOD Pass Percentage Charts Row (3 Charts) */}
+      {user?.role === 'hod' && hodMarksData && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px', marginBottom: '30px' }}>
+          {hodMarksData.years.map((y, idx) => (
+            <div key={idx} className={styles.chartCard}>
+              <h3 className={styles.chartTitle}>{y.year} Year Pass %</h3>
+              <p className={styles.chartSub}>Semester {y.semester}</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={[{ name: `${y.year} Year`, pass: parseFloat(y.passPct) || 0 }]} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 13, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} formatter={(val) => [`${val}%`, 'Pass Percentage']} />
+                  <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                    <Cell fill={idx === 0 ? '#6C63FF' : idx === 1 ? '#10B981' : '#F59E0B'} />
+                    <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={13} fill="var(--text-primary)" fontWeight={600} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
         </div>
-
-        <div className={styles.chartCard}>
-          <h3 className={styles.chartTitle}>Subject Score Distribution</h3>
-          <p className={styles.chartSub}>Average marks per subject</p>
-          {subjectDist.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={subjectDist} cx="50%" cy="50%" innerRadius={55} outerRadius={90}
-                     paddingAngle={4} dataKey="value">
-                  {subjectDist.map((_, index) => (
-                    <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(val) => [`${val}`, 'Avg /40']} />
-                <Legend iconType="circle" iconSize={8}
-                  wrapperStyle={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <p className={styles.noData}>No subject data yet.</p>}
-        </div>
-      </div>
+      )}
 
       {/* Submission History from DB */}
       <div className={styles.historyCard}>
