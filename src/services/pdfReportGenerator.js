@@ -1289,20 +1289,17 @@ export const generateOverallMarksAndAttendancePDF = async ({
       
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
       
-      // Try to determine total hours using LTPC logic
-      let wHrs = parseInt(sess.total_hours);
+      // Use standardized subject hours based on LTPC for overall reports
+      const subTotal = parseInt(sub.total_hours) || 60;
+      const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
       
-      if (!wHrs || isNaN(wHrs) || wHrs <= 0) {
-        const subTotal = parseInt(sub.total_hours) || 60;
-        const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
-        
-        if (sessionLabel === 'internal1') {
-          wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
-        } else if (sessionLabel === 'internal2') {
-          wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
-        } else {
-          wHrs = subTotal;
-        }
+      let wHrs = 45;
+      if (sessionLabel === 'internal1') {
+        wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
+      } else if (sessionLabel === 'internal2') {
+        wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+      } else {
+        wHrs = subTotal;
       }
 
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
@@ -1353,8 +1350,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
       row.push(wHrs, pHrs, markStr);
     });
 
-    const pct = overallWHrs > 0 ? Math.round((overallPHrs / overallWHrs) * 100) : 0;
-    row.push(overallWHrs, overallPHrs, pct);
+    const pct = overallWHrs > 0 ? Math.min(100, Math.round((overallPHrs / overallWHrs) * 100)) : 0;
+    row.push(overallWHrs, Math.min(overallPHrs, overallWHrs), pct);
     
     return row;
   });
