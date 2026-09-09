@@ -89,13 +89,17 @@ export default function MarksEntryPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
-  // ── Load subjects when class changes (Role-Based Subject Filtering) ──
+  // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
     if (!selectedClassId) { setSubjects([]); return; }
     subjectsAPI.getByClass(selectedClassId).then((allSubs) => {
-      // If user is Staff (faculty) or Class Coordinator, filter to only assigned subjects unless HOD/Admin
       const isElevated = user?.role === 'hod' || user?.role === 'admin';
-      if (!isElevated && user?.assignedSubjectIds?.length > 0) {
+      const isCoordinator = user?.isClassCoordinator && (
+        user.coordinatedClassId === selectedClassId || 
+        (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+      );
+
+      if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
         setSubjects(allSubs.filter(s => user.assignedSubjectIds.includes(s.id)));
       } else {
         setSubjects(allSubs);

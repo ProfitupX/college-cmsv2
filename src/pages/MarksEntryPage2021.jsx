@@ -106,7 +106,12 @@ export default function MarksEntryPage2021() {
     if (!selectedClassId) { setSubjects([]); return; }
     subjectsAPI.getByClass(selectedClassId).then((allSubs) => {
       const isElevated = user?.role === 'hod' || user?.role === 'admin';
-      if (!isElevated && user?.assignedSubjectIds?.length > 0) {
+      const isCoordinator = user?.isClassCoordinator && (
+        user.coordinatedClassId === selectedClassId || 
+        (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+      );
+
+      if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
         setSubjects(allSubs.filter(s => user.assignedSubjectIds.includes(s.id)));
       } else {
         setSubjects(allSubs);

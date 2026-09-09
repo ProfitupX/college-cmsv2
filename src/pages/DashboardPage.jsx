@@ -13,6 +13,7 @@ import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../se
 import { useAuth } from '../context/AuthContext';
 import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
+import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -29,6 +30,10 @@ export default function DashboardPage() {
   const [genLoading, setGenLoading] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  
+  const [subjectModalOpen, setSubjectModalOpen] = useState(false);
+  const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
+  const [availableSubjects, setAvailableSubjects] = useState([]);
 
   const loadData = () => {
     setLoading(true);
@@ -91,9 +96,29 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDownloadClassPDF = async (type, targetClassId, period = inchargeSession) => {
-    const classId = targetClassId || user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+  const openSubjectSelectionModal = async (type) => {
+    const classId = user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
     setGenLoading(true);
+    try {
+      const summary = await marksAPI.getClassSummary(classId, inchargeSession);
+      setAvailableSubjects(summary.subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY'));
+      setSubjectModalPdfType(type);
+      setSubjectModalOpen(true);
+    } catch (err) {
+      alert('Failed to fetch subjects: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleDownloadClassPDF = async (selectedSubjectIds) => {
+    const type = subjectModalPdfType;
+    const period = inchargeSession;
+    const classId = user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+    
+    setGenLoading(true);
+    setSubjectModalOpen(false);
+    
     try {
       const summary = await marksAPI.getClassSummary(classId, period);
       if (type === 'class_analysis') {
@@ -103,7 +128,8 @@ export default function DashboardPage() {
           subjects: summary.subjects,
           students: summary.students,
           allSessions: summary.sessions,
-          allAttendance: summary.allAttendance
+          allAttendance: summary.allAttendance,
+          selectedSubjectIds
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -114,7 +140,8 @@ export default function DashboardPage() {
           allSessions: summary.sessions,
           allAttendance: summary.allAttendance,
           allMarks: summary.allMarks,
-          allComponents: summary.allComponents
+          allComponents: summary.allComponents,
+          selectedSubjectIds
         });
       }
     } catch (err) {
@@ -172,9 +199,12 @@ export default function DashboardPage() {
   };
 
   const now = new Date();
-  const greeting =
-    now.getHours() < 12 ? 'Good morning' :
-    now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
+  const hour = now.getHours();
+  let greeting = 'Good evening';
+  if (hour >= 5 && hour < 12) greeting = 'Good morning';
+  else if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
+  else if (hour >= 17 && hour < 21) greeting = 'Good evening';
+  else greeting = 'Good night';
 
   if (loading) {
     return (
@@ -406,7 +436,7 @@ export default function DashboardPage() {
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
-              onClick={() => handleDownloadClassPDF('class_analysis', coordinatedClass.id, inchargeSession)}
+              onClick={() => openSubjectSelectionModal('class_analysis')}
               disabled={genLoading}
             >
               <FileText size={16} /> Download Class Performance Report (NAC/TLP-20)
@@ -418,7 +448,7 @@ export default function DashboardPage() {
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
-              onClick={() => handleDownloadClassPDF('consolidated_statement', coordinatedClass.id, inchargeSession)}
+              onClick={() => openSubjectSelectionModal('consolidated_statement')}
               disabled={genLoading}
             >
               <Download size={16} /> Download Consolidated Mark Statement (NAC/TLP-07a.20)
@@ -501,7 +531,7 @@ export default function DashboardPage() {
 
       {/* Year-wise Performance Chart */}
       <div style={{ marginBottom: '24px' }}>
-        <YearPerformanceChart data={data?.yearPerformance || []} />
+        <YearPerformanceChart data={data?.yearPerformance || []} user={user} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: (user?.role === 'hod' || user?.role === 'admin') ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '12px' }}>
@@ -617,6 +647,12 @@ export default function DashboardPage() {
       />
 
       <RecentEntries entries={entries} />
+      <SubjectSelectionModal
+        isOpen={subjectModalOpen}
+        onClose={() => setSubjectModalOpen(false)}
+        onSubmit={handleDownloadClassPDF}
+        subjects={availableSubjects}
+      />
     </div>
   );
 }

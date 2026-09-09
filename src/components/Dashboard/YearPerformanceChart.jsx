@@ -23,13 +23,33 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function YearPerformanceChart({ data = [] }) {
-  // Ensure we have II, III, IV even if there's no data
-  const chartData = [
-    { name: 'II', value: 0, fill: '#6C63FF' },
-    { name: 'III', value: 0, fill: '#10B981' },
-    { name: 'IV', value: 0, fill: '#F59E0B' }
+export default function YearPerformanceChart({ data = [], user }) {
+  const allYears = [
+    { name: 'II', fill: '#6C63FF' },
+    { name: 'III', fill: '#10B981' },
+    { name: 'IV', fill: '#F59E0B' }
   ];
+
+  let visibleYears = new Set();
+  
+  if (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') {
+    visibleYears = new Set(['II', 'III', 'IV']);
+  } else {
+    (user.coordinatedClasses || []).forEach(c => {
+      if (c.year_label) visibleYears.add(c.year_label);
+    });
+    (user.teachingClasses || []).forEach(c => {
+      if (c.year_label) visibleYears.add(c.year_label);
+    });
+  }
+
+  const chartData = allYears
+    .filter(y => visibleYears.has(y.name))
+    .map(y => ({ ...y, value: 0 }));
+
+  if (chartData.length === 0) {
+    chartData.push(...allYears.map(y => ({ ...y, value: 0 })));
+  }
 
   data.forEach(d => {
     const index = chartData.findIndex(c => c.name === d.name);
@@ -43,7 +63,13 @@ export default function YearPerformanceChart({ data = [] }) {
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>Year-wise Student Performance</h3>
-          <p className={styles.sub}>Overall assessment average for 2nd, 3rd, and 4th years</p>
+          <p className={styles.sub}>
+            Overall assessment average for {
+              (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') 
+              ? '2nd, 3rd, and 4th years' 
+              : 'your active classes'
+            }
+          </p>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={300}>

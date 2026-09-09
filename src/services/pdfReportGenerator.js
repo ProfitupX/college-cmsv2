@@ -431,7 +431,7 @@ export const generateSubjectMarksListPDF = async ({
 // REPORT 2: Consolidated Test Analysis Report (Class Wise) - Format NAC/TLP-20
 // ─────────────────────────────────────────────────────────────
 export const generateClassAnalysisPDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allMarks, allAttendance, remarks, remedialAction
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allMarks, allAttendance, remarks, remedialAction, selectedSubjectIds
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -450,12 +450,18 @@ export const generateClassAnalysisPDF = async ({
   doc.text(`Date                 : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 7;
 
+  // Filter out library and apply selectedSubjectIds
+  let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.text('1. Performance Analysis:', 14, y);
   y += 3;
 
   // Build rows for each subject in class
-  const subjectRows = subjects.map((sub, idx) => {
+  const subjectRows = filteredSubjects.map((sub, idx) => {
     // Find session for this sub
     const sess = allSessions.find(s => s.subject_id === sub.id);
     let passed = students.length;
@@ -517,7 +523,7 @@ export const generateClassAnalysisPDF = async ({
 
   students.forEach(st => {
     let failCount = 0;
-    subjects.forEach(sub => {
+    filteredSubjects.forEach(sub => {
       const sess = allSessions.find(s => s.subject_id === sub.id);
       if (!sess) return;
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
@@ -558,7 +564,7 @@ export const generateClassAnalysisPDF = async ({
   doc.text('3. Faculty Feed Back - Corrective Action:', 14, y);
   y += 3;
 
-  const remedialRows = subjects.map(sub => {
+  const remedialRows = filteredSubjects.map(sub => {
     const session = allSessions.find(s => s.subject_id === sub.id && s.session_label === sessionLabel);
     return [
       sub.code,
@@ -677,7 +683,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 // REPORT 3: Consolidated Unit / Internal Test Mark Statement - Format NAC/TLP-07a.20
 // ─────────────────────────────────────────────────────────────
 export const generateConsolidatedMarksPDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = []
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -695,11 +701,14 @@ export const generateConsolidatedMarksPDF = async ({
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
 
-  // Remove Library
-  const filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  // Remove Library and apply selectedSubjectIds filter
+  let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
 
-  // Subject Columns (up to 7 subjects)
-  const targetSubjects = filteredSubjects.slice(0, 7);
+  // Subject Columns (all selected subjects)
+  const targetSubjects = filteredSubjects;
   const subCols = targetSubjects.map(s => s.code);
   const headRow = ['Reg.No', 'Name', ...subCols, 'No.of Sub Failed', 'No. of sub Passed', 'No. of sub Absent'];
 
@@ -1157,8 +1166,44 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 // ─────────────────────────────────────────────────────────────
 // REPORT 4: Overall Marks & Attendance Statement (Based on Photo)
 // ─────────────────────────────────────────────────────────────
+// Helper function to split hours based on LTPC and subject type
+const getHourSplits = (ltpc, type, total) => {
+  const cleanLtpc = (ltpc || '').trim().replace(/-/g, '');
+  const h = parseInt(total || 0);
+
+  if (type === 'Lab-cum-Theory' || type === 'Theory-cum-Lab' || type === 'Lab cum Theory' || type === 'Theory cum Lab') {
+    if (cleanLtpc === '2023') return { int1: 15, int2: 15, lab: 30 };
+    if (cleanLtpc === '2043') return { int1: 15, int2: 15, lab: 60 };
+    if (cleanLtpc === '1022') return { int1: 15, int2: 15, lab: 15 };
+    if (cleanLtpc === '3024') return { int1: 30, int2: 30, lab: 15 };
+    if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 45 };
+    if (cleanLtpc === '1021') return { int1: 15, int2: 15, lab: 15 };
+    return { int1: 15, int2: 15, lab: Math.max(0, h - 30) };
+  }
+
+  if (type === 'Theory') {
+    if (cleanLtpc === '3104' || cleanLtpc === '3004') return { int1: 30, int2: 30, lab: 0 };
+    if (cleanLtpc === '1001') return { int1: 7, int2: 8, lab: 0 };
+    if (cleanLtpc === '3003' || cleanLtpc === '2103') return { int1: 25, int2: 20, lab: 0 };
+    if (cleanLtpc === '2002') return { int1: 15, int2: 15, lab: 0 };
+  }
+
+  if (type === 'Practical') {
+    if (cleanLtpc === '0042') return { int1: 30, int2: 30, lab: 0 };
+    if (cleanLtpc === '1021') return { int1: 25, int2: 20, lab: 0 };
+    if (cleanLtpc === '0041') return { int1: 30, int2: 30, lab: 0 };
+  }
+
+  if (!h) return { int1: 0, int2: 0, lab: 0 };
+  if (h === 60) return { int1: 30, int2: 30, lab: 0 };
+  if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+  if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+  if (h === 15) return { int1: 7, int2: 8, lab: 0 };
+  return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
+};
+
 export const generateOverallMarksAndAttendancePDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate, selectedSubjectIds
 }) => {
   // Landscape orientation to fit all columns
   const doc = new jsPDF('l', 'mm', 'a4');
@@ -1198,8 +1243,11 @@ export const generateOverallMarksAndAttendancePDF = async ({
 
   let y = 42;
 
-  // Filter out library/seminar if they are not subjects
-  const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  // Filter out library/seminar and apply selectedSubjectIds
+  let targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    targetSubjects = targetSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
 
   // Top header row
   const headRow1 = [
@@ -1241,8 +1289,22 @@ export const generateOverallMarksAndAttendancePDF = async ({
       
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
       
-      // Try to determine total hours
-      const wHrs = parseInt(sess.total_hours) || parseInt(sess.int1_hours) || parseInt(sess.int2_hours) || 45;
+      // Try to determine total hours using LTPC logic
+      let wHrs = parseInt(sess.total_hours);
+      
+      if (!wHrs || isNaN(wHrs) || wHrs <= 0) {
+        const subTotal = parseInt(sub.total_hours) || 60;
+        const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
+        
+        if (sessionLabel === 'internal1') {
+          wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
+        } else if (sessionLabel === 'internal2') {
+          wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+        } else {
+          wHrs = subTotal;
+        }
+      }
+
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
       
       overallWHrs += wHrs;
@@ -1302,6 +1364,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
     head: headRows,
     body: bodyRows,
     theme: 'grid',
+    horizontalPageBreak: true,
+    horizontalPageBreakRepeat: 0,
     styles: { fontSize: 7, halign: 'center', valign: 'middle', cellPadding: 1.5 },
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.1, lineColor: [0,0,0] },
     bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },

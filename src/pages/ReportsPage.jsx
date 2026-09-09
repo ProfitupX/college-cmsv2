@@ -14,6 +14,7 @@ import {
   generateHodMarksPDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
+import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import styles from './ReportsPage.module.css';
 
 const PIE_COLORS = ['#6C63FF', '#A78BFA', '#22D3EE', '#F472B6', '#FB923C'];
@@ -53,6 +54,10 @@ export default function ReportsPage() {
   const [genLoading, setGenLoading] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  
+  // New Subject Selection Modal state for multi-subject PDFs
+  const [subjectModalOpen, setSubjectModalOpen] = useState(false);
+  const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
   
   const [overallFromDate, setOverallFromDate] = useState('');
   const [overallToDate, setOverallToDate] = useState('');
@@ -237,7 +242,14 @@ export default function ReportsPage() {
     }
   };
 
-  const handleDownloadClassPDF = async (pdfType) => {
+  const openSubjectSelectionModal = (pdfType) => {
+    setSubjectModalPdfType(pdfType);
+    setSubjectModalOpen(true);
+  };
+
+  const handleDownloadClassPDF = async (selectedSubjectIds) => {
+    setSubjectModalOpen(false);
+    const pdfType = subjectModalPdfType;
     const cls = classes.find(c => c.id === selectedClassId) || { id: selectedClassId, name: 'Target Class', department: user?.department, semester: 4, year_label: 'II', academic_year: '2025-26' };
 
     setGenLoading(true);
@@ -253,7 +265,8 @@ export default function ReportsPage() {
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],
           remarks: classRemarks,
-          remedialAction: improvementPlan
+          remedialAction: improvementPlan,
+          selectedSubjectIds
         });
       } else if (pdfType === 'overall_statement') {
         await generateOverallMarksAndAttendancePDF({
@@ -266,7 +279,8 @@ export default function ReportsPage() {
           allMarks: summary.allMarks || [],
           allComponents: summary.allComponents || [],
           fromDate: overallFromDate,
-          toDate: overallToDate
+          toDate: overallToDate,
+          selectedSubjectIds
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -277,7 +291,8 @@ export default function ReportsPage() {
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],
           allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || []
+          allComponents: summary.allComponents || [],
+          selectedSubjectIds
         });
       }
     } catch (err) {
@@ -403,7 +418,7 @@ export default function ReportsPage() {
                   padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: '8px'
                 }}
-                onClick={() => handleDownloadClassPDF('consolidated_statement')}
+                onClick={() => openSubjectSelectionModal('consolidated_statement')}
                 disabled={genLoading || !selectedClassId}
               >
                 <Download size={15} /> Consolidated Mark Statement (NAC/TLP-07a.20)
@@ -439,7 +454,7 @@ export default function ReportsPage() {
                   padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: '8px'
                 }}
-                onClick={() => handleDownloadClassPDF('class_analysis')}
+                onClick={() => openSubjectSelectionModal('class_analysis')}
                 disabled={genLoading || !selectedClassId}
               >
                 <Download size={15} /> Class Performance Report (NAC/TLP-20)
@@ -470,7 +485,7 @@ export default function ReportsPage() {
                     padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', justifyContent: 'center'
                   }}
-                  onClick={() => handleDownloadClassPDF('overall_statement')}
+                  onClick={() => openSubjectSelectionModal('overall_statement')}
                   disabled={genLoading || !selectedClassId}
                 >
                   <FileText size={15} /> Overall Mark Statement
@@ -572,6 +587,13 @@ export default function ReportsPage() {
         onClose={() => setDeclarationModalOpen(false)} 
         onSubmit={handleGenerateSubjectPDF}
         session={pdfPayload?.session}
+      />
+
+      <SubjectSelectionModal
+        isOpen={subjectModalOpen}
+        onClose={() => setSubjectModalOpen(false)}
+        onSubmit={handleDownloadClassPDF}
+        subjects={subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY')}
       />
 
       {/* Summary Row */}
