@@ -144,20 +144,56 @@ router.post('/submit', async (req, res) => {
     // 6. Notifications for Freeze action
     if (actionType === 'frozen') {
       try {
-        const [subRows] = await db.execute('SELECT code, name FROM subjects WHERE id = ?', [subjectId]);
-        const subName = subRows.length > 0 ? `${subRows[0].code} ${subRows[0].name}` : 'A Subject';
+        const [subRows] = await db.execute('SELECT code, name, department, class_id FROM subjects WHERE id = ?', [subjectId]);
+        const sub = subRows.length > 0 ? subRows[0] : null;
+        const subName = sub ? `${sub.code} ${sub.name}` : 'A Subject';
         
-        // Notify HOD
-        await db.execute(
-          `INSERT INTO notifications (target_role, title, message, link) VALUES ('hod', 'Marks Frozen', ?, '/dashboard')`,
-          [`Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
-        );
+        let hodNotified = false;
+        let coordNotified = false;
+
+        // Notify Specific HOD
+        if (sub && sub.department) {
+          const [hods] = await db.execute('SELECT id FROM staffs WHERE role = "hod" AND department = ?', [sub.department]);
+          if (hods.length > 0) {
+            for (const hod of hods) {
+              await db.execute(
+                `INSERT INTO notifications (target_id, title, message, link) VALUES (?, 'Marks Frozen', ?, '/dashboard')`,
+                [hod.id, `Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
+              );
+            }
+            hodNotified = true;
+          }
+        }
+        if (!hodNotified) {
+          await db.execute(
+            `INSERT INTO notifications (target_role, title, message, link) VALUES ('hod', 'Marks Frozen', ?, '/dashboard')`,
+            [`Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
+          );
+        }
         
-        // Notify Class In-charge
-        await db.execute(
-          `INSERT INTO notifications (target_role, title, message, link) VALUES ('class_coordinator', 'Class Subject Marks Frozen', ?, '/reports')`,
-          [`Marks for ${subName} have been frozen. You can now view the updated class performance.`]
-        );
+        // Notify Specific Class In-charge
+        if (sub && sub.class_id) {
+          const [classRows] = await db.execute('SELECT class_coordinator FROM classes WHERE id = ?', [sub.class_id]);
+          if (classRows.length > 0 && classRows[0].class_coordinator) {
+            const coordName = classRows[0].class_coordinator.trim();
+            const [coordStaffs] = await db.execute('SELECT id FROM staffs WHERE name = ?', [coordName]);
+            if (coordStaffs.length > 0) {
+              for (const staff of coordStaffs) {
+                await db.execute(
+                  `INSERT INTO notifications (target_id, title, message, link) VALUES (?, 'Class Subject Marks Frozen', ?, '/reports')`,
+                  [staff.id, `Marks for ${subName} have been frozen. You can now view the updated class performance.`]
+                );
+              }
+              coordNotified = true;
+            }
+          }
+        }
+        if (!coordNotified) {
+          await db.execute(
+            `INSERT INTO notifications (target_role, title, message, link) VALUES ('class_coordinator', 'Class Subject Marks Frozen', ?, '/reports')`,
+            [`Marks for ${subName} have been frozen. You can now view the updated class performance.`]
+          );
+        }
       } catch (notifErr) {
         console.error('Failed to send freeze notifications:', notifErr);
       }
@@ -313,16 +349,36 @@ router.post('/request-unlock', async (req, res) => {
     const staffName = staffs[0]?.name || 'A staff member';
     
     let subjectName = 'a subject';
+    let subjectDept = null;
     if (subjectId) {
-       const [subs] = await db.execute('SELECT name, code FROM subjects WHERE id = ?', [subjectId]);
-       if (subs[0]) subjectName = `${subs[0].code} ${subs[0].name}`;
+       const [subs] = await db.execute('SELECT name, code, department FROM subjects WHERE id = ?', [subjectId]);
+       if (subs[0]) {
+         subjectName = `${subs[0].code} ${subs[0].name}`;
+         subjectDept = subs[0].department;
+       }
     }
 
-    // Notify HOD
-    await db.execute(
-      `INSERT INTO notifications (target_role, title, message, link) VALUES ('hod', 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
-      [`${staffName} requested to unlock marks for ${subjectName}.`]
-    );
+    let hodNotified = false;
+    // Notify Specific HOD
+    if (subjectDept) {
+      const [hods] = await db.execute('SELECT id FROM staffs WHERE role = "hod" AND department = ?', [subjectDept]);
+      if (hods.length > 0) {
+        for (const hod of hods) {
+          await db.execute(
+            `INSERT INTO notifications (target_id, title, message, link) VALUES (?, 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
+            [hod.id, `${staffName} requested to unlock marks for ${subjectName}.`]
+          );
+        }
+        hodNotified = true;
+      }
+    }
+    
+    if (!hodNotified) {
+      await db.execute(
+        `INSERT INTO notifications (target_role, title, message, link) VALUES ('hod', 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
+        [`${staffName} requested to unlock marks for ${subjectName}.`]
+      );
+    }
 
     res.json({ success: true, message: 'Unlock request submitted to HOD successfully.' });
   } catch (err) {
