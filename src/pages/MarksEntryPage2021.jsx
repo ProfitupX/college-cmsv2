@@ -226,8 +226,7 @@ export default function MarksEntryPage2021() {
         })),
         marks: marksPayload,
         attendance: attendancePayload,
-        actionType,
-        remedialAction
+        actionType
       };
 
       const res = await marksAPI.submit(payload);

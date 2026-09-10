@@ -759,11 +759,20 @@ export const generateConsolidatedMarksPDF = async ({
         }
       } else {
         const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-          absentCount++;
-          return 'AB';
+        const isLabType = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        if (isLabType) {
+          if (!att || att.lab_mark === null || att.lab_mark === undefined || att.lab_mark === '') {
+            absentCount++;
+            return 'AB';
+          }
+          score = parseFloat(att.lab_mark);
+        } else {
+          if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+            absentCount++;
+            return 'AB';
+          }
+          score = parseFloat(att.internal_exam_mark);
         }
-        score = parseFloat(att.internal_exam_mark);
       }
 
       if (isNaN(score) || score === null) {
@@ -1206,7 +1215,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate, selectedSubjectIds
 }) => {
   // Landscape orientation to fit all columns
-  const doc = new jsPDF('l', 'mm', 'a4');
+  const doc = new jsPDF('l', 'mm', 'legal');
+  const centerX = doc.internal.pageSize.getWidth() / 2;
 
   // Custom Simple Header
   const title = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY';
@@ -1214,10 +1224,10 @@ export const generateOverallMarksAndAttendancePDF = async ({
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(title, 148, 15, { align: 'center' });
+  doc.text(title, centerX, 15, { align: 'center' });
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(subtitle, 148, 20, { align: 'center' });
+  doc.text(subtitle, centerX, 20, { align: 'center' });
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB');
@@ -1226,9 +1236,9 @@ export const generateOverallMarksAndAttendancePDF = async ({
   if (fromDate && toDate) {
     const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
     const toStr = new Date(toDate).toLocaleDateString('en-GB');
-    doc.text(`Student Attendance Details for the Period of ${fromStr} To ${toStr}`, 148, 28, { align: 'center' });
+    doc.text(`Student Attendance Details for the Period of ${fromStr} To ${toStr}`, centerX, 28, { align: 'center' });
   } else {
-    doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, 148, 28, { align: 'center' });
+    doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, centerX, 28, { align: 'center' });
   }
 
   doc.setFontSize(9);
@@ -1250,6 +1260,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
   }
 
   // Top header row
+  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+
   const headRow1 = [
     { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
     { content: 'Roll.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -1257,14 +1269,32 @@ export const generateOverallMarksAndAttendancePDF = async ({
   ];
 
   targetSubjects.forEach(sub => {
-    headRow1.push({ content: sub.code, colSpan: 3, styles: { halign: 'center' } });
+    if (!is2021) {
+      const subTotal = parseInt(sub.total_hours) || 60;
+      const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
+      let wHrs = 45;
+      if (sessionLabel === 'internal1') {
+        wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
+      } else if (sessionLabel === 'internal2') {
+        wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+      } else {
+        wHrs = subTotal;
+      }
+      headRow1.push({ content: `${sub.code}\n(T.Hr:${wHrs})`, colSpan: 3, styles: { halign: 'center' } });
+    } else {
+      headRow1.push({ content: sub.code, colSpan: 3, styles: { halign: 'center' } });
+    }
   });
   headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
 
   // Second header row
   const headRow2 = [];
   targetSubjects.forEach(() => {
-    headRow2.push('W.Hrs', 'P.Hrs', 'Marks');
+    if (!is2021) {
+      headRow2.push('P.Hrs', 'Int Marks', 'Activity');
+    } else {
+      headRow2.push('W.Hrs', 'P.Hrs', 'Marks');
+    }
   });
   headRow2.push('W.Hrs', 'P.Hrs', '(%)');
 
@@ -1338,16 +1368,29 @@ export const generateOverallMarksAndAttendancePDF = async ({
           score = Math.min(ciaTotal + examConverted, 100);
         }
       } else {
-        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-          score = null;
+        const isLabType = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        if (isLabType) {
+          if (!att || att.lab_mark === null || att.lab_mark === undefined || att.lab_mark === '') {
+            score = null;
+          } else {
+            score = parseFloat(att.lab_mark);
+          }
         } else {
-          score = parseFloat(att.internal_exam_mark);
+          if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+            score = null;
+          } else {
+            score = parseFloat(att.internal_exam_mark);
+          }
         }
       }
 
       const markStr = (score === null || isNaN(score)) ? 'AB' : Math.round(score);
       
-      row.push(wHrs, pHrs, markStr);
+      if (!is2021) {
+        row.push(pHrs, markStr, '');
+      } else {
+        row.push(wHrs, pHrs, markStr);
+      }
     });
 
     const pct = overallWHrs > 0 ? Math.min(100, Math.round((overallPHrs / overallWHrs) * 100)) : 0;
@@ -1388,7 +1431,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   doc.text('Class Incharge', 20, y);
   doc.text('H.O.D', 110, y);
   doc.text('Principal', 220, y);
-  doc.text('Signature of Faculty\\nwith date', 260, y, { align: 'center' });
+  doc.text('Signature of Faculty\\nwith date', doc.internal.pageSize.getWidth() - 30, y, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_Overall_Mark_Statement.pdf`);
