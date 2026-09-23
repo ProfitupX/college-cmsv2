@@ -167,3 +167,7 @@
 .draft { background: var(--warning-bg); color: var(--warning); }
 
 .loadingState,.errorState{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:80px 40px;text-align:center;color:var(--text-secondary);font-size:0.9rem;}.errorState{color:var(--danger);}.noData{color:var(--text-muted);font-size:0.85rem;padding:20px 0;text-align:center;}
+
+.clickableRow:hover {
+  background: rgba(128, 0, 0, 0.04);
+}

@@ -55,11 +55,11 @@
   margin-top: 1px;
 }
 
-/* Aligned Left Actions Section */
 .leftActions {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
 /* Icon Button */
@@ -327,6 +327,19 @@
 .userDept {
   font-size: 0.7rem;
   color: var(--text-secondary);
+}
+
+.collegeLogo {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  margin-left: 16px;
+}
+
+.collegeLogo img {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
 }
 
 @media (max-width: 640px) {

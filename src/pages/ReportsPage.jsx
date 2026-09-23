@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Loader, Download, FileText, CheckCircle2, BookOpen, Users } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -37,6 +38,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats,    setStats]    = useState(null);
   const [sessions, setSessions] = useState([]);
   const [classes,  setClasses]  = useState([]);
@@ -312,6 +314,13 @@ export default function ReportsPage() {
     } finally {
       setGenLoading(false);
     }
+  };
+
+  const handleHistoryRowClick = (session) => {
+    // Check if class is 2025 Regulation (2nd Year)
+    const is2025 = session.year_label === 'II' || parseInt(session.semester) === 3 || parseInt(session.semester) === 4;
+    const path = is2025 ? '/marks-entry' : '/marks-entry-2021';
+    navigate(path, { state: { classId: session.class_id, subjectId: session.subject_id } });
   };
 
   if (loading) {
@@ -654,7 +663,12 @@ export default function ReportsPage() {
             </thead>
             <tbody>
               {sessions.map((e) => (
-                <tr key={e.id}>
+                <tr 
+                  key={e.id} 
+                  onClick={() => handleHistoryRowClick(e)}
+                  style={{ cursor: 'pointer' }}
+                  className={styles.clickableRow}
+                >
                   <td className={styles.tdBold}>{e.subject}</td>
                   <td><code style={{ fontSize:'0.75rem', color:'var(--primary)' }}>{e.subject_code}</code></td>
                   <td>{e.class_name}</td>

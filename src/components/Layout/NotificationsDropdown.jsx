@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, ExternalLink } from 'lucide-react';
+import { Bell, Check, ExternalLink, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { notificationsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +15,7 @@ export default function NotificationsDropdown() {
   const fetchNotifications = async () => {
     if (!user) return;
     try {
-      const data = await notificationsAPI.get(user.role, user.id);
+      const data = await notificationsAPI.get(user.role, user.id, user.department);
       setNotifications(data);
     } catch (err) {
       console.error(err);
@@ -46,6 +46,16 @@ export default function NotificationsDropdown() {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await notificationsAPI.delete(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete notification', err);
     }
   };
 
@@ -111,20 +121,31 @@ export default function NotificationsDropdown() {
                   <p className={styles.itemMsg}>{notif.message}</p>
                   
                   <div className={styles.itemActions}>
-                    {notif.link && (
+                    {notif.link ? (
                       <span className={styles.linkHint}>
                         <ExternalLink size={12} /> View details
                       </span>
+                    ) : (
+                      <span className={styles.linkHint}></span>
                     )}
-                    {!notif.is_read && (
+                    <div className={styles.actionButtons}>
+                      {!notif.is_read && (
+                        <button 
+                          className={styles.markReadBtn} 
+                          onClick={(e) => handleMarkRead(notif.id, e)}
+                          title="Mark as read"
+                        >
+                          <Check size={14} />
+                        </button>
+                      )}
                       <button 
-                        className={styles.markReadBtn} 
-                        onClick={(e) => handleMarkRead(notif.id, e)}
-                        title="Mark as read"
+                        className={styles.deleteBtn} 
+                        onClick={(e) => handleDelete(notif.id, e)}
+                        title="Delete notification"
                       >
-                        <Check size={14} />
+                        <Trash2 size={14} color="#d32f2f" />
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))

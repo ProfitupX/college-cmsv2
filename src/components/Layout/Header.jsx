@@ -4,6 +4,7 @@ import { Search, Sun, Moon, Menu, FileText, Users, BookOpen, ChevronRight, X } f
 import { useAuth } from '../../context/AuthContext';
 import styles from './Header.module.css';
 import NotificationsDropdown from './NotificationsDropdown';
+import logo from '../../assets/nscet logo 2.png';
 
 const pageTitles = {
   '/dashboard': { title: 'Dashboard', sub: 'Welcome back! Here\'s your overview.' },
@@ -138,6 +139,11 @@ export default function Header({ onMobileToggle, darkMode, onToggleDark }) {
             <span className={styles.userName}>{user?.name || 'Faculty Staff'}</span>
             <span className={styles.userDept}>{user?.department || 'Information Technology'}</span>
           </div>
+        </div>
+
+        {/* NSCET College Logo */}
+        <div className={styles.collegeLogo}>
+          <img src={logo} alt="NSCET Logo" />
         </div>
       </div>
     </header>

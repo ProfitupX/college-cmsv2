@@ -150,8 +150,13 @@ export const adminAPI = {
 };
 
 export const notificationsAPI = {
-  get: (role, userId) => get(`/notifications/${role}/${userId}`),
-  markRead: (id) => put(`/notifications/${id}/read`)
+  get: (role, userId, department) => {
+    let url = `/notifications/${role}/${userId}`;
+    if (department) url += `?department=${encodeURIComponent(department)}`;
+    return get(url);
+  },
+  markRead: (id) => put(`/notifications/${id}/read`),
+  delete: (id) => remove(`/notifications/${id}`)
 };
 
 export const settingsAPI = {

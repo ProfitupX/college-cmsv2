@@ -173,3 +173,23 @@
   background: var(--success);
   color: white;
 }
+
+.actionButtons {
+  display: flex;
+  align-items: center;
+}
+
+.deleteBtn {
+  background: transparent;
+  border: 1px solid var(--border-solid);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.deleteBtn:hover {
+  background: rgba(211, 47, 47, 0.1);
+  border-color: #d32f2f;
+}
