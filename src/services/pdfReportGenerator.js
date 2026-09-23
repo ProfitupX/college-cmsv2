@@ -685,7 +685,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 export const generateConsolidatedMarksPDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds
 }) => {
-  const doc = new jsPDF('p', 'mm', 'a4');
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [215.9, 355.6] });
 
   await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
 
@@ -1214,8 +1214,8 @@ const getHourSplits = (ltpc, type, total) => {
 export const generateOverallMarksAndAttendancePDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate, selectedSubjectIds
 }) => {
-  // Landscape orientation to fit all columns
-  const doc = new jsPDF('l', 'mm', 'legal');
+  // Landscape orientation to fit all columns on explicit legal format (14x8.5 inches)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [215.9, 355.6] });
   const centerX = doc.internal.pageSize.getWidth() / 2;
 
   // Custom Simple Header
