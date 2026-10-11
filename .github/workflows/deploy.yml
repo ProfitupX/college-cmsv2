@@ -25,3 +25,18 @@ jobs:
             npm run build
             node server/seed_all_first_year.js
             pm2 restart all || pm2 start server/index.js --name "college-cms"
+
+            echo "=== DETECTING NGINX WEB ROOTS ==="
+            sudo grep -rn "root" /etc/nginx/sites-enabled/ || true
+            for conf in /etc/nginx/sites-enabled/*; do
+              if [ -f "$conf" ]; then
+                WEB_ROOT=$(grep -E '^\s*root\s+' "$conf" | head -n 1 | awk '{print $2}' | tr -d ';')
+                if [ -n "$WEB_ROOT" ] && [ "$WEB_ROOT" != "$(pwd)/dist" ] && [ -d "$WEB_ROOT" ]; then
+                  echo "Syncing compiled dist to $WEB_ROOT ..."
+                  sudo cp -r dist/* "$WEB_ROOT/"
+                  sudo chown -R www-data:www-data "$WEB_ROOT" 2>/dev/null || true
+                fi
+              fi
+            done
+            sudo systemctl reload nginx || sudo nginx -s reload || true
+            echo "=== VPS DEPLOYMENT & SYNC COMPLETED ==="
