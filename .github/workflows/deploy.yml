@@ -29,6 +29,7 @@ jobs:
         run: |
           test -f dist/index.html || exit 1
           ls -la dist/
+          ls -la dist/assets/
 
       - name: Transfer dist to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -51,6 +52,14 @@ jobs:
             LOG_FILE="/tmp/deploy_debug.log"
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
 
+            run_sudo() {
+              if sudo -n true 2>/dev/null; then
+                sudo "$@"
+              else
+                echo "Nscet@123" | sudo -S "$@" 2>/dev/null || "$@"
+              fi
+            }
+
             # 1. Update backend repo & seed database
             cd ${{ secrets.VPS_PATH }} || true
             git fetch origin || true
@@ -58,7 +67,7 @@ jobs:
             node server/seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
 
             # 2. Restart backend processes
-            pm2 restart all >> "$LOG_FILE" 2>&1 || sudo pm2 restart all >> "$LOG_FILE" 2>&1 || true
+            pm2 restart all >> "$LOG_FILE" 2>&1 || run_sudo pm2 restart all >> "$LOG_FILE" 2>&1 || true
 
             # 3. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
@@ -67,6 +76,7 @@ jobs:
             fi
             echo "Using bundle source: $SRC" >> "$LOG_FILE"
             ls -la "$SRC" >> "$LOG_FILE" 2>&1 || true
+            ls -la "$SRC/assets" >> "$LOG_FILE" 2>&1 || true
 
             # 4. Search targeted web directories for old bundle index-DCBDcCgS.js
             echo "Searching for old bundle..." >> "$LOG_FILE"
@@ -82,13 +92,29 @@ jobs:
             for target in $ALL_TARGETS; do
               if [ -n "$target" ] && [ -d "$target" ]; then
                 echo "Overwriting web target: $target" >> "$LOG_FILE"
-                cp -rf "$SRC"/* "$target/" 2>/dev/null || sudo cp -rf "$SRC"/* "$target/" 2>/dev/null || true
-                chmod -R 755 "$target" 2>/dev/null || sudo chmod -R 755 "$target" 2>/dev/null || true
-                cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || sudo cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || true
+                run_sudo cp -rf "$SRC"/* "$target/" >> "$LOG_FILE" 2>&1 || cp -rf "$SRC"/* "$target/" >> "$LOG_FILE" 2>&1 || true
+                run_sudo chmod -R 755 "$target" >> "$LOG_FILE" 2>&1 || true
+                run_sudo chown -R www-data:www-data "$target" >> "$LOG_FILE" 2>&1 || true
               fi
             done
 
+            echo "=== TARGET ASSETS LISTING (/var/www/markhub/dist/assets) ===" >> "$LOG_FILE"
+            ls -la /var/www/markhub/dist/assets >> "$LOG_FILE" 2>&1 || true
+
+            echo "=== NGINX CONFIG SNIPPET FOR MARKHUB ===" >> "$LOG_FILE"
+            grep -rn -B 3 -A 35 "markhub" /etc/nginx/ >> "$LOG_FILE" 2>&1 || true
+
             # 7. Reload Nginx
-            sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || nginx -s reload 2>/dev/null || true
+            run_sudo systemctl reload nginx >> "$LOG_FILE" 2>&1 || run_sudo nginx -s reload >> "$LOG_FILE" 2>&1 || nginx -s reload >> "$LOG_FILE" 2>&1 || true
+
             echo "=== DEPLOY COMPLETE: $(date) ===" >> "$LOG_FILE"
+
+            # 8. Place completed log into web roots
+            for target in $ALL_TARGETS; do
+              if [ -n "$target" ] && [ -d "$target" ]; then
+                run_sudo cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || true
+                run_sudo chmod 644 "$target/deploy-log.txt" 2>/dev/null || true
+              fi
+            done
+
             exit 0
