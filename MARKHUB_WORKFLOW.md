@@ -15,7 +15,7 @@ Centralized Academic Mark Entry & Management System designed for Nadar Saraswath
 
 ### Departments:
 - **First Year Umbrella Department**: `Science and Humanities` (S & H)
-  - **HoD**: Dr. C. Chithra (`Prof./Maths`, Employee ID: `SH001`, Email: `c.chithra@example.com`).
+  - **HoD**: Dr. C. Chithra (`Prof./Maths`, Employee ID: `SH001`, Email: `c.chithra@nscet.org`).
   - All 1st-year classes (`2026–2030 Batch`) are housed under `Science and Humanities`.
   - Classrooms:
     - `C_SH_CSE_A_1` (I Year CSE A) - 60 Students

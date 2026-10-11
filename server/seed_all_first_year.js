@@ -17,47 +17,47 @@ const departments = [
 
 const staffs = [
   { id: 'S_CHITRA', name: 'Dr.C.Chithra', short_name: 'CC', designation: 'Prof./Maths', role: 'hod', email: 'c.chithra@nscet.org', employee_id: 'SH001', department: 'Science and Humanities' },
-  { id: 'S_SHANMUGA', name: 'Mrs.N.Shanmuga Priya', short_name: 'NSP', designation: 'TF/Maths', role: 'class_coordinator', email: 'shanmuga@nscet.org', employee_id: 'SH002', department: 'Science and Humanities' },
-  { id: 'S_MALAR', name: 'Dr.P.Malarvizhi', short_name: 'PM', designation: 'AP/Eng', role: 'faculty', email: 'malarvizhi@nscet.org', employee_id: 'SH003', department: 'Science and Humanities' },
-  { id: 'S_THISHA', name: 'Mrs.N.Thisha', short_name: 'NT', designation: 'AP/Tamil', role: 'class_coordinator', email: 'thisha@nscet.org', employee_id: 'SH004', department: 'Science and Humanities' },
-  { id: 'S_DIANA', name: 'Dr.P.Diana', short_name: 'PD', designation: 'AP/Phy', role: 'class_coordinator', email: 'diana@nscet.org', employee_id: 'SH005', department: 'Science and Humanities' },
-  { id: 'S_SRINITHI', name: 'Dr.S.Srinithi', short_name: 'SS', designation: 'AP/Chem', role: 'faculty', email: 'srinithi@nscet.org', employee_id: 'SH006', department: 'Science and Humanities' },
-  { id: 'S_VALARMATHI', name: 'Mrs.C.Valarmathi', short_name: 'CV', designation: 'AP/Eng', role: 'faculty', email: 'valarmathi@nscet.org', employee_id: 'SH007', department: 'Science and Humanities' },
-  { id: 'S_BHUVANESHWARI', name: 'Mrs.M.Bhuvaneshwari', short_name: 'MB', designation: 'AP/Phy', role: 'faculty', email: 'bhuvaneshwari@nscet.org', employee_id: 'SH008', department: 'Science and Humanities' },
-  { id: 'S_VAYALSAMY', name: 'Dr.M.Vayalsamy', short_name: 'MV', designation: 'Dir./PD', role: 'faculty', email: 'vayalsamy@nscet.org', employee_id: 'SH009', department: 'Science and Humanities' },
-  { id: 'S_MATHALAI', name: 'Mrs.S.Mathalai Santhana Mary', short_name: 'MSM', designation: 'AP/CSE', role: 'faculty', email: 'mathalai@nscet.org', employee_id: 'SH010', department: 'Science and Humanities' },
-  { id: 'S_RATHIMALA', name: 'Mrs.S.Rathimala', short_name: 'SR', designation: 'AP/CSE', role: 'faculty', email: 'rathimala@nscet.org', employee_id: 'SH011', department: 'Science and Humanities' },
-  { id: 'S_SIVAGANESAN', name: 'Mr.R.Sivaganesan', short_name: 'RS', designation: 'AP/Mech', role: 'faculty', email: 'sivaganesan@nscet.org', employee_id: 'SH012', department: 'Science and Humanities' },
-  { id: 'S_AMUTHAVALLI', name: 'Mrs.K.Amuthavalli', short_name: 'KA', designation: 'TF/Maths', role: 'class_coordinator', email: 'amuthavalli@nscet.org', employee_id: 'SH013', department: 'Science and Humanities' },
-  { id: 'S_RICHARD', name: 'Mr.M.Richard', short_name: 'MR', designation: 'AP/Eng', role: 'faculty', email: 'richard@nscet.org', employee_id: 'SH014', department: 'Science and Humanities' },
-  { id: 'S_ANTO', name: 'Dr.P.Anto Christy', short_name: 'AC', designation: 'AP/Phy', role: 'class_coordinator', email: 'anto@nscet.org', employee_id: 'SH015', department: 'Science and Humanities' },
-  { id: 'S_DAVID', name: 'Dr.D.David Jayaraj', short_name: 'DJ', designation: 'AP/Chem', role: 'faculty', email: 'david@nscet.org', employee_id: 'SH016', department: 'Science and Humanities' },
-  { id: 'S_KESAVA', name: 'Mr.N.Kesavamoorthy', short_name: 'NK', designation: 'AP/IT', role: 'faculty', email: 'kesava@nscet.org', employee_id: 'SH017', department: 'Science and Humanities' },
-  { id: 'S_UDHAYA', name: 'Mr.R.Udhaya Kumar', short_name: 'UK', designation: 'AP/IT', role: 'faculty', email: 'udhaya@nscet.org', employee_id: 'SH018', department: 'Science and Humanities' },
-  { id: 'S_NAGARAJAN', name: 'Dr.B.Nagarajan', short_name: 'BN', designation: 'AP/Mech', role: 'faculty', email: 'nagarajan@nscet.org', employee_id: 'SH019', department: 'Science and Humanities' },
-  { id: 'S_PANDIAMMAL', name: 'Mrs.P.Pandiammal', short_name: 'PP', designation: 'PD', role: 'faculty', email: 'pandiammal@nscet.org', employee_id: 'SH020', department: 'Science and Humanities' },
-  { id: 'S_MURU', name: 'Mrs.M.Murugalakshmi', short_name: 'ML', designation: 'AP/Maths', role: 'faculty', email: 'muruga@nscet.org', employee_id: 'SH021', department: 'Science and Humanities' },
-  { id: 'S_AMIRTHA', name: 'Ms.D.I.Amirtha', short_name: 'DA', designation: 'TF/Eng', role: 'class_coordinator', email: 'amirtha@nscet.org', employee_id: 'SH022', department: 'Science and Humanities' },
-  { id: 'S_KRISHNA', name: 'Dr.T.Krishnakumar', short_name: 'TK', designation: 'AP/Phy', role: 'faculty', email: 'krishna@nscet.org', employee_id: 'SH023', department: 'Science and Humanities' },
-  { id: 'S_SARAVANA', name: 'Dr.R.Saravanakumar', short_name: 'RSK', designation: 'AP/Chem', role: 'faculty', email: 'saravana@nscet.org', employee_id: 'SH024', department: 'Science and Humanities' },
-  { id: 'S_PAVITHRA', name: 'Mrs.M.Pavithra', short_name: 'MP', designation: 'AP/AI&DS', role: 'faculty', email: 'pavithra@nscet.org', employee_id: 'SH025', department: 'Science and Humanities' },
-  { id: 'S_VINOTH', name: 'Mr.J.Vinothkumar', short_name: 'JV', designation: 'AP/AI&DS', role: 'faculty', email: 'vinoth@nscet.org', employee_id: 'SH026', department: 'Science and Humanities' },
-  { id: 'S_ARUN', name: 'Mr.G.Arunkumar', short_name: 'GA', designation: 'AP/Mech', role: 'faculty', email: 'arun@nscet.org', employee_id: 'SH027', department: 'Science and Humanities' },
-  { id: 'S_GEETHA', name: 'Mrs.M.Geetha', short_name: 'MG', designation: 'TF/Maths', role: 'class_coordinator', email: 'geetha@nscet.org', employee_id: 'SH028', department: 'Science and Humanities' },
-  { id: 'S_SUBATHAMANI', name: 'Mrs.T.Subathamani', short_name: 'TS', designation: 'AP/Eng', role: 'faculty', email: 'subathamani@nscet.org', employee_id: 'SH031', department: 'Science and Humanities' },
-  { id: 'S_BHARATHI', name: 'Mr.K.Bharathikannan', short_name: 'KB', designation: 'AP/ECE', role: 'faculty', email: 'bharathi@nscet.org', employee_id: 'SH032', department: 'Science and Humanities' },
-  { id: 'S_JENIFER', name: 'Mrs.K.Jenifer', short_name: 'KJ', designation: 'AP/AI&DS', role: 'faculty', email: 'jenifer@nscet.org', employee_id: 'SH034', department: 'Science and Humanities' },
-  { id: 'S_HARIKISHORE', name: 'Mr.S.Harikishore', short_name: 'SH', designation: 'AP/Mech', role: 'faculty', email: 'harikishore@nscet.org', employee_id: 'SH035', department: 'Science and Humanities' },
-  { id: 'S_PONNAIAH', name: 'Mr.M.Ponnaiah', short_name: 'MP', designation: 'PD', role: 'faculty', email: 'ponnaiah@nscet.org', employee_id: 'SH036', department: 'Science and Humanities' },
-  { id: 'S_RAJAKARTHICK', name: 'Mr.R.Raja Karthick', short_name: 'RK', designation: 'AP/EEE', role: 'faculty', email: 'rajakarthick@nscet.org', employee_id: 'SH037', department: 'Science and Humanities' },
-  { id: 'S_CHAKRAVARTHY', name: 'Mr.J.Chakravarthy Samy Durai', short_name: 'CD', designation: 'AP/Mech', role: 'faculty', email: 'chakravarthy@nscet.org', employee_id: 'SH038', department: 'Science and Humanities' },
-  { id: 'S_VEMBATHU', name: 'Dr.A.Vembathurajesh', short_name: 'AV', designation: 'HoD/S & H', role: 'faculty', email: 'vembathu@nscet.org', employee_id: 'SH040', department: 'Science and Humanities' },
-  { id: 'S_SURULIMANI', name: 'Mr.P.Surulimani', short_name: 'PS', designation: 'AP/Mech', role: 'faculty', email: 'surulimani@nscet.org', employee_id: 'SH041', department: 'Science and Humanities' },
-  { id: 'S_BENITA', name: 'Mrs.K.Benita Merlin Isabella', short_name: 'BM', designation: 'AP/Civil', role: 'faculty', email: 'benita@nscet.org', employee_id: 'SH043', department: 'Science and Humanities' },
-  { id: 'S_BHAVANI', name: 'Mrs.M.Bhavani', short_name: 'MB', designation: 'AP/IT', role: 'faculty', email: 'bhavani@nscet.org', employee_id: 'SH044', department: 'Science and Humanities' },
-  { id: 'S_NAGARAJA', name: 'Mr.R.Nagaraja', short_name: 'RN', designation: 'AP/Mech', role: 'faculty', email: 'nagaraja@nscet.org', employee_id: 'SH045', department: 'Science and Humanities' },
+  { id: 'S_SHANMUGA', name: 'Mrs.N.Shanmuga Priya', short_name: 'NSP', designation: 'TF/Maths', role: 'class_coordinator', email: 'shanmugapriya.maths@nscet.org', employee_id: 'SH002', department: 'Science and Humanities' },
+  { id: 'S_MALAR', name: 'Dr.P.Malarvizhi', short_name: 'PM', designation: 'AP/Eng', role: 'faculty', email: 'malarvizhi.eng@nscet.org', employee_id: 'SH003', department: 'Science and Humanities' },
+  { id: 'S_THISHA', name: 'Mrs.N.Thisha', short_name: 'NT', designation: 'AP/Tamil', role: 'class_coordinator', email: 'thisha.tamil@nscet.org', employee_id: 'SH004', department: 'Science and Humanities' },
+  { id: 'S_DIANA', name: 'Dr.P.Diana', short_name: 'PD', designation: 'AP/Phy', role: 'class_coordinator', email: 'diana.phy@nscet.org', employee_id: 'SH005', department: 'Science and Humanities' },
+  { id: 'S_SRINITHI', name: 'Dr.S.Srinithi', short_name: 'SS', designation: 'AP/Chem', role: 'faculty', email: 'srinithi.chem@nscet.org', employee_id: 'SH006', department: 'Science and Humanities' },
+  { id: 'S_VALARMATHI', name: 'Mrs.C.Valarmathi', short_name: 'CV', designation: 'AP/Eng', role: 'faculty', email: 'valarmathi.eng@nscet.org', employee_id: 'SH007', department: 'Science and Humanities' },
+  { id: 'S_BHUVANESHWARI', name: 'Mrs.M.Bhuvaneshwari', short_name: 'MB', designation: 'AP/Phy', role: 'faculty', email: 'bhuvaneshwari.phy@nscet.org', employee_id: 'SH008', department: 'Science and Humanities' },
+  { id: 'S_VAYALSAMY', name: 'Dr.M.Vayalsamy', short_name: 'MV', designation: 'Dir./PD', role: 'faculty', email: 'vayalsamy.pd@nscet.org', employee_id: 'SH009', department: 'Science and Humanities' },
+  { id: 'S_MATHALAI', name: 'Mrs.S.Mathalai Santhana Mary', short_name: 'MSM', designation: 'AP/CSE', role: 'faculty', email: 'mathalai.cse@nscet.org', employee_id: 'SH010', department: 'Science and Humanities' },
+  { id: 'S_RATHIMALA', name: 'Mrs.S.Rathimala', short_name: 'SR', designation: 'AP/CSE', role: 'faculty', email: 'rathimala.cse@nscet.org', employee_id: 'SH011', department: 'Science and Humanities' },
+  { id: 'S_SIVAGANESAN', name: 'Mr.R.Sivaganesan', short_name: 'RS', designation: 'AP/Mech', role: 'faculty', email: 'r.sivaganesan@nscet.org', employee_id: 'SH012', department: 'Science and Humanities' },
+  { id: 'S_AMUTHAVALLI', name: 'Mrs.K.Amuthavalli', short_name: 'KA', designation: 'TF/Maths', role: 'class_coordinator', email: 'amuthavalli.maths@nscet.org', employee_id: 'SH013', department: 'Science and Humanities' },
+  { id: 'S_RICHARD', name: 'Mr.M.Richard', short_name: 'MR', designation: 'AP/Eng', role: 'faculty', email: 'richard.eng@nscet.org', employee_id: 'SH014', department: 'Science and Humanities' },
+  { id: 'S_ANTO', name: 'Dr.P.Anto Christy', short_name: 'AC', designation: 'AP/Phy', role: 'class_coordinator', email: 'anto.phy@nscet.org', employee_id: 'SH015', department: 'Science and Humanities' },
+  { id: 'S_DAVID', name: 'Dr.D.David Jayaraj', short_name: 'DJ', designation: 'AP/Chem', role: 'faculty', email: 'david.chem@nscet.org', employee_id: 'SH016', department: 'Science and Humanities' },
+  { id: 'S_KESAVA', name: 'Mr.N.Kesavamoorthy', short_name: 'NK', designation: 'AP/IT', role: 'faculty', email: 'kesavamoorthy.it@nscet.org', employee_id: 'SH017', department: 'Science and Humanities' },
+  { id: 'S_UDHAYA', name: 'Mr.R.Udhaya Kumar', short_name: 'UK', designation: 'AP/IT', role: 'faculty', email: 'udhayakumar.it@nscet.org', employee_id: 'SH018', department: 'Science and Humanities' },
+  { id: 'S_NAGARAJAN', name: 'Dr.B.Nagarajan', short_name: 'BN', designation: 'AP/Mech', role: 'faculty', email: 'b.nagarajan@nscet.org', employee_id: 'SH019', department: 'Science and Humanities' },
+  { id: 'S_PANDIAMMAL', name: 'Mrs.P.Pandiammal', short_name: 'PP', designation: 'PD', role: 'faculty', email: 'pandiammal.pd@nscet.org', employee_id: 'SH020', department: 'Science and Humanities' },
+  { id: 'S_MURU', name: 'Mrs.M.Murugalakshmi', short_name: 'ML', designation: 'AP/Maths', role: 'faculty', email: 'muruga.maths@nscet.org', employee_id: 'SH021', department: 'Science and Humanities' },
+  { id: 'S_AMIRTHA', name: 'Ms.D.I.Amirtha', short_name: 'DA', designation: 'TF/Eng', role: 'class_coordinator', email: 'amirtha.eng@nscet.org', employee_id: 'SH022', department: 'Science and Humanities' },
+  { id: 'S_KRISHNA', name: 'Dr.T.Krishnakumar', short_name: 'TK', designation: 'AP/Phy', role: 'faculty', email: 'krishna.phy@nscet.org', employee_id: 'SH023', department: 'Science and Humanities' },
+  { id: 'S_SARAVANA', name: 'Dr.R.Saravanakumar', short_name: 'RSK', designation: 'AP/Chem', role: 'faculty', email: 'saravana.chem@nscet.org', employee_id: 'SH024', department: 'Science and Humanities' },
+  { id: 'S_PAVITHRA', name: 'Mrs.M.Pavithra', short_name: 'MP', designation: 'AP/AI&DS', role: 'faculty', email: 'pavithra.aids@nscet.org', employee_id: 'SH025', department: 'Science and Humanities' },
+  { id: 'S_VINOTH', name: 'Mr.J.Vinothkumar', short_name: 'JV', designation: 'AP/AI&DS', role: 'faculty', email: 'vinoth.aids@nscet.org', employee_id: 'SH026', department: 'Science and Humanities' },
+  { id: 'S_ARUN', name: 'Mr.G.Arunkumar', short_name: 'GA', designation: 'AP/Mech', role: 'faculty', email: 'g.arunkumar@nscet.org', employee_id: 'SH027', department: 'Science and Humanities' },
+  { id: 'S_GEETHA', name: 'Mrs.M.Geetha', short_name: 'MG', designation: 'TF/Maths', role: 'class_coordinator', email: 'geetha.maths@nscet.org', employee_id: 'SH028', department: 'Science and Humanities' },
+  { id: 'S_SUBATHAMANI', name: 'Mrs.T.Subathamani', short_name: 'TS', designation: 'AP/Eng', role: 'faculty', email: 'subathamani.eng@nscet.org', employee_id: 'SH031', department: 'Science and Humanities' },
+  { id: 'S_BHARATHI', name: 'Mr.K.Bharathikannan', short_name: 'KB', designation: 'AP/ECE', role: 'faculty', email: 'bharathikannan.ece@nscet.org', employee_id: 'SH032', department: 'Science and Humanities' },
+  { id: 'S_JENIFER', name: 'Mrs.K.Jenifer', short_name: 'KJ', designation: 'AP/AI&DS', role: 'faculty', email: 'jenifer.aids@nscet.org', employee_id: 'SH034', department: 'Science and Humanities' },
+  { id: 'S_HARIKISHORE', name: 'Mr.S.Harikishore', short_name: 'SH', designation: 'AP/Mech', role: 'faculty', email: 's.harikishore@nscet.org', employee_id: 'SH035', department: 'Science and Humanities' },
+  { id: 'S_PONNAIAH', name: 'Mr.M.Ponnaiah', short_name: 'MP', designation: 'PD', role: 'faculty', email: 'ponnaiah.pd@nscet.org', employee_id: 'SH036', department: 'Science and Humanities' },
+  { id: 'S_RAJAKARTHICK', name: 'Mr.R.Raja Karthick', short_name: 'RK', designation: 'AP/EEE', role: 'faculty', email: 'r.rajakarthick@nscet.org', employee_id: 'SH037', department: 'Science and Humanities' },
+  { id: 'S_CHAKRAVARTHY', name: 'Mr.J.Chakravarthy Samy Durai', short_name: 'CD', designation: 'AP/Mech', role: 'faculty', email: 'j.chakravarthy@nscet.org', employee_id: 'SH038', department: 'Science and Humanities' },
+  { id: 'S_VEMBATHU', name: 'Dr.A.Vembathurajesh', short_name: 'AV', designation: 'HoD/S & H', role: 'faculty', email: 'vembathu.sh@nscet.org', employee_id: 'SH040', department: 'Science and Humanities' },
+  { id: 'S_SURULIMANI', name: 'Mr.P.Surulimani', short_name: 'PS', designation: 'AP/Mech', role: 'faculty', email: 'p.surulimani@nscet.org', employee_id: 'SH041', department: 'Science and Humanities' },
+  { id: 'S_BENITA', name: 'Mrs.K.Benita Merlin Isabella', short_name: 'BM', designation: 'AP/Civil', role: 'faculty', email: 'benita.civil@nscet.org', employee_id: 'SH043', department: 'Science and Humanities' },
+  { id: 'S_BHAVANI', name: 'Mrs.M.Bhavani', short_name: 'MB', designation: 'AP/IT', role: 'faculty', email: 'bhavani.it@nscet.org', employee_id: 'SH044', department: 'Science and Humanities' },
+  { id: 'S_NAGARAJA', name: 'Mr.R.Nagaraja', short_name: 'RN', designation: 'AP/Mech', role: 'faculty', email: 'r.nagaraja@nscet.org', employee_id: 'SH045', department: 'Science and Humanities' },
   // Faculty retaining core engineering departments
-  { id: 'S_VENNIMALAI', name: 'Mr.V.Vennimalai', short_name: 'VV', designation: 'AP/Mech', role: 'faculty', email: 'vennimalai@nscet.org', employee_id: 'ME009', department: 'Mechanical Engineering' },
+  { id: 'S_VENNIMALAI', name: 'Mr.V.Vennimalai', short_name: 'VV', designation: 'AP/Mech', role: 'faculty', email: 'v.vennimalai@nscet.org', employee_id: 'ME009', department: 'Mechanical Engineering' },
   { id: 'S_NAVEENKARTHICK', name: 'Mr.S.Naveenkarthick', short_name: 'SNK', designation: 'AP/CSE', role: 'faculty', email: 's.naveenkarthick@nscet.org', employee_id: 'CS009', department: 'Computer Science and Engineering' },
   { id: 'S_MAREESWARI', name: 'Mrs.K.Mareeswari', short_name: 'KM', designation: 'AP/CSE', role: 'faculty', email: 'k.mareeswari@nscet.org', employee_id: 'CS010', department: 'Computer Science and Engineering' },
 ];
@@ -570,26 +570,62 @@ async function seedMaster() {
     // 3. Upsert First Year Staffs
     console.log('--- Step 3: Seeding Staffs ---');
     for (const st of staffs) {
-      await db.query(
-        `INSERT INTO staffs (id, name, short_name, designation, role, email, employee_id, password, department)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'faculty123', ?)
-         ON DUPLICATE KEY UPDATE
-           name = VALUES(name),
-           short_name = VALUES(short_name),
-           designation = VALUES(designation),
-           role = VALUES(role),
-           email = VALUES(email),
-           employee_id = VALUES(employee_id),
-           department = VALUES(department)`,
-        [st.id, st.name, st.short_name, st.designation, st.role, st.email, st.employee_id, st.department]
-      );
+      try {
+        await db.query(
+          `INSERT INTO staffs (id, name, short_name, designation, role, email, employee_id, password, department)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'faculty123', ?)
+           ON DUPLICATE KEY UPDATE
+             name = VALUES(name),
+             short_name = VALUES(short_name),
+             designation = VALUES(designation),
+             role = VALUES(role),
+             email = VALUES(email),
+             employee_id = VALUES(employee_id),
+             department = VALUES(department)`,
+          [st.id, st.name, st.short_name, st.designation, st.role, st.email, st.employee_id, st.department]
+        );
+      } catch (staffErr) {
+        if (staffErr.code === 'ER_DUP_ENTRY' && (staffErr.message || '').includes('staffs.uq_email')) {
+          const fallbackEmail = `${st.employee_id.toLowerCase()}@nscet.org`;
+          console.warn(`⚠️ Email conflict for ${st.name} (${st.email}). Retrying with fallback: ${fallbackEmail}`);
+          await db.query(
+            `INSERT INTO staffs (id, name, short_name, designation, role, email, employee_id, password, department)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'faculty123', ?)
+             ON DUPLICATE KEY UPDATE
+               name = VALUES(name),
+               short_name = VALUES(short_name),
+               designation = VALUES(designation),
+               role = VALUES(role),
+               email = VALUES(email),
+               employee_id = VALUES(employee_id),
+               department = VALUES(department)`,
+            [st.id, st.name, st.short_name, st.designation, st.role, fallbackEmail, st.employee_id, st.department]
+          );
+        } else {
+          throw staffErr;
+        }
+      }
     }
-    // Update any legacy @example.com or @example.org staff emails in the database
-    await db.query(`
-      UPDATE staffs
-      SET email = REPLACE(REPLACE(email, '@example.com', '@nscet.org'), '@example.org', '@nscet.org')
-      WHERE email LIKE '%@example.com' OR email LIKE '%@example.org'
-    `);
+
+    // Update any remaining legacy @example.com or @example.org staff emails in the database safely
+    try {
+      const [legacyStaffs] = await db.query(
+        `SELECT id, email, employee_id FROM staffs WHERE email LIKE '%@example.com' OR email LIKE '%@example.org'`
+      );
+      if (Array.isArray(legacyStaffs) && legacyStaffs.length > 0) {
+        for (const legacy of legacyStaffs) {
+          const targetEmail = legacy.email.replace('@example.com', '@nscet.org').replace('@example.org', '@nscet.org');
+          try {
+            await db.query(`UPDATE staffs SET email = ? WHERE id = ?`, [targetEmail, legacy.id]);
+          } catch {
+            const fallbackEmail = `${(legacy.employee_id || legacy.id).toLowerCase()}@nscet.org`;
+            await db.query(`UPDATE staffs SET email = ? WHERE id = ?`, [fallbackEmail, legacy.id]);
+          }
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('⚠️ Legacy email cleanup warning:', cleanErr.message);
+    }
     console.log(`✅ ${staffs.length} Staff members seeded with institutional @nscet.org emails.`);
 
     // 4. Upsert 8 First-Year Classes
