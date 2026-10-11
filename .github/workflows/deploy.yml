@@ -52,22 +52,14 @@ jobs:
             LOG_FILE="/tmp/deploy_debug.log"
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
 
-            run_sudo() {
-              if sudo -n true 2>/dev/null; then
-                sudo "$@"
-              else
-                echo "Nscet@123" | sudo -S "$@" 2>/dev/null || "$@"
-              fi
-            }
-
             # 1. Update backend repo & seed database
             cd ${{ secrets.VPS_PATH }} || true
             git fetch origin || true
             git reset --hard origin/main || true
             node server/seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
 
-            # 2. Restart backend processes
-            pm2 restart all >> "$LOG_FILE" 2>&1 || run_sudo pm2 restart all >> "$LOG_FILE" 2>&1 || true
+            # 2. Restart PM2 backend
+            pm2 restart all >> "$LOG_FILE" 2>&1 || true
 
             # 3. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
@@ -75,46 +67,24 @@ jobs:
               SRC="/tmp/markhub_dist"
             fi
             echo "Using bundle source: $SRC" >> "$LOG_FILE"
-            ls -la "$SRC" >> "$LOG_FILE" 2>&1 || true
-            ls -la "$SRC/assets" >> "$LOG_FILE" 2>&1 || true
 
-            # 4. Search targeted web directories for old bundle index-DCBDcCgS.js
-            echo "Searching for old bundle..." >> "$LOG_FILE"
-            OLD_LOCATIONS=$(find /var/www /home /srv /usr/share/nginx -name "index-DCBDcCgS.js" 2>/dev/null | sed 's|/assets/index-DCBDcCgS.js||' | sort -u || true)
-            echo "Found old bundle locations: $OLD_LOCATIONS" >> "$LOG_FILE"
-
-            # 5. Extract Nginx configured roots
-            NGINX_ROOTS=$(grep -rn "root " /etc/nginx/ 2>/dev/null | awk '{print $NF}' | tr -d ';' | sort -u || true)
-            echo "Found Nginx roots: $NGINX_ROOTS" >> "$LOG_FILE"
-
-            # 6. Synchronize to all detected web directories
-            ALL_TARGETS=$(echo "$OLD_LOCATIONS $NGINX_ROOTS /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist" | tr ' ' '\n' | sort -u)
-            for target in $ALL_TARGETS; do
-              if [ -n "$target" ] && [ -d "$target" ]; then
-                echo "Overwriting web target: $target" >> "$LOG_FILE"
-                run_sudo cp -rf "$SRC"/* "$target/" >> "$LOG_FILE" 2>&1 || cp -rf "$SRC"/* "$target/" >> "$LOG_FILE" 2>&1 || true
-                run_sudo chmod -R 755 "$target" >> "$LOG_FILE" 2>&1 || true
-                run_sudo chown -R www-data:www-data "$target" >> "$LOG_FILE" 2>&1 || true
-              fi
-            done
-
-            echo "=== TARGET ASSETS LISTING (/var/www/markhub/dist/assets) ===" >> "$LOG_FILE"
-            ls -la /var/www/markhub/dist/assets >> "$LOG_FILE" 2>&1 || true
-
-            echo "=== NGINX CONFIG SNIPPET FOR MARKHUB ===" >> "$LOG_FILE"
-            grep -rn -B 3 -A 35 "markhub" /etc/nginx/ >> "$LOG_FILE" 2>&1 || true
-
-            # 7. Reload Nginx
-            run_sudo systemctl reload nginx >> "$LOG_FILE" 2>&1 || run_sudo nginx -s reload >> "$LOG_FILE" 2>&1 || nginx -s reload >> "$LOG_FILE" 2>&1 || true
+            # 4. Overwrite /var/www/markhub/dist cleanly
+            TARGET="/var/www/markhub/dist"
+            if [ -d "$TARGET" ]; then
+              echo "Deploying to $TARGET..." >> "$LOG_FILE"
+              # Rename old root-owned assets directory out of the way
+              mv "$TARGET/assets" "$TARGET/assets_old_$(date +%s)" 2>/dev/null || true
+              
+              # Copy all new bundle assets and HTML
+              cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
+              
+              echo "=== NEW ASSETS VERIFICATION ===" >> "$LOG_FILE"
+              ls -la "$TARGET/assets" >> "$LOG_FILE" 2>&1 || true
+              
+              # Save deploy log
+              cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
+            fi
 
             echo "=== DEPLOY COMPLETE: $(date) ===" >> "$LOG_FILE"
-
-            # 8. Place completed log into web roots
-            for target in $ALL_TARGETS; do
-              if [ -n "$target" ] && [ -d "$target" ]; then
-                run_sudo cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || true
-                run_sudo chmod 644 "$target/deploy-log.txt" 2>/dev/null || true
-              fi
-            done
-
+            cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
             exit 0
