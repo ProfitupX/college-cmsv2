@@ -6,57 +6,108 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to VPS4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          test -f dist/index.html || exit 1
+          ls -la dist/
+
+      - name: Transfer dist to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "dist/*"
+          target: "/tmp/markhub_dist"
+          overwrite: true
+
+      - name: Deploy and Sync on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ${{ secrets.VPS_PATH }}
-            git fetch origin
-            git reset --hard origin/main
+            LOG_FILE="/tmp/deploy_debug.log"
+            echo "=== DEPLOY START: $(date) ===" | sudo tee "$LOG_FILE"
 
-            # Install all dependencies including devDependencies (needed for vite)
-            npm install --include=dev
-            npx vite build
-            node server/seed_all_first_year.js
-            pm2 restart all || pm2 start server/index.js --name "college-cms"
+            # 1. Update backend repo & seed database
+            cd ${{ secrets.VPS_PATH }} || true
+            git fetch origin || true
+            git reset --hard origin/main || true
+            node server/seed_all_first_year.js 2>&1 | sudo tee -a "$LOG_FILE" || true
 
-            echo "=== BUILD ARTIFACTS VERIFICATION ==="
-            ls -la dist/
+            # 2. Restart backend
+            pm2 restart all 2>&1 | sudo tee -a "$LOG_FILE" || sudo pm2 restart all 2>&1 | sudo tee -a "$LOG_FILE" || pm2 start server/index.js --name "college-cms" || true
 
-            echo "=== DETECTING NGINX WEB ROOTS & OLD BUNDLES ==="
-            # 1. Check all roots declared in nginx configuration
-            for r in $(sudo nginx -T 2>/dev/null | grep -E '^\s*root\s+' | awk '{print $2}' | tr -d ';' | sort -u); do
+            # 3. Determine source dist folder
+            SRC="/tmp/markhub_dist/dist"
+            if [ ! -d "$SRC" ] || [ ! -f "$SRC/index.html" ]; then
+              SRC="/tmp/markhub_dist"
+            fi
+            if [ ! -f "$SRC/index.html" ]; then
+              echo "Building locally on VPS fallback..." | sudo tee -a "$LOG_FILE"
+              cd ${{ secrets.VPS_PATH }}
+              npm install --include=dev || true
+              npx vite build || true
+              SRC="${{ secrets.VPS_PATH }}/dist"
+            fi
+            echo "Using source bundle from: $SRC" | sudo tee -a "$LOG_FILE"
+            ls -la "$SRC" | sudo tee -a "$LOG_FILE"
+
+            # 4. Search ENTIRE VPS for old bundle index-DCBDcCgS.js
+            echo "Searching for old bundle on VPS..." | sudo tee -a "$LOG_FILE"
+            OLD_BUNDLES=$(sudo find / -name "index-DCBDcCgS.js" 2>/dev/null || true)
+            echo "Found old bundle locations: $OLD_BUNDLES" | sudo tee -a "$LOG_FILE"
+            for old_bundle in $OLD_BUNDLES; do
+              TARGET_DIR=$(dirname $(dirname "$old_bundle"))
+              echo "Syncing new dist to: $TARGET_DIR" | sudo tee -a "$LOG_FILE"
+              sudo cp -r "$SRC"/* "$TARGET_DIR/"
+              sudo chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || true
+              sudo cp "$LOG_FILE" "$TARGET_DIR/deploy-log.txt" 2>/dev/null || true
+            done
+
+            # 5. Sync to all Nginx configured roots
+            NGINX_ROOTS=$(sudo nginx -T 2>/dev/null | grep -E '^\s*root\s+' | awk '{print $2}' | tr -d ';' | sort -u || true)
+            echo "Found Nginx roots: $NGINX_ROOTS" | sudo tee -a "$LOG_FILE"
+            for r in $NGINX_ROOTS; do
               if [ -d "$r" ]; then
-                echo "Syncing dist to configured nginx root: $r"
-                sudo cp -r dist/* "$r/"
+                echo "Syncing new dist to nginx root: $r" | sudo tee -a "$LOG_FILE"
+                sudo cp -r "$SRC"/* "$r/"
                 sudo chown -R www-data:www-data "$r" 2>/dev/null || true
+                sudo cp "$LOG_FILE" "$r/deploy-log.txt" 2>/dev/null || true
               fi
             done
 
-            # 2. Check any location where the old bundle index-DCBDcCgS.js is stored
-            for old_dir in $(sudo find /var/www /etc/nginx /home -name "index-DCBDcCgS.js" 2>/dev/null | sed 's|/assets/index-DCBDcCgS.js||' | sort -u); do
-              if [ -d "$old_dir" ]; then
-                echo "Syncing dist to old bundle directory: $old_dir"
-                sudo cp -r dist/* "$old_dir/"
-                sudo chown -R www-data:www-data "$old_dir" 2>/dev/null || true
+            # 6. Sync to standard web roots
+            for std_dir in /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist; do
+              if [ -d "$std_dir" ]; then
+                echo "Syncing new dist to standard root: $std_dir" | sudo tee -a "$LOG_FILE"
+                sudo cp -r "$SRC"/* "$std_dir/"
+                sudo chown -R www-data:www-data "$std_dir" 2>/dev/null || true
+                sudo cp "$LOG_FILE" "$std_dir/deploy-log.txt" 2>/dev/null || true
               fi
             done
 
-            # 3. Standard fallback locations
-            for target in /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist; do
-              if [ -d "$target" ]; then
-                echo "Syncing dist to standard fallback: $target"
-                sudo cp -r dist/* "$target/"
-                sudo chown -R www-data:www-data "$target" 2>/dev/null || true
-              fi
-            done
-
+            # 7. Reload Nginx
             sudo systemctl reload nginx || sudo nginx -s reload || true
-            echo "=== VPS DEPLOYMENT COMPLETED ==="
+            echo "=== DEPLOY FINISHED: $(date) ===" | sudo tee -a "$LOG_FILE"
