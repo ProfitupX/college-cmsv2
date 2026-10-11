@@ -207,27 +207,6 @@ async function seed() {
     }
     console.log('Inserted Subjects');
 
-    // Create exactly 1 student for each class so they appear in reports and mark entry
-    const sampleStudents = [
-      { id: 'STU_CSEA_1', s_no: 1, roll_no: '26CSEA001', name: 'Aarav Kumar', class_id: 'C_SH_CSE_A_1', dept: 'Science and Humanities' },
-      { id: 'STU_IT_1', s_no: 1, roll_no: '26IT001', name: 'Arjun Das', class_id: 'C_SH_IT_1', dept: 'Science and Humanities' },
-      { id: 'STU_AIDS_1', s_no: 1, roll_no: '26AIDS001', name: 'Karthik Raja', class_id: 'C_SH_AIDS_1', dept: 'Science and Humanities' },
-      { id: 'STU_ECE_1', s_no: 1, roll_no: '26ECE001', name: 'Mohamed Asif', class_id: 'C_SH_ECE_1', dept: 'Science and Humanities' },
-      { id: 'STU_EEE_1', s_no: 1, roll_no: '26EEE001', name: 'Priya Raj', class_id: 'C_SH_EEE_1', dept: 'Science and Humanities' },
-      { id: 'STU_MECH_1', s_no: 1, roll_no: '26MECH001', name: 'Sanjay Krish', class_id: 'C_SH_MECH_1', dept: 'Science and Humanities' },
-      { id: 'STU_CIVIL_1', s_no: 1, roll_no: '26CIVIL001', name: 'Vignesh S', class_id: 'C_SH_CIVIL_1', dept: 'Science and Humanities' },
-      { id: 'STU_CSEB_1', s_no: 1, roll_no: '26CSEB001', name: 'Ananya V', class_id: 'C_SH_CSE_B_1', dept: 'Science and Humanities' }
-    ];
-
-    for (const stu of sampleStudents) {
-      await pool.query(
-        `INSERT IGNORE INTO students (id, s_no, roll_no, name, class_id, department)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [stu.id, stu.s_no, stu.roll_no, stu.name, stu.class_id, stu.dept]
-      );
-    }
-    console.log('Inserted Dummy Students');
-
     console.log('Successfully Seeded all 1st Year Data!');
   } catch (err) {
     console.error('Error seeding data:', err);

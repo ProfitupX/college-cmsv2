@@ -4,7 +4,9 @@
 // Base URL: http://localhost:5000/api
 // ============================================================
 
-const BASE = `http://${window.location.hostname}:5000/api`;
+const BASE = window.location.protocol === 'https:'
+  ? '/api'
+  : `http://${window.location.hostname}:5000/api`;
 
 // Generic fetch helper
 async function request(method, path, body = null) {

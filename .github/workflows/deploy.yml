@@ -23,4 +23,5 @@ jobs:
             sudo rm -rf dist node_modules/.vite
             npm install
             npm run build
+            node server/seed_all_first_year.js
             pm2 restart all || pm2 start server/index.js --name "college-cms"
