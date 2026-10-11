@@ -46,68 +46,49 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
           script: |
             LOG_FILE="/tmp/deploy_debug.log"
-            echo "=== DEPLOY START: $(date) ===" | sudo tee "$LOG_FILE"
+            echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
 
             # 1. Update backend repo & seed database
             cd ${{ secrets.VPS_PATH }} || true
             git fetch origin || true
             git reset --hard origin/main || true
-            node server/seed_all_first_year.js 2>&1 | sudo tee -a "$LOG_FILE" || true
+            node server/seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
 
-            # 2. Restart backend
-            pm2 restart all 2>&1 | sudo tee -a "$LOG_FILE" || sudo pm2 restart all 2>&1 | sudo tee -a "$LOG_FILE" || pm2 start server/index.js --name "college-cms" || true
+            # 2. Restart backend processes
+            pm2 restart all >> "$LOG_FILE" 2>&1 || sudo pm2 restart all >> "$LOG_FILE" 2>&1 || true
 
             # 3. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
             if [ ! -d "$SRC" ] || [ ! -f "$SRC/index.html" ]; then
               SRC="/tmp/markhub_dist"
             fi
-            if [ ! -f "$SRC/index.html" ]; then
-              echo "Building locally on VPS fallback..." | sudo tee -a "$LOG_FILE"
-              cd ${{ secrets.VPS_PATH }}
-              npm install --include=dev || true
-              npx vite build || true
-              SRC="${{ secrets.VPS_PATH }}/dist"
-            fi
-            echo "Using source bundle from: $SRC" | sudo tee -a "$LOG_FILE"
-            ls -la "$SRC" | sudo tee -a "$LOG_FILE"
+            echo "Using bundle source: $SRC" >> "$LOG_FILE"
+            ls -la "$SRC" >> "$LOG_FILE" 2>&1 || true
 
-            # 4. Search ENTIRE VPS for old bundle index-DCBDcCgS.js
-            echo "Searching for old bundle on VPS..." | sudo tee -a "$LOG_FILE"
-            OLD_BUNDLES=$(sudo find / -name "index-DCBDcCgS.js" 2>/dev/null || true)
-            echo "Found old bundle locations: $OLD_BUNDLES" | sudo tee -a "$LOG_FILE"
-            for old_bundle in $OLD_BUNDLES; do
-              TARGET_DIR=$(dirname $(dirname "$old_bundle"))
-              echo "Syncing new dist to: $TARGET_DIR" | sudo tee -a "$LOG_FILE"
-              sudo cp -r "$SRC"/* "$TARGET_DIR/"
-              sudo chown -R www-data:www-data "$TARGET_DIR" 2>/dev/null || true
-              sudo cp "$LOG_FILE" "$TARGET_DIR/deploy-log.txt" 2>/dev/null || true
-            done
+            # 4. Search targeted web directories for old bundle index-DCBDcCgS.js
+            echo "Searching for old bundle..." >> "$LOG_FILE"
+            OLD_LOCATIONS=$(find /var/www /home /srv /usr/share/nginx -name "index-DCBDcCgS.js" 2>/dev/null | sed 's|/assets/index-DCBDcCgS.js||' | sort -u || true)
+            echo "Found old bundle locations: $OLD_LOCATIONS" >> "$LOG_FILE"
 
-            # 5. Sync to all Nginx configured roots
-            NGINX_ROOTS=$(sudo nginx -T 2>/dev/null | grep -E '^\s*root\s+' | awk '{print $2}' | tr -d ';' | sort -u || true)
-            echo "Found Nginx roots: $NGINX_ROOTS" | sudo tee -a "$LOG_FILE"
-            for r in $NGINX_ROOTS; do
-              if [ -d "$r" ]; then
-                echo "Syncing new dist to nginx root: $r" | sudo tee -a "$LOG_FILE"
-                sudo cp -r "$SRC"/* "$r/"
-                sudo chown -R www-data:www-data "$r" 2>/dev/null || true
-                sudo cp "$LOG_FILE" "$r/deploy-log.txt" 2>/dev/null || true
-              fi
-            done
+            # 5. Extract Nginx configured roots
+            NGINX_ROOTS=$(grep -rn "root " /etc/nginx/ 2>/dev/null | awk '{print $NF}' | tr -d ';' | sort -u || true)
+            echo "Found Nginx roots: $NGINX_ROOTS" >> "$LOG_FILE"
 
-            # 6. Sync to standard web roots
-            for std_dir in /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist; do
-              if [ -d "$std_dir" ]; then
-                echo "Syncing new dist to standard root: $std_dir" | sudo tee -a "$LOG_FILE"
-                sudo cp -r "$SRC"/* "$std_dir/"
-                sudo chown -R www-data:www-data "$std_dir" 2>/dev/null || true
-                sudo cp "$LOG_FILE" "$std_dir/deploy-log.txt" 2>/dev/null || true
+            # 6. Synchronize to all detected web directories
+            ALL_TARGETS=$(echo "$OLD_LOCATIONS $NGINX_ROOTS /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist" | tr ' ' '\n' | sort -u)
+            for target in $ALL_TARGETS; do
+              if [ -n "$target" ] && [ -d "$target" ]; then
+                echo "Overwriting web target: $target" >> "$LOG_FILE"
+                cp -rf "$SRC"/* "$target/" 2>/dev/null || sudo cp -rf "$SRC"/* "$target/" 2>/dev/null || true
+                chmod -R 755 "$target" 2>/dev/null || sudo chmod -R 755 "$target" 2>/dev/null || true
+                cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || sudo cp "$LOG_FILE" "$target/deploy-log.txt" 2>/dev/null || true
               fi
             done
 
             # 7. Reload Nginx
-            sudo systemctl reload nginx || sudo nginx -s reload || true
-            echo "=== DEPLOY FINISHED: $(date) ===" | sudo tee -a "$LOG_FILE"
+            sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || nginx -s reload 2>/dev/null || true
+            echo "=== DEPLOY COMPLETE: $(date) ===" >> "$LOG_FILE"
+            exit 0
