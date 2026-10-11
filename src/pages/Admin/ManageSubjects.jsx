@@ -45,6 +45,8 @@ export default function ManageSubjects() {
   // Filters
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('');
   const [semFilter, setSemFilter] = useState('');
 
   const loadData = async () => {
@@ -130,9 +132,23 @@ export default function ManageSubjects() {
       const matchesDept = !deptFilter || (subClass && subClass.department === deptFilter);
       const matchesSem = !semFilter || (subClass && subClass.semester === parseInt(semFilter));
       
-      return matchesSearch && matchesDept && matchesSem;
+      let matchesBranch = true;
+      if (deptFilter === 'Science and Humanities' && branchFilter && subClass) {
+        const cleanBranch = branchFilter.replace(/[^a-zA-Z]/g, '').toLowerCase();
+        const cleanClassName = subClass.name.replace(/[^a-zA-Z]/g, '').toLowerCase();
+        matchesBranch = cleanClassName.includes(cleanBranch);
+
+        if (branchFilter === 'CSE' && sectionFilter) {
+          const matchSec = (subClass.section && subClass.section.toUpperCase() === sectionFilter.toUpperCase()) ||
+                           subClass.name.toUpperCase().includes(`CSE ${sectionFilter.toUpperCase()}`) ||
+                           subClass.id.toUpperCase().includes(`CSE_${sectionFilter.toUpperCase()}`);
+          matchesBranch = matchesBranch && matchSec;
+        }
+      }
+      
+      return matchesSearch && matchesDept && matchesSem && matchesBranch;
     });
-  }, [subjects, classesList, search, deptFilter, semFilter]);
+  }, [subjects, classesList, search, deptFilter, branchFilter, sectionFilter, semFilter]);
 
   if (loading) return <div className={styles.center}><Loader className={styles.spinner} /></div>;
 
@@ -156,6 +172,8 @@ export default function ManageSubjects() {
       <AdminToolbar 
         search={search} onSearchChange={setSearch}
         departmentFilter={deptFilter} onDepartmentChange={setDeptFilter}
+        branchFilter={branchFilter} onBranchChange={setBranchFilter}
+        sectionFilter={sectionFilter} onSectionChange={setSectionFilter}
         semesterFilter={semFilter} onSemesterChange={setSemFilter}
       />
 

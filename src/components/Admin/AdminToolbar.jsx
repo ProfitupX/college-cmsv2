@@ -11,6 +11,15 @@ export const DEPARTMENTS = [
   'Mechanical Engineering',
   'Science and Humanities'
 ];
+export const BRANCHES = [
+  'CSE',
+  'IT',
+  'AI & DS',
+  'ECE',
+  'EEE',
+  'Civil',
+  'Mech'
+];
 export const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export default function AdminToolbar({ 
@@ -18,6 +27,10 @@ export default function AdminToolbar({
   onSearchChange, 
   departmentFilter, 
   onDepartmentChange,
+  branchFilter,
+  onBranchChange,
+  sectionFilter,
+  onSectionChange,
   semesterFilter,
   onSemesterChange 
 }) {
@@ -41,6 +54,31 @@ export default function AdminToolbar({
             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
+
+        {departmentFilter === 'Science and Humanities' && onBranchChange && (
+          <div className={styles.filterGroup}>
+            <select 
+              value={branchFilter} 
+              onChange={(e) => {
+                onBranchChange(e.target.value);
+                if (onSectionChange) onSectionChange('');
+              }}
+            >
+              <option value="">All Branches (1st Year)</option>
+              {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+        )}
+
+        {departmentFilter === 'Science and Humanities' && branchFilter === 'CSE' && onSectionChange && (
+          <div className={styles.filterGroup}>
+            <select value={sectionFilter} onChange={(e) => onSectionChange(e.target.value)}>
+              <option value="">All Sections (CSE)</option>
+              <option value="A">Section A</option>
+              <option value="B">Section B</option>
+            </select>
+          </div>
+        )}
 
         {onSemesterChange && (
           <div className={styles.filterGroup}>
