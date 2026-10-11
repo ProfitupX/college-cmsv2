@@ -56,20 +56,26 @@ export default function MarksEntryPage() {
   const [pdfPayload, setPdfPayload] = useState(null);
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
-  // ── Load classes on mount (2025 Regulation: 2nd Year classes only, filtered by role) ────
+  // ── Load classes on mount (2025 Regulation: I Year & II Year Autonomous classes, filtered by role) ────
   useEffect(() => {
     classesAPI.getAll()
       .then(allClasses => {
         let filtered = allClasses.filter(c =>
+          c.year_label === 'I' ||
           c.year_label === 'II' ||
+          parseInt(c.semester) === 1 ||
+          parseInt(c.semester) === 2 ||
           parseInt(c.semester) === 3 ||
           parseInt(c.semester) === 4
         );
 
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
-          // All 2nd year classes
+          // All 1st & 2nd year classes
         } else if (user?.role === 'hod') {
-          filtered = filtered.filter(c => c.department === user.department);
+          filtered = filtered.filter(c => 
+            c.department === user.department || 
+            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0]))
+          );
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c.id);
           const teachIds = (user.teachingClasses || []).map(c => c.id);

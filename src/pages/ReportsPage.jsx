@@ -79,7 +79,10 @@ export default function ReportsPage() {
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
           allowed = allClasses;
         } else if (user?.role === 'hod') {
-          allowed = allClasses.filter(c => c.department === user.department);
+          allowed = allClasses.filter(c => 
+            c.department === user.department || 
+            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0]))
+          );
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c.id);
           const teachIds = (user.teachingClasses || []).map(c => c.id);
@@ -317,8 +320,8 @@ export default function ReportsPage() {
   };
 
   const handleHistoryRowClick = (session) => {
-    // Check if class is 2025 Regulation (2nd Year)
-    const is2025 = session.year_label === 'II' || parseInt(session.semester) === 3 || parseInt(session.semester) === 4;
+    // Check if class is 2025 Regulation (1st & 2nd Year)
+    const is2025 = session.year_label === 'I' || session.year_label === 'II' || parseInt(session.semester) <= 4;
     const path = is2025 ? '/marks-entry' : '/marks-entry-2021';
     navigate(path, { state: { classId: session.class_id, subjectId: session.subject_id } });
   };
