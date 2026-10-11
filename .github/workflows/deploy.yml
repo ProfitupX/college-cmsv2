@@ -20,23 +20,43 @@ jobs:
             cd ${{ secrets.VPS_PATH }}
             git fetch origin
             git reset --hard origin/main
-            sudo rm -rf dist node_modules/.vite
-            npm install
-            npm run build
+
+            # Install all dependencies including devDependencies (needed for vite)
+            npm install --include=dev
+            npx vite build
             node server/seed_all_first_year.js
             pm2 restart all || pm2 start server/index.js --name "college-cms"
 
-            echo "=== DETECTING NGINX WEB ROOTS ==="
-            sudo grep -rn "root" /etc/nginx/sites-enabled/ || true
-            for conf in /etc/nginx/sites-enabled/*; do
-              if [ -f "$conf" ]; then
-                WEB_ROOT=$(grep -E '^\s*root\s+' "$conf" | head -n 1 | awk '{print $2}' | tr -d ';')
-                if [ -n "$WEB_ROOT" ] && [ "$WEB_ROOT" != "$(pwd)/dist" ] && [ -d "$WEB_ROOT" ]; then
-                  echo "Syncing compiled dist to $WEB_ROOT ..."
-                  sudo cp -r dist/* "$WEB_ROOT/"
-                  sudo chown -R www-data:www-data "$WEB_ROOT" 2>/dev/null || true
-                fi
+            echo "=== BUILD ARTIFACTS VERIFICATION ==="
+            ls -la dist/
+
+            echo "=== DETECTING NGINX WEB ROOTS & OLD BUNDLES ==="
+            # 1. Check all roots declared in nginx configuration
+            for r in $(sudo nginx -T 2>/dev/null | grep -E '^\s*root\s+' | awk '{print $2}' | tr -d ';' | sort -u); do
+              if [ -d "$r" ]; then
+                echo "Syncing dist to configured nginx root: $r"
+                sudo cp -r dist/* "$r/"
+                sudo chown -R www-data:www-data "$r" 2>/dev/null || true
               fi
             done
+
+            # 2. Check any location where the old bundle index-DCBDcCgS.js is stored
+            for old_dir in $(sudo find /var/www /etc/nginx /home -name "index-DCBDcCgS.js" 2>/dev/null | sed 's|/assets/index-DCBDcCgS.js||' | sort -u); do
+              if [ -d "$old_dir" ]; then
+                echo "Syncing dist to old bundle directory: $old_dir"
+                sudo cp -r dist/* "$old_dir/"
+                sudo chown -R www-data:www-data "$old_dir" 2>/dev/null || true
+              fi
+            done
+
+            # 3. Standard fallback locations
+            for target in /var/www/html /var/www/college-cms /var/www/college-cms/dist /var/www/markhub /var/www/markhub/dist; do
+              if [ -d "$target" ]; then
+                echo "Syncing dist to standard fallback: $target"
+                sudo cp -r dist/* "$target/"
+                sudo chown -R www-data:www-data "$target" 2>/dev/null || true
+              fi
+            done
+
             sudo systemctl reload nginx || sudo nginx -s reload || true
-            echo "=== VPS DEPLOYMENT & SYNC COMPLETED ==="
+            echo "=== VPS DEPLOYMENT COMPLETED ==="

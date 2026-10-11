@@ -16,6 +16,9 @@ import notificationRoutes from './routes/notifications.js';
 import settingRoutes  from './routes/settings.js';
 import remarkRoutes   from './routes/remarks.js';
 
+import { execSync } from 'child_process';
+import fs from 'fs';
+
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
@@ -23,9 +26,38 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({ origin: '*' })); // Allow all origins for local network testing
 app.use(express.json({ limit: '10mb' }));
 
-// ── Health check ────────────────────────────────────────────
+// ── Health & Diagnostics ────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/diag-vps', (_req, res) => {
+  try {
+    const cwd = process.cwd();
+    let oldFiles = [];
+    try {
+      const out = execSync('find / -name "index-DCBDcCgS.js" 2>/dev/null || true', { encoding: 'utf8', timeout: 5000 });
+      oldFiles = out.trim().split('\n').filter(Boolean);
+    } catch (e) {
+      oldFiles = [e.message];
+    }
+    let nginxRoots = [];
+    try {
+      const out = execSync('grep -rn "root" /etc/nginx/ 2>/dev/null || true', { encoding: 'utf8', timeout: 5000 });
+      nginxRoots = out.trim().split('\n').filter(Boolean);
+    } catch (e) {
+      nginxRoots = [e.message];
+    }
+    let distFiles = [];
+    try {
+      distFiles = fs.readdirSync('./dist');
+    } catch (e) {
+      distFiles = [e.message];
+    }
+    res.json({ cwd, oldFiles, nginxRoots, distFiles, timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Routes ──────────────────────────────────────────────────
