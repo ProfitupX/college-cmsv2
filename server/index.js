@@ -79,7 +79,12 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 College CMS API running on http://0.0.0.0:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 });
+
+server.on('error', (err) => {
+  console.error('❌ Server startup error:', err.message);
+});
+

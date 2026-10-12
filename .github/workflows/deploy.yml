@@ -83,23 +83,22 @@ jobs:
 
             # 4. Restart PM2 backend cleanly with latest code
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            echo "=== PROCESSES ON PORT 5000 ===" >> "$LOG_FILE"
-            ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
-            ps aux | grep -E "node|pm2" >> "$LOG_FILE" 2>&1 || true
-
-            # Kill any zombie process occupying port 5000
-            fuser -k -9 5000/tcp 2>/dev/null || true
+            command -v fuser >/dev/null 2>&1 && fuser -k -9 5000/tcp 2>/dev/null || true
             pkill -9 -f "server/index.js" 2>/dev/null || true
             pkill -9 -f "node index.js" 2>/dev/null || true
             sleep 1
 
+            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
-            cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
+            cd /var/www/markhub/server
+            pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
             sleep 3
             pm2 status >> "$LOG_FILE" 2>&1 || true
-            echo "=== PM2 LOGS (AFTER START) ===" >> "$LOG_FILE"
-            pm2 logs college-cms --lines 30 --nostream >> "$LOG_FILE" 2>&1 || true
+            echo "=== PM2 ERROR LOG ===" >> "$LOG_FILE"
+            tail -n 40 /home/markhub-deploy/.pm2/logs/college-cms-error.log >> "$LOG_FILE" 2>&1 || true
+            echo "=== PM2 OUT LOG ===" >> "$LOG_FILE"
+            tail -n 40 /home/markhub-deploy/.pm2/logs/college-cms-out.log >> "$LOG_FILE" 2>&1 || true
 
             # 5. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
