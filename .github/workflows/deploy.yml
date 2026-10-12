@@ -49,6 +49,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 5m
           script: |
+            set +e
             LOG_FILE="/tmp/deploy_debug.log"
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
@@ -83,28 +84,22 @@ jobs:
             # 4. Restart PM2 backend cleanly with latest code
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
             echo "=== PROCESSES ON PORT 5000 ===" >> "$LOG_FILE"
-            lsof -i :5000 >> "$LOG_FILE" 2>&1 || ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
-            sudo -n lsof -i :5000 >> "$LOG_FILE" 2>&1 || true
+            ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
             ps aux | grep -E "node|pm2" >> "$LOG_FILE" 2>&1 || true
 
             # Kill any zombie process occupying port 5000
-            sudo -n kill -9 $(sudo -n lsof -t -i:5000 2>/dev/null) 2>/dev/null || true
-            kill -9 $(lsof -t -i:5000 2>/dev/null) 2>/dev/null || true
-            fuser -k 5000/tcp 2>/dev/null || true
-            sudo -n fuser -k 5000/tcp 2>/dev/null || true
-            pkill -u markhub-deploy -f "node /var/www/markhub/server/index.js" 2>/dev/null || true
+            fuser -k -9 5000/tcp 2>/dev/null || true
+            pkill -9 -f "server/index.js" 2>/dev/null || true
+            pkill -9 -f "node index.js" 2>/dev/null || true
             sleep 1
 
-            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
             cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
-            sleep 2
+            sleep 3
             pm2 status >> "$LOG_FILE" 2>&1 || true
             echo "=== PM2 LOGS (AFTER START) ===" >> "$LOG_FILE"
             pm2 logs college-cms --lines 30 --nostream >> "$LOG_FILE" 2>&1 || true
-            sudo -n systemctl restart college-cms 2>/dev/null || true
-            sudo -n systemctl restart markhub 2>/dev/null || true
 
             # 5. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
