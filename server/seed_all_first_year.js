@@ -812,6 +812,39 @@ async function seedMaster() {
     await db.query(`UPDATE staffs SET department = 'Computer Science and Engineering' WHERE id IN ('S_NAVEENKARTHICK', 'S_MAREESWARI')`);
     console.log('✅ Core engineering faculty department integrity verified.');
 
+    // 9. Ensure notifications table exists and broadcast system activation notification
+    console.log('--- Step 9: Verifying Notifications System ---');
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          target_role VARCHAR(50) DEFAULT NULL,
+          target_department VARCHAR(100) DEFAULT NULL,
+          target_id VARCHAR(50) DEFAULT NULL,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          link VARCHAR(255) DEFAULT NULL,
+          is_read TINYINT(1) DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const [notifCheck] = await db.query(
+        `SELECT id FROM notifications WHERE title = 'Autonomous Regulation 2025 Portal Live' LIMIT 1`
+      );
+      if (notifCheck.length === 0) {
+        await db.query(
+          `INSERT INTO notifications (target_role, title, message, link, is_read)
+           VALUES ('all', 'Autonomous Regulation 2025 Portal Live', 'Regulation 2025 Semester 1 Marks Entry & Reports are active for all 8 First-Year classes (332 students). Science & Humanities and departmental staff portals are operational.', '/marks-entry', FALSE)`
+        );
+        console.log('✅ System activation notification broadcasted to all staff & administration.');
+      } else {
+        console.log('✅ Notifications system verified.');
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Notifications verification notice:', notifErr.message);
+    }
+
     console.log('\n🎉 ALL FIRST-YEAR DATABASE DATA SUCCESSFULLY SEEDED & VERIFIED!');
     process.exit(0);
   } catch (err) {

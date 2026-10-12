@@ -157,6 +157,7 @@ export const notificationsAPI = {
     if (department) url += `?department=${encodeURIComponent(department)}`;
     return get(url);
   },
+  create: (data) => post('/notifications', data),
   markRead: (id) => put(`/notifications/${id}/read`),
   delete: (id) => remove(`/notifications/${id}`)
 };

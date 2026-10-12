@@ -79,8 +79,8 @@ router.post('/:key', async (req, res) => {
       const deadlineDate = new Date(value).toLocaleDateString('en-IN');
       await db.execute(
         `INSERT INTO notifications (target_role, title, message, link)
-         VALUES ('faculty', 'Marks Entry Deadline Set', ?, '/dashboard')`,
-        [`The HOD has set the marks entry deadline to ${deadlineDate}. Please complete your entries before the deadline.`]
+         VALUES ('all', 'Marks Entry Deadline Set', ?, '/dashboard')`,
+        [`The marks entry deadline has been updated to ${deadlineDate}. All faculty and class coordinators please ensure marks entries are completed on time.`]
       );
     }
 

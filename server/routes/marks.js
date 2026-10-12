@@ -155,28 +155,36 @@ router.post('/submit', async (req, res) => {
           `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('hod', ?, 'Marks Frozen', ?, '/dashboard')`,
           [dept, `Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
         );
+
+        // Notify College Administration / Leadership
+        await db.execute(
+          `INSERT INTO notifications (target_role, title, message, link) VALUES ('admin', 'Subject Marks Finalized', ?, '/dashboard')`,
+          [`Marks for ${subName} (${sessionLabel}) have been frozen and finalized.`]
+        );
         
-        // Notify Specific Class In-charge
+        // Notify Specific Class Coordinator
         if (sub && sub.class_id) {
-          const [classRows] = await db.execute('SELECT class_coordinator FROM classes WHERE id = ?', [sub.class_id]);
+          const [classRows] = await db.execute('SELECT name, department, class_coordinator FROM classes WHERE id = ?', [sub.class_id]);
           if (classRows.length > 0 && classRows[0].class_coordinator) {
-            const coordName = classRows[0].class_coordinator.trim();
-            const [coordStaffs] = await db.execute('SELECT id FROM staffs WHERE name = ?', [coordName]);
+            const coordStr = classRows[0].class_coordinator.trim();
+            const cleanName = coordStr.split(/,|\s+(?:TF|AP|Prof|Dr|HoD)\//)[0].trim();
+            const [coordStaffs] = await db.query(
+              'SELECT id FROM staffs WHERE INSTR(?, name) > 0 OR INSTR(name, ?) > 0 LIMIT 1',
+              [coordStr, cleanName]
+            );
             if (coordStaffs.length > 0) {
-              for (const staff of coordStaffs) {
-                await db.execute(
-                  `INSERT INTO notifications (target_id, title, message, link) VALUES (?, 'Class Subject Marks Frozen', ?, '/reports')`,
-                  [staff.id, `Marks for ${subName} have been frozen. You can now view the updated class performance.`]
-                );
-              }
+              await db.execute(
+                `INSERT INTO notifications (target_id, title, message, link) VALUES (?, 'Class Subject Marks Frozen', ?, '/reports')`,
+                [coordStaffs[0].id, `Marks for ${subName} (${classRows[0].name}) have been frozen. You can now view the updated class performance.`]
+              );
               coordNotified = true;
             }
           }
         }
         if (!coordNotified) {
           await db.execute(
-            `INSERT INTO notifications (target_role, title, message, link) VALUES ('class_coordinator', 'Class Subject Marks Frozen', ?, '/reports')`,
-            [`Marks for ${subName} have been frozen. You can now view the updated class performance.`]
+            `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('class_coordinator', ?, 'Class Subject Marks Frozen', ?, '/reports')`,
+            [dept, `Marks for ${subName} have been frozen. You can now view the updated class performance.`]
           );
         }
       } catch (notifErr) {
@@ -414,6 +422,33 @@ router.post('/approve-unlock', async (req, res) => {
        WHERE id = ?`,
       [newRequestStatus, hodId || 'HOD', requestId]
     );
+
+    // Notify the requesting faculty member directly
+    try {
+      const [reqDetails] = await db.execute(
+        `SELECT ur.staff_id, ur.subject_id, ur.class_id, sub.name as subject_name, sub.code as subject_code
+         FROM mark_unlock_requests ur
+         LEFT JOIN subjects sub ON sub.id = ur.subject_id
+         WHERE ur.id = ?`,
+        [requestId]
+      );
+      if (reqDetails.length > 0 && reqDetails[0].staff_id) {
+        const { staff_id, subject_name, subject_code, class_id } = reqDetails[0];
+        const subTitle = subject_code ? `${subject_code} ${subject_name || ''}` : 'the subject';
+        const actionTitle = action === 'approve' ? 'Marks Unlock Approved' : 'Marks Unlock Declined';
+        const actionMsg = action === 'approve'
+          ? `Your request to edit marks for ${subTitle} was approved by HOD. You may now modify and re-freeze the marks sheet.`
+          : `Your request to edit marks for ${subTitle} was declined by HOD.`;
+        const actionLink = action === 'approve' ? `/marks-entry?classId=${class_id || ''}` : '/reports';
+
+        await db.execute(
+          `INSERT INTO notifications (target_id, title, message, link) VALUES (?, ?, ?, ?)`,
+          [staff_id, actionTitle, actionMsg, actionLink]
+        );
+      }
+    } catch (notifErr) {
+      console.error('Failed to notify staff on unlock decision:', notifErr);
+    }
 
     res.json({ success: true, message: `Request ${action}d successfully.` });
   } catch (err) {

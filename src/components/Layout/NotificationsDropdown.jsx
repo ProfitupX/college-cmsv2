@@ -16,9 +16,27 @@ export default function NotificationsDropdown() {
     if (!user) return;
     try {
       const data = await notificationsAPI.get(user.role, user.id, user.department);
-      setNotifications(data);
+      if (Array.isArray(data)) {
+        // Read IDs tracked locally per user for shared broadcast notifications
+        const readStorageKey = `cms_read_notifs_${user.id}`;
+        let locallyRead = [];
+        try {
+          locallyRead = JSON.parse(localStorage.getItem(readStorageKey) || '[]');
+        } catch {
+          locallyRead = [];
+        }
+        const readSet = new Set(locallyRead);
+
+        const processed = data.map(n => ({
+          ...n,
+          is_read: n.target_id === user.id ? (n.is_read ? 1 : 0) : (readSet.has(n.id) ? 1 : 0)
+        }));
+        setNotifications(processed);
+      } else {
+        setNotifications([]);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch notifications:', err);
     }
   };
 
@@ -40,13 +58,26 @@ export default function NotificationsDropdown() {
   }, []);
 
   const handleMarkRead = async (id, e) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     try {
       await notificationsAPI.markRead(id);
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
     } catch (err) {
       console.error(err);
     }
+
+    // Persist per-user read state locally so shared announcements stay read for this user
+    if (user?.id) {
+      const readStorageKey = `cms_read_notifs_${user.id}`;
+      try {
+        const locallyRead = JSON.parse(localStorage.getItem(readStorageKey) || '[]');
+        if (!locallyRead.includes(id)) {
+          locallyRead.push(id);
+          localStorage.setItem(readStorageKey, JSON.stringify(locallyRead));
+        }
+      } catch {}
+    }
+
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
   };
 
   const handleDelete = async (id, e) => {
