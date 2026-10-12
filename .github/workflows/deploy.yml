@@ -58,8 +58,14 @@ jobs:
             git reset --hard origin/main || true
             node server/seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
 
-            # 2. Restart PM2 backend
-            pm2 restart all >> "$LOG_FILE" 2>&1 || true
+            # 2. Restart PM2 backend cleanly with latest code
+            echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
+            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
+            pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
+            pm2 start server/index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
+            pm2 save >> "$LOG_FILE" 2>&1 || true
+            sleep 2
+            pm2 status >> "$LOG_FILE" 2>&1 || true
 
             # 3. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
