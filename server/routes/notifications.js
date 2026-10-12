@@ -124,14 +124,15 @@ router.put('/:id/read', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await db.execute(
+    const notifId = parseInt(id) || id;
+    await db.query(
       'DELETE FROM notifications WHERE id = ?',
-      [id]
+      [notifId]
     );
     res.json({ success: true });
   } catch (err) {
     console.error('DELETE /notifications/:id error:', err);
-    res.status(500).json({ error: 'Failed to delete notification.' });
+    res.status(500).json({ error: 'Failed to delete notification: ' + err.message });
   }
 });
 

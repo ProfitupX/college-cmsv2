@@ -17,20 +17,30 @@ export default function NotificationsDropdown() {
     try {
       const data = await notificationsAPI.get(user.role, user.id, user.department);
       if (Array.isArray(data)) {
-        // Read IDs tracked locally per user for shared broadcast notifications
+        // Read & Deleted IDs tracked locally per user for shared broadcast notifications
         const readStorageKey = `cms_read_notifs_${user.id}`;
+        const delStorageKey = `cms_deleted_notifs_${user.id}`;
         let locallyRead = [];
+        let locallyDeleted = [];
         try {
           locallyRead = JSON.parse(localStorage.getItem(readStorageKey) || '[]');
         } catch {
           locallyRead = [];
         }
+        try {
+          locallyDeleted = JSON.parse(localStorage.getItem(delStorageKey) || '[]');
+        } catch {
+          locallyDeleted = [];
+        }
         const readSet = new Set(locallyRead);
+        const delSet = new Set(locallyDeleted);
 
-        const processed = data.map(n => ({
-          ...n,
-          is_read: n.target_id === user.id ? (n.is_read ? 1 : 0) : (readSet.has(n.id) ? 1 : 0)
-        }));
+        const processed = data
+          .filter(n => !delSet.has(n.id))
+          .map(n => ({
+            ...n,
+            is_read: n.target_id === user.id ? (n.is_read ? 1 : 0) : (readSet.has(n.id) ? 1 : 0)
+          }));
         setNotifications(processed);
       } else {
         setNotifications([]);
@@ -81,12 +91,31 @@ export default function NotificationsDropdown() {
   };
 
   const handleDelete = async (id, e) => {
-    e.stopPropagation();
+    if (e) {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+    }
+    
+    // 1. Immediately remove from UI
+    setNotifications(prev => prev.filter(n => n.id !== id));
+
+    // 2. Persist in user local storage so it never reappears on refetch
+    if (user?.id) {
+      const delStorageKey = `cms_deleted_notifs_${user.id}`;
+      try {
+        const locallyDeleted = JSON.parse(localStorage.getItem(delStorageKey) || '[]');
+        if (!locallyDeleted.includes(id)) {
+          locallyDeleted.push(id);
+          localStorage.setItem(delStorageKey, JSON.stringify(locallyDeleted));
+        }
+      } catch {}
+    }
+
+    // 3. Call backend API to delete from DB
     try {
       await notificationsAPI.delete(id);
-      setNotifications(prev => prev.filter(n => n.id !== id));
     } catch (err) {
-      console.error('Failed to delete notification', err);
+      console.warn('Backend notification delete notice:', err.message);
     }
   };
 
