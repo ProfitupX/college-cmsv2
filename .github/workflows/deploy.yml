@@ -31,13 +31,13 @@ jobs:
           ls -la dist/
           ls -la dist/assets/
 
-      - name: Transfer dist to VPS
+      - name: Transfer dist and server to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "dist/*"
+          source: "dist/,server/"
           target: "/tmp/markhub_dist"
           overwrite: true
 
@@ -51,30 +51,52 @@ jobs:
           script: |
             LOG_FILE="/tmp/deploy_debug.log"
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
+            echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
 
-            # 1. Update backend repo & seed database
-            cd ${{ secrets.VPS_PATH }} || true
-            git fetch origin || true
-            git reset --hard origin/main || true
-            node server/seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
+            # 1. Update backend repo if git directory exists
+            git config --global --add safe.directory "*" 2>/dev/null || true
+            if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}" ]; then
+              cd "${{ secrets.VPS_PATH }}" || true
+              git fetch origin || true
+              git reset --hard origin/main || true
+            fi
 
-            # 2. Restart PM2 backend cleanly with latest code
+            # 2. Sync server files transferred via SCP to /var/www/markhub/server
+            if [ -d "/tmp/markhub_dist/server" ]; then
+              echo "=== SYNCING SERVER CODE FROM SCP ===" >> "$LOG_FILE"
+              mkdir -p /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
+              cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
+              if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}/server" ]; then
+                cp -rf /tmp/markhub_dist/server/* "${{ secrets.VPS_PATH }}/server/" >> "$LOG_FILE" 2>&1 || true
+              fi
+            fi
+
+            # 3. Install production dependencies if needed & seed database
+            if [ -d "/var/www/markhub/server" ]; then
+              cd /var/www/markhub/server
+              npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
+              if [ -f "seed_all_first_year.js" ]; then
+                node seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
+              fi
+            fi
+
+            # 4. Restart PM2 backend cleanly with latest code
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
             pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
-            pm2 start server/index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
+            cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
             sleep 2
             pm2 status >> "$LOG_FILE" 2>&1 || true
 
-            # 3. Determine source dist folder
+            # 5. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"
             if [ ! -d "$SRC" ] || [ ! -f "$SRC/index.html" ]; then
               SRC="/tmp/markhub_dist"
             fi
             echo "Using bundle source: $SRC" >> "$LOG_FILE"
 
-            # 4. Overwrite /var/www/markhub/dist cleanly
+            # 6. Overwrite /var/www/markhub/dist cleanly
             TARGET="/var/www/markhub/dist"
             if [ -d "$TARGET" ]; then
               echo "Deploying to $TARGET..." >> "$LOG_FILE"

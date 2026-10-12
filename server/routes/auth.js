@@ -52,27 +52,27 @@ router.post('/login', async (req, res) => {
 
     const staff = rows[0];
     const isDrChithra = staff.id === 'S_CHITRA' || staff.id === 'FAC002' || cleanEmail.includes('chithra');
-    const staffIds = isDrChithra ? ['S_CHITRA', 'FAC002'] : [staff.id];
-    const placeholders = staffIds.map(() => '?').join(',');
 
     // Fetch detailed assigned subjects for this staff member (including aliases if applicable)
-    const [assignedSubs] = await db.query(`
+    const assignedSubsQuery = `
       SELECT s.id, s.code, s.name, s.type, s.class_id, s.ltpc, s.total_hours,
              c.name as class_name, c.department as class_department, c.year_label, c.semester
       FROM subjects s
       LEFT JOIN classes c ON c.id = s.class_id
-      WHERE s.faculty_id IN (${placeholders})
+      WHERE ${isDrChithra ? "s.faculty_id IN ('S_CHITRA', 'FAC002')" : "s.faculty_id = ?"}
       ORDER BY c.year_label, s.code
-    `, staffIds);
+    `;
+    const [assignedSubs] = await db.query(assignedSubsQuery, isDrChithra ? [] : [staff.id]);
 
     // Fetch distinct classes taught by this staff member
-    const [teachingClasses] = await db.query(`
+    const teachingClassesQuery = `
       SELECT DISTINCT c.id, c.name, c.department, c.year_label, c.semester, c.batch, c.academic_year
       FROM subjects s
       JOIN classes c ON c.id = s.class_id
-      WHERE s.faculty_id IN (${placeholders})
+      WHERE ${isDrChithra ? "s.faculty_id IN ('S_CHITRA', 'FAC002')" : "s.faculty_id = ?"}
       ORDER BY c.year_label, c.name
-    `, staffIds);
+    `;
+    const [teachingClasses] = await db.query(teachingClassesQuery, isDrChithra ? [] : [staff.id]);
 
     // Fetch all classes to perform normalized coordinator matching
     const [allClasses] = await db.execute('SELECT id, name, department, year_label, semester, batch, academic_year, class_coordinator, asst_coordinator FROM classes');
@@ -94,13 +94,13 @@ router.post('/login', async (req, res) => {
     res.json({
       success: true,
       user: {
-        id:                 staff.id,
-        name:               staff.name,
-        shortName:          staff.short_name,
+        id:                 isDrChithra ? 'S_CHITRA' : staff.id,
+        name:               isDrChithra ? 'Dr. C. Chithra' : staff.name,
+        shortName:          isDrChithra ? 'CC' : staff.short_name,
         designation:        isDrChithra ? 'Prof. & HoD / Maths' : staff.designation,
         role:               isDrChithra ? 'hod' : staff.role,
         email:              staff.email,
-        employeeId:         staff.employee_id,
+        employeeId:         isDrChithra ? 'SH001' : staff.employee_id,
         classRole:          staff.class_role,
         department:         isDrChithra ? 'Science and Humanities' : (staff.department || 'Information Technology'),
         isPasswordChanged:  !!staff.is_password_changed,

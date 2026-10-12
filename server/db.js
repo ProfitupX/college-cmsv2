@@ -14,6 +14,8 @@ export async function initPool() {
     }
   }
 
+  dotenv.config();
+  dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
   dotenv.config({ path: path.resolve(process.cwd(), 'server', '.env'), override: true });
 
   const candidates = [
