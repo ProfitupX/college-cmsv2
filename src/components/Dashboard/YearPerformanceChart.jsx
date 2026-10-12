@@ -25,6 +25,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function YearPerformanceChart({ data = [], user }) {
   const allYears = [
+    { name: 'I', fill: '#3B82F6' },
     { name: 'II', fill: '#6C63FF' },
     { name: 'III', fill: '#10B981' },
     { name: 'IV', fill: '#F59E0B' }
@@ -33,7 +34,7 @@ export default function YearPerformanceChart({ data = [], user }) {
   let visibleYears = new Set();
   
   if (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') {
-    visibleYears = new Set(['II', 'III', 'IV']);
+    visibleYears = new Set(['I', 'II', 'III', 'IV']);
   } else {
     (user.coordinatedClasses || []).forEach(c => {
       if (c.year_label) visibleYears.add(c.year_label);
@@ -41,6 +42,10 @@ export default function YearPerformanceChart({ data = [], user }) {
     (user.teachingClasses || []).forEach(c => {
       if (c.year_label) visibleYears.add(c.year_label);
     });
+  }
+
+  if (visibleYears.size === 0) {
+    visibleYears = new Set(['I', 'II', 'III', 'IV']);
   }
 
   const chartData = allYears
@@ -66,13 +71,14 @@ export default function YearPerformanceChart({ data = [], user }) {
           <p className={styles.sub}>
             Overall assessment average for {
               (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') 
-              ? '2nd, 3rd, and 4th years' 
+              ? '1st, 2nd, 3rd, and 4th years' 
               : 'your active classes'
             }
           </p>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
+      <div style={{ width: '100%', minHeight: '300px' }}>
+        <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(108,99,255,0.08)" vertical={false} />
           <XAxis
@@ -103,6 +109,7 @@ export default function YearPerformanceChart({ data = [], user }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

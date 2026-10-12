@@ -127,7 +127,7 @@ INSERT INTO `staffs` (`id`, `name`, `short_name`, `designation`, `role`, `email`
 ('FAC_MECH_103', 'Mr. G. Arunkumar', 'G. Arunkumar', 'AP/MECH', 'faculty', 'arunkumar@nscet.org', 'NSCET-MECH-103', 'faculty123', 'Assistant Coordinator', 'Mechanical Engineering', 0),
 ('FAC_MECH_104', 'Mr. V. Sivaganesan', 'V. Sivaganesan', 'AP/MECH', 'faculty', 'sivaganesan@nscet.org', 'NSCET-MECH-104', 'faculty123', NULL, 'Mechanical Engineering', 0),
 ('FAC001', 'Mr. C. Prathap', 'C. Prathap', 'AP, HOD IT', 'hod', 'prathapc@nscet.org', 'NSCET-IT-001', 'faculty123', NULL, 'Information Technology', 0),
-('FAC002', 'Dr. C. Chithra', 'C. Chithra', 'AP', 'faculty', 'chithra.c@nscet.org', 'NSCET-IT-002', 'faculty123', NULL, NULL, 0),
+('FAC002', 'Dr. C. Chithra', 'C. Chithra', 'Prof. & HoD / Maths', 'hod', 'chithra.c@nscet.org', 'NSCET-IT-002', 'faculty123', NULL, 'Science and Humanities', 0),
 ('FAC003', 'Mrs. P. Jasmine Jose', 'P. Jasmine Jose', 'AP', 'faculty', 'jasminejose@nscet.org', 'NSCET-IT-003', 'faculty123', 'Assistant Coordinator', 'Information Technology', 0),
 ('FAC004', 'Mr. R. Udhaya Kumar', 'R. Udhaya Kumar', 'AP', 'faculty', 'udhayakumar@nscet.org', 'NSCET-IT-004', 'faculty123', NULL, 'Information Technology', 0),
 ('FAC005', 'Mr. N. Kesavamoorthy', 'N. Kesavamoorthy', 'AP', 'faculty', 'kesavamoorthy@nscet.org', 'NSCET-IT-005', 'faculty123', 'Class Coordinator', 'Information Technology', 0),

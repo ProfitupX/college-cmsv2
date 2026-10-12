@@ -618,27 +618,33 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* HOD Pass Percentage Charts Row (3 Charts) */}
+      {/* HOD Pass Percentage Charts Row */}
       {user?.role === 'hod' && hodMarksData && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px', marginBottom: '30px' }}>
-          {hodMarksData.years.map((y, idx) => (
-            <div key={idx} className={styles.chartCard}>
-              <h3 className={styles.chartTitle}>{y.year} Year Pass %</h3>
-              <p className={styles.chartSub}>Semester {y.semester}</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={[{ name: `${y.year} Year`, pass: parseFloat(y.passPct) || 0 }]} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 13, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} formatter={(val) => [`${val}%`, 'Pass Percentage']} />
-                  <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                    <Cell fill={idx === 0 ? '#6C63FF' : idx === 1 ? '#10B981' : '#F59E0B'} />
-                    <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={13} fill="var(--text-primary)" fontWeight={600} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '20px', marginBottom: '30px' }}>
+          {hodMarksData.years.map((y, idx) => {
+            const barColors = ['#3B82F6', '#6C63FF', '#10B981', '#F59E0B'];
+            const barColor = barColors[idx % barColors.length];
+            return (
+              <div key={idx} className={styles.chartCard}>
+                <h3 className={styles.chartTitle}>{y.year} Year Pass %</h3>
+                <p className={styles.chartSub}>Semester {y.semester}</p>
+                <div style={{ width: '100%', minHeight: '200px' }}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={[{ name: `${y.year} Year`, pass: parseFloat(y.passPct) || 0 }]} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 13, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} formatter={(val) => [`${val}%`, 'Pass Percentage']} />
+                      <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                        <Cell fill={barColor} />
+                        <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={13} fill="var(--text-primary)" fontWeight={600} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -37,9 +37,11 @@ router.get('/', async (req, res) => {
 
       // 3. If HOD is also teaching subjects, count HOD's own subjects
       if (staffId) {
-        const [[{ hodSubCount }]] = await db.execute(
-          'SELECT COUNT(*) AS hodSubCount FROM subjects WHERE faculty_id = ?',
-          [staffId]
+        const hStaffIds = (staffId === 'S_CHITRA' || staffId === 'FAC002') ? ['S_CHITRA', 'FAC002'] : [staffId];
+        const hPlaceholders = hStaffIds.map(() => '?').join(',');
+        const [[{ hodSubCount }]] = await db.query(
+          `SELECT COUNT(*) AS hodSubCount FROM subjects WHERE faculty_id IN (${hPlaceholders})`,
+          hStaffIds
         );
         myTeachingSubjects = hodSubCount;
       }
@@ -137,23 +139,33 @@ router.get('/', async (req, res) => {
       GROUP BY ms.subject_id, sub.acronym
     `, msParams);
 
-    // Year-wise Performance (II, III, IV)
+    // Year-wise Performance (I, II, III, IV)
     let yearParams = [];
     let yearWhere = '1=1';
     if (role === 'hod' && department) {
-      yearWhere = 'c.department LIKE ?';
-      yearParams.push(`%${department}%`);
-    } else if (staffId && role !== 'admin') {
-      yearWhere = 'ms.staff_id = ?';
-      yearParams.push(staffId);
+      if (department === 'Science and Humanities') {
+        yearWhere = "(c.department = 'Science and Humanities' OR c.year_label = 'I')";
+      } else {
+        yearWhere = "(c.department LIKE ? OR c.name LIKE ?)";
+        yearParams.push(`%${department}%`, `%${department}%`);
+      }
+    } else if (staffId && role !== 'admin' && role !== 'principal' && role !== 'vice_principal') {
+      if (staffId === 'S_CHITRA' || staffId === 'FAC002') {
+        yearWhere = '(ms.staff_id = ? OR ms.staff_id = ?)';
+        yearParams.push('S_CHITRA', 'FAC002');
+      } else {
+        yearWhere = 'ms.staff_id = ?';
+        yearParams.push(staffId);
+      }
     }
-    const [yearPerf] = await db.execute(`
-      SELECT c.year_label AS name, ROUND(AVG(ms.avg_score), 1) AS value
+    const [yearPerf] = await db.query(`
+      SELECT c.year_label AS name, 
+             ROUND(AVG(CASE WHEN ms.total_max > 0 THEN (ms.avg_score / ms.total_max) * 100 ELSE ms.avg_score END), 1) AS value
       FROM marks_sessions ms
       JOIN classes c ON c.id = ms.class_id
-      WHERE ${yearWhere} AND c.year_label IN ('II', 'III', 'IV')
+      WHERE ${yearWhere} AND c.year_label IN ('I', 'II', 'III', 'IV')
       GROUP BY c.year_label
-      ORDER BY FIELD(c.year_label, 'II', 'III', 'IV')
+      ORDER BY FIELD(c.year_label, 'I', 'II', 'III', 'IV')
     `, yearParams);
 
     res.json({
@@ -369,62 +381,57 @@ router.get('/hod-marks', async (req, res) => {
     const { department, sessionLabel = 'internal1' } = req.query;
     if (!department) return res.status(400).json({ error: 'Department is required.' });
 
-    const years = ['II', 'III', 'IV'];
+    const isSH = department === 'Science and Humanities';
+    const years = isSH ? ['I'] : ['I', 'II', 'III', 'IV'];
     const results = [];
     let deptStrength = 0;
     let deptPassed = 0;
 
     for (const year of years) {
-      let yearStrength = 0;
-      let yearPassed = 0;
-      
-      const [students] = await db.execute(`
-        SELECT st.id, st.name, c.name as class_name, c.semester
-        FROM students st
-        JOIN classes c ON c.id = st.class_id
-        WHERE c.department = ? AND c.year_label = ?
-      `, [department, year]);
-
-      yearStrength = students.length;
-      deptStrength += yearStrength;
-      
-      let yearSem = 0;
-
-      for (const st of students) {
-        yearSem = st.semester;
-        const [marks] = await db.execute(`
-          SELECT m.marks_obtained
-          FROM marks m
-          JOIN marks_sessions ms ON ms.id = m.session_id
-          WHERE m.student_id = ? AND ms.session_label = ?
-          LIMIT 1
-        `, [st.id, sessionLabel]);
-        
-        if (marks.length > 0) {
-          // Group by session to calculate total marks per subject for this session
-          const [sessions] = await db.execute(
-            'SELECT id FROM marks_sessions WHERE class_id IN (SELECT id FROM classes WHERE department = ? AND year_label = ?) AND session_label = ?',
-            [department, year, sessionLabel]
-          );
-          
-          let allPass = true;
-          for (const s of sessions) {
-             const [subMarks] = await db.execute(
-               'SELECT SUM(m.marks_obtained) as total FROM marks m WHERE m.student_id = ? AND m.session_id = ?',
-               [st.id, s.id]
-             );
-             if (!subMarks[0].total || subMarks[0].total < 50) {
-                allPass = false;
-                break;
-             }
-          }
-          if (allPass) yearPassed++;
+      let classFilter = 'c.year_label = ?';
+      let classParams = [year];
+      if (isSH) {
+        classFilter += ' AND c.department = "Science and Humanities"';
+      } else {
+        if (year === 'I') {
+          classFilter += ' AND (c.department LIKE ? OR c.name LIKE ?)';
+          classParams.push(`%${department}%`, `%${department}%`);
+        } else {
+          classFilter += ' AND c.department = ?';
+          classParams.push(department);
         }
       }
-      
+
+      // Count students in these classes
+      const [stuCountRows] = await db.query(
+        `SELECT COUNT(DISTINCT st.id) as totalStudents, MAX(c.semester) as semester
+         FROM students st
+         JOIN classes c ON c.id = st.class_id
+         WHERE ${classFilter}`,
+        classParams
+      );
+      const yearStrength = stuCountRows[0]?.totalStudents || 0;
+      const yearSem = stuCountRows[0]?.semester || (year === 'I' ? 1 : year === 'II' ? 3 : year === 'III' ? 5 : 7);
+
+      // Count passed students for this year and session
+      // Relative pass criteria: student marks >= 50% of max_marks (or >= 20 for 40-mark exams)
+      const [passRows] = await db.query(
+        `SELECT COUNT(DISTINCT m.student_id) as passedCount
+         FROM marks m
+         JOIN marks_sessions ms ON ms.id = m.session_id
+         JOIN classes c ON c.id = ms.class_id
+         JOIN students st ON st.id = m.student_id
+         WHERE ${classFilter} AND ms.session_label = ?
+           AND m.marks_obtained >= (CASE WHEN ms.max_marks > 0 THEN ms.max_marks * 0.5 ELSE 20 END)`,
+        [...classParams, sessionLabel]
+      );
+      let yearPassed = passRows[0]?.passedCount || 0;
+      if (yearPassed > yearStrength) yearPassed = yearStrength;
+
+      deptStrength += yearStrength;
       deptPassed += yearPassed;
       const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
-      
+
       results.push({
         year,
         semester: yearSem,
@@ -449,7 +456,7 @@ router.get('/hod-marks', async (req, res) => {
 
   } catch (err) {
     console.error('GET /stats/hod-marks error:', err);
-    res.status(500).json({ error: 'Failed to fetch HOD marks.' });
+    res.status(500).json({ error: 'Failed to fetch HOD marks: ' + err.message });
   }
 });
 

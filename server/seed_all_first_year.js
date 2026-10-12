@@ -807,9 +807,22 @@ async function seedMaster() {
     console.log(`✅ Exactly ${totalInserted} Students seeded across 8 Classes!`);
 
     // 8. Department assignments verification for core engineering faculty
-    console.log('--- Step 8: Verifying Staff Departments ---');
+    console.log('--- Step 8: Verifying Staff Departments & HoD Promotions ---');
     await db.query(`UPDATE staffs SET department = 'Mechanical Engineering' WHERE id = 'S_VENNIMALAI'`);
     await db.query(`UPDATE staffs SET department = 'Computer Science and Engineering' WHERE id IN ('S_NAVEENKARTHICK', 'S_MAREESWARI')`);
+    
+    // Promote Dr. C. Chithra to HoD for First Year (Science and Humanities) and preserve Discrete Mathematics for IT II Year (CL001)
+    await db.query(`
+      UPDATE staffs 
+      SET role = 'hod', department = 'Science and Humanities', designation = 'Prof. & HoD / Maths'
+      WHERE id IN ('S_CHITRA', 'FAC002') OR LOWER(email) IN ('c.chithra@nscet.org', 'chithra.c@nscet.org')
+    `);
+    await db.query(`
+      UPDATE subjects 
+      SET faculty_id = 'S_CHITRA'
+      WHERE (code = 'MA25C08' OR name LIKE '%Discrete Mathematics%') AND class_id = 'CL001'
+    `);
+    console.log('✅ Dr. C. Chithra promoted to First Year HoD with IT II Year Discrete Mathematics linked.');
     console.log('✅ Core engineering faculty department integrity verified.');
 
     // 9. Ensure notifications table exists and broadcast system activation notification
