@@ -22,12 +22,13 @@ const getImageDataUrl = (url) => {
 
 const addFooterToAllPages = (doc, dateStr, timeStr) => {
   const pageCount = doc.internal.getNumberOfPages();
+  const pageHeight = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.setTextColor(150, 150, 150);
-    doc.text(`Generated on: ${dateStr} at ${timeStr} via NSCET Mark Hub`, 14, 290);
+    doc.text(`Generated on: ${dateStr} at ${timeStr} via NSCET Mark Hub`, 14, pageHeight - 6);
   }
 };
 
@@ -37,45 +38,50 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   const now = new Date();
   const currentDate = dateStr || now.toLocaleDateString('en-GB'); // DD/MM/YYYY
   const currentTime = now.toLocaleTimeString('en-GB', { hour12: false }); // HH:MM:SS
+  const pageWidth = doc.internal.pageSize.getWidth();
   
+  // Outer Border for Header Box (fits page width with 10mm margins on both sides)
+  const boxWidth = pageWidth - 20;
+  const formatBoxWidth = 50;
+  const dividerX = 10 + boxWidth - formatBoxWidth;
+  const rightEdge = 10 + boxWidth;
+  const centerX = pageWidth / 2;
+
   // Outer Border for Header Box
-  doc.rect(10, 8, 190, 26);
-  doc.line(150, 8, 150, 34); // Right divider for Format Info
+  doc.rect(10, 8, boxWidth, 26);
+  doc.line(dividerX, 8, dividerX, 34); // Right divider for Format Info
   
   // Format Info Box on top right
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Format No. : ${formatNo || 'NAC/TLP-07a.21'}`, 152, 13);
-  doc.text(`Rev.No     : ${revNo || '01'}`, 152, 18);
-  doc.text(`Date       : ${currentDate}`, 152, 23);
-  doc.text(`Page       : ${pageStr || '01'}`, 152, 28);
+  doc.text(`Format No. : ${formatNo || 'NAC/TLP-07a.21'}`, dividerX + 2, 13);
+  doc.text(`Rev.No     : ${revNo || '01'}`, dividerX + 2, 18);
+  doc.text(`Date       : ${currentDate}`, dividerX + 2, 23);
+  doc.text(`Page       : ${pageStr || '01'}`, dividerX + 2, 28);
   
   // Lines inside Format Info Box
-  doc.line(150, 14.5, 200, 14.5);
-  doc.line(150, 19.5, 200, 19.5);
-  doc.line(150, 24.5, 200, 24.5);
+  doc.line(dividerX, 14.5, rightEdge, 14.5);
+  doc.line(dividerX, 19.5, rightEdge, 19.5);
+  doc.line(dividerX, 24.5, rightEdge, 24.5);
 
   // Logo & Title
   if (logoBase64) {
     try {
-      // Expanded to fill the left section (width 140, from x=10 to 150) with 1mm padding
-      // X = 11, Y = 9, Width = 138, Height = 24
-      doc.addImage(logoBase64, 'JPEG', 11, 9, 138, 24);
+      const logoWidth = Math.min(138, dividerX - 12);
+      doc.addImage(logoBase64, 'JPEG', 11, 9, logoWidth, 24);
     } catch (e) {
       console.warn("Could not render logo in PDF", e);
     }
   }
 
-  // The text banner was removed per user request.
-
   // Banner Title Bar
-  doc.rect(10, 34, 190, 7);
+  doc.rect(10, 34, boxWidth, 7);
   doc.setFillColor(245, 247, 250);
-  doc.rect(10.1, 34.1, 189.8, 6.8, 'F');
+  doc.rect(10.1, 34.1, boxWidth - 0.2, 6.8, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  doc.text(title, 105, 38.5, { align: 'center' });
+  doc.text(title, centerX, 38.5, { align: 'center' });
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -685,7 +691,9 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 export const generateConsolidatedMarksPDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds
 }) => {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [215.9, 355.6] });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
 
@@ -693,10 +701,10 @@ export const generateConsolidatedMarksPDF = async ({
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text(`Year / Semester : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
-  doc.text(`Department      : ${classObj?.department || 'IT'}`, 120, y);
+  doc.text(`Department      : ${classObj?.department || 'IT'}`, 140, y);
   y += 5;
   doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year : 2026 - 2027`, 140, y);
   y += 5;
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
@@ -709,8 +717,9 @@ export const generateConsolidatedMarksPDF = async ({
 
   // Subject Columns (all selected subjects)
   const targetSubjects = filteredSubjects;
+  const numSubs = targetSubjects.length;
   const subCols = targetSubjects.map(s => s.code);
-  const headRow = ['Reg.No', 'Name', ...subCols, 'No.of Sub Failed', 'No. of sub Passed', 'No. of sub Absent'];
+  const headRow = ['Reg.No', 'Name', ...subCols, 'No. of Sub\nFailed', 'No. of Sub\nPassed', 'No. of Sub\nAbsent'];
 
   // Map student rows
   const tableRows = students.map(st => {
@@ -875,29 +884,97 @@ export const generateConsolidatedMarksPDF = async ({
     ['', 'Pass Percentage', ...perSubjectPassPct, '-', '-', '-']
   ];
 
+  // Dynamic layout & column width allocation across Legal paper landscape
+  const maxUsableWidth = pageWidth - 20; // 335.6mm with 10mm margins
+  const regWidth = 26;
+  let nameWidth = numSubs <= 3 ? 65 : (numSubs <= 6 ? 50 : 40);
+  let summaryColWidth = numSubs <= 3 ? 24 : (numSubs <= 6 ? 20 : 18);
+
+  const safeSubsCount = Math.max(1, numSubs);
+  let perSubColWidth;
+  if (numSubs <= 2) {
+    perSubColWidth = 35;
+  } else if (numSubs <= 4) {
+    perSubColWidth = 28;
+  } else if (numSubs <= 6) {
+    perSubColWidth = 24;
+  } else {
+    const fixedTotal = regWidth + nameWidth + (summaryColWidth * 3);
+    const rem = maxUsableWidth - fixedTotal;
+    perSubColWidth = Math.floor((rem / safeSubsCount) * 100) / 100;
+  }
+
+  const totalTableWidth = regWidth + nameWidth + (perSubColWidth * numSubs) + (summaryColWidth * 3);
+  const marginLeft = totalTableWidth < maxUsableWidth ? Math.round(((pageWidth - totalTableWidth) / 2) * 10) / 10 : 10;
+
+  const colStyles = {
+    0: { cellWidth: regWidth, halign: 'center' },
+    1: { cellWidth: nameWidth, halign: 'left' }
+  };
+
+  for (let i = 0; i < numSubs; i++) {
+    colStyles[2 + i] = { cellWidth: perSubColWidth, halign: 'center' };
+  }
+  colStyles[2 + numSubs] = { cellWidth: summaryColWidth, halign: 'center' };
+  colStyles[2 + numSubs + 1] = { cellWidth: summaryColWidth, halign: 'center' };
+  colStyles[2 + numSubs + 2] = { cellWidth: summaryColWidth, halign: 'center' };
+
+  const fontSize = numSubs > 7 ? 6.5 : 7;
+  const cellPadding = numSubs > 7 ? 1.0 : 1.3;
+
   autoTable(doc, {
     startY: y,
     head: [headRow],
     body: tableRows,
     foot: footRows,
     theme: 'grid',
-    styles: { fontSize: 7, halign: 'center', valign: 'middle' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7 },
-    footStyles: { fillColor: [245, 247, 250], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, halign: 'center' },
-    columnStyles: { 1: { halign: 'left', cellWidth: 32 } }
+    showFoot: 'lastPage',
+    showHead: 'everyPage',
+    margin: { top: 15, bottom: 18, left: marginLeft, right: marginLeft },
+    styles: { 
+      fontSize, 
+      halign: 'center', 
+      valign: 'middle', 
+      cellPadding,
+      lineWidth: 0.1,
+      lineColor: [120, 120, 120]
+    },
+    headStyles: { 
+      fillColor: [240, 242, 245], 
+      textColor: [0, 0, 0], 
+      fontStyle: 'bold', 
+      fontSize,
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0]
+    },
+    footStyles: { 
+      fillColor: [245, 247, 250], 
+      textColor: [0, 0, 0], 
+      fontStyle: 'bold', 
+      fontSize, 
+      halign: 'center',
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0]
+    },
+    columnStyles: colStyles
   });
 
-  // Signatures (Class Incharge and HOD)
-  y = doc.lastAutoTable.finalY + 18;
-  if (y > 270) {
+  // Signatures (Class Incharge, HOD, Principal)
+  const finalY = doc.lastAutoTable.finalY;
+  const neededHeight = 28;
+  let sigY;
+  if (finalY + neededHeight > pageHeight - 12) {
     doc.addPage();
-    y = 30;
+    sigY = 30;
+  } else {
+    sigY = finalY + 14;
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('CLASS IN-CHARGE', 24, y);
-  doc.text('HOD', 160, y);
+  doc.setFontSize(8.5);
+  doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
+  doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
+  doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1223,9 +1300,11 @@ const getHourSplits = (ltpc, type, total) => {
 export const generateOverallMarksAndAttendancePDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate, selectedSubjectIds
 }) => {
-  // Landscape orientation to fit all columns on explicit legal format (14x8.5 inches)
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [215.9, 355.6] });
-  const centerX = doc.internal.pageSize.getWidth() / 2;
+  // Explicit Legal paper landscape format (355.6 x 215.9 mm)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const centerX = pageWidth / 2;
 
   // Custom Simple Header
   const title = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY';
@@ -1241,13 +1320,14 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB');
 
-  doc.setFontSize(11);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
   if (fromDate && toDate) {
     const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
     const toStr = new Date(toDate).toLocaleDateString('en-GB');
-    doc.text(`Student Attendance Details for the Period of ${fromStr} To ${toStr}`, centerX, 28, { align: 'center' });
+    doc.text(`Student Attendance Details for the Period of ${fromStr} To ${toStr}`, centerX, 27, { align: 'center' });
   } else {
-    doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, centerX, 28, { align: 'center' });
+    doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, centerX, 27, { align: 'center' });
   }
 
   doc.setFontSize(9);
@@ -1255,18 +1335,21 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const deptLabel = `Dept: ${classObj?.department || 'IT'}`;
   const secLabel = `Section: ${classObj?.section || 'A'}`;
   const semLabel = `Semester: ${classObj?.semester || '4'}`;
+  const acadLabel = `Academic Year: 2026 - 2027`;
   
-  doc.text(deptLabel, 80, 36);
-  doc.text(secLabel, 130, 36);
-  doc.text(semLabel, 180, 36);
+  doc.text(deptLabel, 35, 34);
+  doc.text(secLabel, 125, 34);
+  doc.text(semLabel, 215, 34);
+  doc.text(acadLabel, pageWidth - 35, 34, { align: 'right' });
 
-  let y = 42;
+  let y = 39;
 
   // Filter out library/seminar and apply selectedSubjectIds
   let targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
   if (selectedSubjectIds && selectedSubjectIds.length > 0) {
     targetSubjects = targetSubjects.filter(s => selectedSubjectIds.includes(s.id));
   }
+  const numSubs = targetSubjects.length;
 
   // Top header row
   const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
@@ -1274,7 +1357,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const headRow1 = [
     { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
     { content: 'Roll.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-    { content: 'Student Name', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+    { content: 'Student Name', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
   ];
 
   targetSubjects.forEach(sub => {
@@ -1300,7 +1383,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const headRow2 = [];
   targetSubjects.forEach(() => {
     if (!is2021) {
-      headRow2.push('P.Hrs', 'Int Marks', 'Activity');
+      headRow2.push('P.Hrs', 'Int\nMarks', 'Act');
     } else {
       headRow2.push('W.Hrs', 'P.Hrs', 'Marks');
     }
@@ -1408,39 +1491,105 @@ export const generateOverallMarksAndAttendancePDF = async ({
     return row;
   });
 
+  // Dynamic layout & column width allocation across Legal paper landscape
+  const maxUsableWidth = pageWidth - 20; // 335.6mm
+
+  const slWidth = 9;
+  const rollWidth = 23;
+  let nameWidth = numSubs <= 3 ? 55 : (numSubs <= 6 ? 40 : 34);
+  const overAllSubColWidth = numSubs <= 3 ? 13 : (numSubs <= 6 ? 10 : 8.5);
+
+  const safeSubsCount = Math.max(1, numSubs);
+  let perSubColWidth;
+  if (numSubs <= 2) {
+    perSubColWidth = 18;
+  } else if (numSubs <= 4) {
+    perSubColWidth = 13.5;
+  } else if (numSubs <= 6) {
+    perSubColWidth = 10.5;
+  } else {
+    const fixedTotal = slWidth + rollWidth + nameWidth + (overAllSubColWidth * 3);
+    const rem = maxUsableWidth - fixedTotal;
+    perSubColWidth = Math.floor((rem / (safeSubsCount * 3)) * 100) / 100;
+  }
+
+  const totalTableWidth = slWidth + rollWidth + nameWidth + (perSubColWidth * numSubs * 3) + (overAllSubColWidth * 3);
+  const marginLeft = totalTableWidth < maxUsableWidth ? Math.round(((pageWidth - totalTableWidth) / 2) * 10) / 10 : 10;
+
+  const colStyles = {
+    0: { cellWidth: slWidth, halign: 'center' },
+    1: { cellWidth: rollWidth, halign: 'center' },
+    2: { cellWidth: nameWidth, halign: 'left' }
+  };
+
+  let colIdx = 3;
+  targetSubjects.forEach(() => {
+    colStyles[colIdx] = { cellWidth: perSubColWidth, halign: 'center' };
+    colStyles[colIdx + 1] = { cellWidth: perSubColWidth, halign: 'center' };
+    colStyles[colIdx + 2] = { cellWidth: perSubColWidth, halign: 'center' };
+    colIdx += 3;
+  });
+
+  colStyles[colIdx] = { cellWidth: overAllSubColWidth, halign: 'center' };
+  colStyles[colIdx + 1] = { cellWidth: overAllSubColWidth, halign: 'center' };
+  colStyles[colIdx + 2] = { cellWidth: overAllSubColWidth, halign: 'center', fontStyle: 'bold' };
+
+  const fontSize = numSubs >= 8 ? 6 : (numSubs >= 6 ? 6.5 : 7);
+  const cellPadding = numSubs >= 8 ? 0.7 : (numSubs >= 6 ? 1.0 : 1.2);
+
   autoTable(doc, {
     startY: y,
     head: headRows,
     body: bodyRows,
     theme: 'grid',
-    horizontalPageBreak: true,
-    horizontalPageBreakRepeat: 0,
-    styles: { fontSize: 7, halign: 'center', valign: 'middle', cellPadding: 1.5 },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.1, lineColor: [0,0,0] },
-    bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },
-    columnStyles: { 
-      1: { halign: 'center', cellWidth: 20 },
-      2: { halign: 'left', cellWidth: 35 } 
-    }
+    horizontalPageBreak: false,
+    showHead: 'everyPage',
+    margin: { top: 15, bottom: 18, left: marginLeft, right: marginLeft },
+    styles: { 
+      fontSize, 
+      halign: 'center', 
+      valign: 'middle', 
+      cellPadding,
+      lineWidth: 0.1,
+      lineColor: [120, 120, 120]
+    },
+    headStyles: { 
+      fillColor: [240, 242, 245], 
+      textColor: [0, 0, 0], 
+      fontStyle: 'bold', 
+      fontSize, 
+      lineWidth: 0.1, 
+      lineColor: [0, 0, 0] 
+    },
+    bodyStyles: { 
+      lineWidth: 0.1, 
+      lineColor: [150, 150, 150] 
+    },
+    columnStyles: colStyles
   });
 
-  y = doc.lastAutoTable.finalY + 12;
-  if (y > 185) { // A4 landscape height is 210mm
+  const finalY = doc.lastAutoTable.finalY;
+  const neededHeight = 35; // Note + gap + signatures
+  let sigY;
+
+  if (finalY + neededHeight > pageHeight - 12) {
     doc.addPage();
-    y = 30;
+    sigY = 25;
+  } else {
+    sigY = finalY + 8;
   }
 
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text('*** W.Hrs=Working Hours, P.Hrs=Present Hours, %=Attendance Percentage', 14, y);
+  doc.text('*** W.Hrs = Working Hours, P.Hrs = Present Hours, % = Attendance Percentage', marginLeft, sigY);
   
-  y += 20;
+  sigY += 16;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('Class Incharge', 20, y);
-  doc.text('H.O.D', 110, y);
-  doc.text('Principal', 220, y);
-  doc.text('Signature of Faculty\\nwith date', doc.internal.pageSize.getWidth() - 30, y, { align: 'center' });
+  doc.setFontSize(8.5);
+  doc.text('Class Incharge', marginLeft + 15, sigY);
+  doc.text('H.O.D', pageWidth * 0.38, sigY);
+  doc.text('Principal', pageWidth * 0.68, sigY);
+  doc.text(['Signature of Faculty', 'with date'], pageWidth - marginLeft - 25, sigY, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_Overall_Mark_Statement.pdf`);
