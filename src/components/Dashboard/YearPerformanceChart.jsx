@@ -31,37 +31,17 @@ export default function YearPerformanceChart({ data = [], user }) {
     { name: 'IV', fill: '#F59E0B' }
   ];
 
-  let visibleYears = new Set();
-  
-  if (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') {
-    visibleYears = new Set(['I', 'II', 'III', 'IV']);
-  } else {
-    (user.coordinatedClasses || []).forEach(c => {
-      if (c.year_label) visibleYears.add(c.year_label);
+  // Universal 4-year comparison view for all staff, HODs, coordinators, and leadership
+  const chartData = allYears.map(y => ({ ...y, value: 0 }));
+
+  if (Array.isArray(data)) {
+    data.forEach(d => {
+      const index = chartData.findIndex(c => c.name === d.name);
+      if (index !== -1) {
+        chartData[index].value = parseFloat(d.value) || 0;
+      }
     });
-    (user.teachingClasses || []).forEach(c => {
-      if (c.year_label) visibleYears.add(c.year_label);
-    });
   }
-
-  if (visibleYears.size === 0) {
-    visibleYears = new Set(['I', 'II', 'III', 'IV']);
-  }
-
-  const chartData = allYears
-    .filter(y => visibleYears.has(y.name))
-    .map(y => ({ ...y, value: 0 }));
-
-  if (chartData.length === 0) {
-    chartData.push(...allYears.map(y => ({ ...y, value: 0 })));
-  }
-
-  data.forEach(d => {
-    const index = chartData.findIndex(c => c.name === d.name);
-    if (index !== -1) {
-      chartData[index].value = parseFloat(d.value) || 0;
-    }
-  });
 
   return (
     <div className={styles.card}>

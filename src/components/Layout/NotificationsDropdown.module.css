@@ -27,24 +27,26 @@
   position: absolute;
   top: 2px;
   right: 2px;
-  background: var(--danger);
+  background: #EF4444;
   color: white;
   font-size: 0.65rem;
   font-weight: 800;
   padding: 2px 6px;
   border-radius: 10px;
   border: 2px solid var(--surface);
+  line-height: 1;
 }
 
 .dropdown {
   position: absolute;
   top: 100%;
   right: 0;
-  width: 320px;
+  width: 360px;
+  max-width: 90vw;
   background: var(--surface);
   border: 1px solid var(--border-solid);
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
   margin-top: 10px;
   z-index: 1000;
   overflow: hidden;
@@ -57,139 +59,223 @@
 }
 
 .header {
-  padding: 14px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-solid);
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: rgba(108, 99, 255, 0.05);
+  gap: 8px;
 }
 
-.header h4 {
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerTitle h4 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-primary);
+  font-weight: 700;
 }
 
 .unreadTag {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   background: var(--primary);
   color: white;
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerActionBtn {
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
+  color: #4F46E5;
+  font-size: 0.72rem;
   font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.headerActionBtn:hover {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.headerClearBtn {
+  background: #FEE2E2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.headerClearBtn:hover {
+  background: #FCA5A5;
+  color: #991B1B;
 }
 
 .list {
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
 }
 
 .empty {
-  padding: 30px;
+  padding: 36px 20px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .item {
-  padding: 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-solid);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s;
+  position: relative;
 }
 
 .item:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(108, 99, 255, 0.03);
 }
 
 .unread {
-  background: rgba(108, 99, 255, 0.03);
+  background: rgba(108, 99, 255, 0.06);
 }
 
 .unread::before {
   content: '';
   position: absolute;
   left: 0;
-  width: 3px;
+  width: 4px;
   height: 100%;
   background: var(--primary);
   top: 0;
 }
 
-.item {
-  position: relative;
-}
-
 .itemHeader {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 6px;
+  align-items: flex-start;
+  margin-bottom: 4px;
+  gap: 8px;
 }
 
 .itemTitle {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: var(--text-primary);
+  font-weight: 700;
 }
 
 .itemTime {
   font-size: 0.7rem;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .itemMsg {
   font-size: 0.8rem;
   color: var(--text-secondary);
-  margin: 0 0 8px 0;
-  line-height: 1.4;
+  margin: 0 0 10px 0;
+  line-height: 1.45;
 }
 
 .itemActions {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .linkHint {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   color: var(--primary);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-weight: 600;
 }
 
+.actionButtons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .markReadBtn {
-  background: transparent;
-  border: 1px solid var(--border-solid);
-  color: var(--success);
-  border-radius: 4px;
-  padding: 2px 6px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #059669;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 3px 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
 }
 
 .markReadBtn:hover {
-  background: var(--success);
+  background: #10B981;
   color: white;
+  border-color: #10B981;
 }
 
-.actionButtons {
-  display: flex;
+.readIndicator {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #059669;
+  display: inline-flex;
   align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
 }
 
 .deleteBtn {
-  background: transparent;
-  border: 1px solid var(--border-solid);
-  border-radius: 4px;
-  padding: 2px 6px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 3px 8px;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
 }
 
 .deleteBtn:hover {
-  background: rgba(211, 47, 47, 0.1);
-  border-color: #d32f2f;
+  background: #EF4444;
+  color: white;
+  border-color: #EF4444;
 }

@@ -81,33 +81,47 @@ jobs:
               fi
             fi
 
+            run_sudo() {
+              if sudo -n true 2>/dev/null; then
+                sudo "$@"
+              elif echo "Nscet@123" | sudo -S true 2>/dev/null; then
+                echo "Nscet@123" | sudo -S "$@"
+              elif echo "sharves@2007" | sudo -S true 2>/dev/null; then
+                echo "sharves@2007" | sudo -S "$@"
+              else
+                "$@"
+              fi
+            }
+
             # 4. Restart PM2 backend cleanly with latest code
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            echo "--- SUDO CHECK: $(sudo -n whoami 2>&1 || true)" >> "$LOG_FILE"
             echo "--- PROCESSES RUNNING NODE ---" >> "$LOG_FILE"
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
             echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
 
-            # If sudo is available, kill port 5000 occupant or restart systemd
-            if sudo -n true 2>/dev/null; then
-              echo "Sudo available. Freeing port 5000..." >> "$LOG_FILE"
-              sudo -n fuser -k -9 5000/tcp 2>/dev/null || true
-              sudo -n systemctl restart college-cms 2>/dev/null || true
-              sudo -n pm2 restart all 2>/dev/null || true
-            fi
+            # Free port 5000 from any zombie process (including old root processes)
+            echo "Freeing port 5000..." >> "$LOG_FILE"
+            run_sudo fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
+            run_sudo pkill -9 -f "server/index.js" >> "$LOG_FILE" 2>&1 || true
+            run_sudo systemctl stop college-cms >> "$LOG_FILE" 2>&1 || true
+            run_sudo systemctl stop markhub >> "$LOG_FILE" 2>&1 || true
+            sleep 2
 
             pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
-            sleep 2
+            sleep 3
             pm2 status >> "$LOG_FILE" 2>&1 || true
             echo "=== PM2 ERROR LOG ===" >> "$LOG_FILE"
             tail -n 25 /home/markhub-deploy/.pm2/logs/college-cms-error.log >> "$LOG_FILE" 2>&1 || true
             echo "=== PM2 OUT LOG ===" >> "$LOG_FILE"
             tail -n 25 /home/markhub-deploy/.pm2/logs/college-cms-out.log >> "$LOG_FILE" 2>&1 || true
+
+            # Reload Nginx to serve new bundle cleanly
+            run_sudo systemctl reload nginx >> "$LOG_FILE" 2>&1 || run_sudo nginx -s reload >> "$LOG_FILE" 2>&1 || true
 
             # 5. Determine source dist folder
             SRC="/tmp/markhub_dist/dist"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, ExternalLink, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { notificationsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -13,11 +13,10 @@ export default function NotificationsDropdown() {
   const dropdownRef = useRef(null);
 
   const fetchNotifications = async () => {
-    if (!user) return;
+    if (!user || !user.role || !user.id) return;
     try {
       const data = await notificationsAPI.get(user.role, user.id, user.department);
       if (Array.isArray(data)) {
-        // Read & Deleted IDs tracked locally per user for shared broadcast notifications
         const readStorageKey = `cms_read_notifs_${user.id}`;
         const delStorageKey = `cms_deleted_notifs_${user.id}`;
         let locallyRead = [];
@@ -52,7 +51,6 @@ export default function NotificationsDropdown() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll every 30 seconds for new notifications
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [user]);
@@ -68,14 +66,16 @@ export default function NotificationsDropdown() {
   }, []);
 
   const handleMarkRead = async (id, e) => {
-    if (e && e.stopPropagation) e.stopPropagation();
+    if (e) {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+    }
     try {
       await notificationsAPI.markRead(id);
     } catch (err) {
       console.error(err);
     }
 
-    // Persist per-user read state locally so shared announcements stay read for this user
     if (user?.id) {
       const readStorageKey = `cms_read_notifs_${user.id}`;
       try {
@@ -88,6 +88,30 @@ export default function NotificationsDropdown() {
     }
 
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+  };
+
+  const handleMarkAllRead = async (e) => {
+    if (e) {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+    }
+    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    if (user?.id) {
+      const readStorageKey = `cms_read_notifs_${user.id}`;
+      try {
+        const locallyRead = JSON.parse(localStorage.getItem(readStorageKey) || '[]');
+        const updated = Array.from(new Set([...locallyRead, ...unreadIds]));
+        localStorage.setItem(readStorageKey, JSON.stringify(updated));
+      } catch {}
+    }
+
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
+
+    for (const id of unreadIds) {
+      notificationsAPI.markRead(id).catch(() => {});
+    }
   };
 
   const handleDelete = async (id, e) => {
@@ -119,21 +143,44 @@ export default function NotificationsDropdown() {
     }
   };
 
+  const handleClearAll = async (e) => {
+    if (e) {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+    }
+    const allIds = notifications.map(n => n.id);
+    if (allIds.length === 0) return;
+
+    if (user?.id) {
+      const delStorageKey = `cms_deleted_notifs_${user.id}`;
+      try {
+        const locallyDeleted = JSON.parse(localStorage.getItem(delStorageKey) || '[]');
+        const updated = Array.from(new Set([...locallyDeleted, ...allIds]));
+        localStorage.setItem(delStorageKey, JSON.stringify(updated));
+      } catch {}
+    }
+
+    setNotifications([]);
+
+    for (const id of allIds) {
+      notificationsAPI.delete(id).catch(() => {});
+    }
+  };
+
   const handleNotificationClick = async (notif) => {
     if (!notif.is_read) {
-      await handleMarkRead(notif.id, { stopPropagation: () => {} });
+      await handleMarkRead(notif.id, { stopPropagation: () => {}, preventDefault: () => {} });
     }
     setIsOpen(false);
     if (notif.link) {
       navigate(notif.link);
       
-      // Scroll to hash if present in link
       if (notif.link.includes('#')) {
         const hash = notif.link.split('#')[1];
         setTimeout(() => {
           const el = document.getElementById(hash);
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 150); // slight delay to allow page render
+        }, 150);
       }
     }
   };
@@ -156,15 +203,40 @@ export default function NotificationsDropdown() {
       {isOpen && (
         <div className={styles.dropdown}>
           <div className={styles.header}>
-            <h4>Notifications</h4>
-            {unreadCount > 0 && (
-              <span className={styles.unreadTag}>{unreadCount} unread</span>
+            <div className={styles.headerTitle}>
+              <h4>Notifications</h4>
+              {unreadCount > 0 && (
+                <span className={styles.unreadTag}>{unreadCount} new</span>
+              )}
+            </div>
+            {notifications.length > 0 && (
+              <div className={styles.headerActions}>
+                {unreadCount > 0 && (
+                  <button 
+                    className={styles.headerActionBtn} 
+                    onClick={handleMarkAllRead}
+                    title="Mark all notifications as read"
+                  >
+                    <CheckCheck size={13} /> Mark All Read
+                  </button>
+                )}
+                <button 
+                  className={styles.headerClearBtn} 
+                  onClick={handleClearAll}
+                  title="Clear all notifications"
+                >
+                  <Trash2 size={13} /> Clear All
+                </button>
+              </div>
             )}
           </div>
           
           <div className={styles.list}>
             {notifications.length === 0 ? (
-              <div className={styles.empty}>No notifications yet.</div>
+              <div className={styles.empty}>
+                <Bell size={28} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                <p>No notifications yet.</p>
+              </div>
             ) : (
               notifications.map(notif => (
                 <div 
@@ -175,7 +247,7 @@ export default function NotificationsDropdown() {
                   <div className={styles.itemHeader}>
                     <strong className={styles.itemTitle}>{notif.title}</strong>
                     <span className={styles.itemTime}>
-                      {new Date(notif.created_at).toLocaleDateString()}
+                      {new Date(notif.created_at).toLocaleDateString('en-GB')}
                     </span>
                   </div>
                   <p className={styles.itemMsg}>{notif.message}</p>
@@ -189,21 +261,25 @@ export default function NotificationsDropdown() {
                       <span className={styles.linkHint}></span>
                     )}
                     <div className={styles.actionButtons}>
-                      {!notif.is_read && (
+                      {!notif.is_read ? (
                         <button 
                           className={styles.markReadBtn} 
                           onClick={(e) => handleMarkRead(notif.id, e)}
-                          title="Mark as read"
+                          title="Mark notification as read"
                         >
-                          <Check size={14} />
+                          <Check size={13} /> Mark Read
                         </button>
+                      ) : (
+                        <span className={styles.readIndicator} title="Read">
+                          <CheckCheck size={13} color="#10B981" /> Read
+                        </span>
                       )}
                       <button 
                         className={styles.deleteBtn} 
                         onClick={(e) => handleDelete(notif.id, e)}
                         title="Delete notification"
                       >
-                        <Trash2 size={14} color="#d32f2f" />
+                        <Trash2 size={13} color="#EF4444" /> Delete
                       </button>
                     </div>
                   </div>

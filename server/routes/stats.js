@@ -151,11 +151,11 @@ router.get('/', async (req, res) => {
       }
     } else if (staffId && role !== 'admin' && role !== 'principal' && role !== 'vice_principal') {
       if (staffId === 'S_CHITRA' || staffId === 'FAC002') {
-        yearWhere = '(ms.staff_id = ? OR ms.staff_id = ?)';
-        yearParams.push('S_CHITRA', 'FAC002');
+        yearWhere = '(ms.staff_id = ? OR ms.staff_id = ? OR sub.faculty_id = ? OR sub.faculty_id = ?)';
+        yearParams.push('S_CHITRA', 'FAC002', 'S_CHITRA', 'FAC002');
       } else {
-        yearWhere = 'ms.staff_id = ?';
-        yearParams.push(staffId);
+        yearWhere = '(ms.staff_id = ? OR sub.faculty_id = ?)';
+        yearParams.push(staffId, staffId);
       }
     }
     const [yearPerf] = await db.query(`
@@ -163,6 +163,7 @@ router.get('/', async (req, res) => {
              ROUND(AVG(CASE WHEN ms.total_max > 0 THEN (ms.avg_score / ms.total_max) * 100 ELSE ms.avg_score END), 1) AS value
       FROM marks_sessions ms
       JOIN classes c ON c.id = ms.class_id
+      LEFT JOIN subjects sub ON sub.id = ms.subject_id
       WHERE ${yearWhere} AND c.year_label IN ('I', 'II', 'III', 'IV')
       GROUP BY c.year_label
       ORDER BY FIELD(c.year_label, 'I', 'II', 'III', 'IV')
