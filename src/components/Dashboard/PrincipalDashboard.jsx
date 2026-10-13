@@ -12,7 +12,20 @@ import { generateCollegeOverviewPDF, generateContinuousAssessmentAnalysisPDF } f
 import { useAuth } from '../../context/AuthContext';
 import styles from './PrincipalDashboard.module.css';
 
-const COLORS = ['#800000', '#10B981', '#3B82F6', '#F59E0B', '#8B5CF6'];
+const DemographicsTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const d = payload[0].payload;
+    return (
+      <div className={styles.customTooltip}>
+        <div style={{ fontWeight: 700, color: d.color, marginBottom: '2px' }}>{d.fullName}</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+          Students: <strong>{d.value}</strong> ({d.pct}%)
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function PrincipalDashboard() {
   const { user } = useAuth();
@@ -119,13 +132,47 @@ export default function PrincipalDashboard() {
 
   const { overview, departmentStats } = data;
 
-  const pieData = departmentStats.map(dept => ({
-    name: dept.department.replace('Engineering', 'Engg'),
-    value: dept.totalStudents
-  }));
+  const DEPT_SHORT_NAMES = {
+    'Artificial Intelligence and Data Science': 'AI & DS',
+    'Civil Engineering': 'Civil',
+    'Computer Science and Engineering': 'CSE',
+    'Electrical and Electronics Engineering': 'EEE',
+    'Electronics and Communication Engineering': 'ECE',
+    'Information Technology': 'IT',
+    'Mechanical Engineering': 'Mech',
+    'Science and Humanities': 'S&H (1st Yr)'
+  };
+
+  const DEPT_PALETTE = [
+    '#800000', // Maroon / Primary
+    '#2563EB', // Royal Blue
+    '#10B981', // Emerald
+    '#F59E0B', // Amber
+    '#8B5CF6', // Purple
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#4F46E5'  // Indigo
+  ];
+
+  const totalStudentsCount = departmentStats.reduce((sum, d) => sum + (parseInt(d.totalStudents) || 0), 0);
+
+  const pieData = departmentStats.map((dept, idx) => {
+    const shortName = DEPT_SHORT_NAMES[dept.department] || dept.department.replace('Engineering', 'Engg');
+    const color = DEPT_PALETTE[idx % DEPT_PALETTE.length];
+    const val = parseInt(dept.totalStudents) || 0;
+    const pct = totalStudentsCount > 0 ? ((val / totalStudentsCount) * 100).toFixed(1) : '0.0';
+    return {
+      name: shortName,
+      fullName: dept.department,
+      value: val,
+      color,
+      pct
+    };
+  });
 
   const barData = departmentStats.map(dept => ({
-    name: dept.department.replace('Engineering', 'Engg'),
+    name: DEPT_SHORT_NAMES[dept.department] || dept.department.replace('Engineering', 'Engg'),
+    fullName: dept.department,
     avgScore: parseFloat(dept.avgScore) || 0
   }));
 
@@ -346,16 +393,33 @@ export default function PrincipalDashboard() {
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <TrendingUp size={20} className={styles.chartIcon} />
-            <h3>Department Performance (Avg Score)</h3>
+            <div>
+              <h3>Department Performance (Avg Score)</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Continuous assessment averages by department
+              </p>
+            </div>
           </div>
           <div className={styles.chartBody}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={barData} margin={{ top: 20, right: 20, left: -20, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-light)" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: 'var(--surface-hover)' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Bar dataKey="avgScore" fill="#800000" radius={[4, 4, 0, 0]} barSize={40} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 11, fill: 'var(--text-secondary)', fontWeight: 600 }} 
+                  axisLine={false} 
+                  tickLine={false}
+                  interval={0}
+                  angle={-25}
+                  textAnchor="end"
+                />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                <Tooltip 
+                  cursor={{ fill: 'var(--surface-hover)' }} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  formatter={(val, name, item) => [`${val}%`, item?.payload?.fullName || 'Avg Score']}
+                />
+                <Bar dataKey="avgScore" fill="#800000" radius={[4, 4, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -364,28 +428,49 @@ export default function PrincipalDashboard() {
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <Users size={20} className={styles.chartIcon} />
-            <h3>Student Demographics</h3>
+            <div>
+              <h3>Student Demographics</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Total: <strong>{totalStudentsCount} Students</strong> across 8 Departments
+              </p>
+            </div>
           </div>
           <div className={styles.chartBody}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="45%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className={styles.demographicsContainer}>
+              <div className={styles.demographicsChartWrapper}>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<DemographicsTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Clean Structured Legend Grid with Badges (No Overflow) */}
+              <div className={styles.demographicsLegendGrid}>
+                {pieData.map(item => (
+                  <div key={item.name} className={styles.legendItem} title={`${item.fullName}: ${item.value} students`}>
+                    <div className={styles.legendLeft}>
+                      <span className={styles.legendDot} style={{ backgroundColor: item.color }} />
+                      <span className={styles.legendLabel}>{item.name}</span>
+                    </div>
+                    <span className={styles.legendValue}>{item.value} ({item.pct}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
