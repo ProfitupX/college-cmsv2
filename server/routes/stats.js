@@ -302,31 +302,42 @@ router.get('/continuous-assessment', async (req, res) => {
     const { sessionLabel = 'internal1' } = req.query;
 
     const depts = [
-      { label: 'B.E., (Civil)', name: 'Civil Engineering' },
-      { label: 'B.E., (CSE)', name: 'Computer Science and Engineering' },
-      { label: 'B.E., (EEE)', name: 'Electrical and Electronics Engineering' },
-      { label: 'B.E., (ECE)', name: 'Electronics and Communication Engineering' },
-      { label: 'B.E., (Mech)', name: 'Mechanical Engineering' },
-      { label: 'B.Tech., (IT)', name: 'Information Technology' },
-      { label: 'B.Tech., (AI&DS)', name: 'Artificial Intelligence and Data Science' },
+      { label: 'B.E., (Civil)', name: 'Civil Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (CSE)', name: 'Computer Science and Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (EEE)', name: 'Electrical and Electronics Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (ECE)', name: 'Electronics and Communication Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (Mech)', name: 'Mechanical Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.Tech., (IT)', name: 'Information Technology', years: ['II', 'III', 'IV'] },
+      { label: 'B.Tech., (AI&DS)', name: 'Artificial Intelligence and Data Science', years: ['II', 'III', 'IV'] },
+      { label: 'Science & Humanities', name: 'Science and Humanities', years: ['I'] },
     ];
 
-    const years = ['II', 'III', 'IV'];
     const results = [];
 
-    let totalUgStrength = 0;
-    let totalUgPassed = 0;
+    let totalUgStrengthWithoutFirstYear = 0;
+    let totalUgPassedWithoutFirstYear = 0;
+
+    let totalFirstYearStrength = 0;
+    let totalFirstYearPassed = 0;
 
     for (const d of depts) {
       let deptStrength = 0;
       let deptPassed = 0;
       const yearRows = [];
 
-      for (const y of years) {
-        const [classes] = await db.execute(
-          'SELECT id, name FROM classes WHERE department = ? AND year_label = ?',
-          [d.name, y]
-        );
+      for (const y of d.years) {
+        let classes;
+        if (d.name === 'Science and Humanities') {
+          [classes] = await db.execute(
+            "SELECT id, name FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND year_label = ?",
+            [y]
+          );
+        } else {
+          [classes] = await db.execute(
+            'SELECT id, name FROM classes WHERE department = ? AND year_label = ?',
+            [d.name, y]
+          );
+        }
 
         let yearStrength = 0;
         let yearPassed = 0;
@@ -388,8 +399,13 @@ router.get('/continuous-assessment', async (req, res) => {
         });
       }
 
-      totalUgStrength += deptStrength;
-      totalUgPassed += deptPassed;
+      if (d.name === 'Science and Humanities') {
+        totalFirstYearStrength += deptStrength;
+        totalFirstYearPassed += deptPassed;
+      } else {
+        totalUgStrengthWithoutFirstYear += deptStrength;
+        totalUgPassedWithoutFirstYear += deptPassed;
+      }
 
       const deptOverallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';
       results.push({
@@ -402,7 +418,19 @@ router.get('/continuous-assessment', async (req, res) => {
       });
     }
 
-    const overallWithoutFirstYearPct = totalUgStrength > 0 ? ((totalUgPassed / totalUgStrength) * 100).toFixed(2) : '0.00';
+    const overallWithoutFirstYearPct = totalUgStrengthWithoutFirstYear > 0 
+      ? ((totalUgPassedWithoutFirstYear / totalUgStrengthWithoutFirstYear) * 100).toFixed(2) 
+      : '0.00';
+
+    const totalCollegeStrength = totalUgStrengthWithoutFirstYear + totalFirstYearStrength;
+    const totalCollegePassed = totalUgPassedWithoutFirstYear + totalFirstYearPassed;
+    const collegeOverallPct = totalCollegeStrength > 0 
+      ? ((totalCollegePassed / totalCollegeStrength) * 100).toFixed(2) 
+      : '0.00';
+
+    const firstYearOverallPct = totalFirstYearStrength > 0 
+      ? ((totalFirstYearPassed / totalFirstYearStrength) * 100).toFixed(2) 
+      : '0.00';
 
     res.json({
       success: true,
@@ -410,14 +438,19 @@ router.get('/continuous-assessment', async (req, res) => {
       departments: results,
       summary: {
         withoutFirstYear: {
-          strength: totalUgStrength,
-          passed: totalUgPassed,
+          strength: totalUgStrengthWithoutFirstYear,
+          passed: totalUgPassedWithoutFirstYear,
           percentage: overallWithoutFirstYearPct
         },
+        firstYear: {
+          strength: totalFirstYearStrength,
+          passed: totalFirstYearPassed,
+          percentage: firstYearOverallPct
+        },
         collegeOverall: {
-          strength: totalUgStrength,
-          passed: totalUgPassed,
-          percentage: overallWithoutFirstYearPct
+          strength: totalCollegeStrength,
+          passed: totalCollegePassed,
+          percentage: collegeOverallPct
         }
       }
     });

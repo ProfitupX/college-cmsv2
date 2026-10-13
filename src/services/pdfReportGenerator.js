@@ -1118,15 +1118,24 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 
   // Summary Row: Without First Year
   bodyRows.push([
-    { content: 'Pass Percentage Without First Year', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248] } },
+    { content: 'Pass Percentage Without First Year (Years II, III, IV)', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248] } },
     { content: caData.summary.withoutFirstYear.strength, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } },
     { content: caData.summary.withoutFirstYear.passed, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } },
     { content: `${caData.summary.withoutFirstYear.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } }
   ]);
 
+  if (caData.summary.firstYear) {
+    bodyRows.push([
+      { content: 'Pass Percentage of First Year (Science & Humanities)', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 248, 255] } },
+      { content: caData.summary.firstYear.strength, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } },
+      { content: caData.summary.firstYear.passed, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } },
+      { content: `${caData.summary.firstYear.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } }
+    ]);
+  }
+
   // Summary Row: College Overall Pass Percentage
   bodyRows.push([
-    { content: 'College Overall Pass Percentage', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0] } },
+    { content: 'College Overall Pass Percentage (Total including First Year)', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0] } },
     { content: caData.summary.collegeOverall.strength, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } },
     { content: caData.summary.collegeOverall.passed, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } },
     { content: `${caData.summary.collegeOverall.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [225, 235, 250], textColor: [128, 0, 0], halign: 'center' } }
