@@ -31,8 +31,40 @@ export default function YearPerformanceChart({ data = [], user }) {
     { name: 'IV', fill: '#F59E0B' }
   ];
 
-  // Universal 4-year comparison view for all staff, HODs, coordinators, and leadership
-  const chartData = allYears.map(y => ({ ...y, value: 0 }));
+  // Role and department-based year filtering:
+  // - First Year HoD: Only Year I
+  // - Department HoDs (IT, CSE, ECE, MECH, etc.): Only Years II, III, IV
+  // - Leadership (Admin / Principal / VP): All 4 Years (I, II, III, IV)
+  // - Faculty: Years of classes they teach or coordinate
+  const isFirstYearHod = user?.role === 'hod' && (
+    user?.department === 'Science and Humanities' ||
+    user?.department === 'First Year' ||
+    user?.department?.toLowerCase().includes('science') ||
+    user?.department?.toLowerCase().includes('humanities')
+  );
+
+  const isEngineeringHod = user?.role === 'hod' && !isFirstYearHod;
+
+  let allowedYearNames = ['I', 'II', 'III', 'IV'];
+
+  if (isFirstYearHod) {
+    allowedYearNames = ['I'];
+  } else if (isEngineeringHod) {
+    allowedYearNames = ['II', 'III', 'IV'];
+  } else if (user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
+    allowedYearNames = ['I', 'II', 'III', 'IV'];
+  } else if (user) {
+    const facultyYears = new Set();
+    (user?.teachingClasses || []).forEach(c => c.year_label && facultyYears.add(c.year_label));
+    (user?.coordinatedClasses || []).forEach(c => c.year_label && facultyYears.add(c.year_label));
+    if (facultyYears.size > 0) {
+      allowedYearNames = ['I', 'II', 'III', 'IV'].filter(y => facultyYears.has(y));
+    }
+  }
+
+  const chartData = allYears
+    .filter(y => allowedYearNames.includes(y.name))
+    .map(y => ({ ...y, value: 0 }));
 
   if (Array.isArray(data)) {
     data.forEach(d => {
@@ -43,17 +75,21 @@ export default function YearPerformanceChart({ data = [], user }) {
     });
   }
 
+  const subDescription = isFirstYearHod
+    ? '1st Year classes (Science & Humanities Department)'
+    : isEngineeringHod
+    ? `2nd, 3rd, and 4th years (${user?.department || 'Department'})`
+    : (!user || user.role === 'admin' || user.role === 'principal' || user.role === 'vice_principal')
+    ? '1st, 2nd, 3rd, and 4th years (College-wide)'
+    : 'your assigned classes';
+
   return (
     <div className={styles.card}>
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>Year-wise Student Performance</h3>
           <p className={styles.sub}>
-            Overall assessment average for {
-              (!user || user.role === 'admin' || user.role === 'hod' || user.role === 'principal' || user.role === 'vice_principal') 
-              ? '1st, 2nd, 3rd, and 4th years' 
-              : 'your active classes'
-            }
+            Overall assessment average for {subDescription}
           </p>
         </div>
       </div>
@@ -79,7 +115,7 @@ export default function YearPerformanceChart({ data = [], user }) {
             dataKey="value"
             name="Avg Score"
             radius={[6, 6, 0, 0]}
-            maxBarSize={60}
+            maxBarSize={chartData.length === 1 ? 80 : 60}
             animationDuration={1500}
           >
             {chartData.map((entry, index) => (

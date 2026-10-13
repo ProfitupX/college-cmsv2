@@ -14,26 +14,57 @@ router.get('/', async (req, res) => {
     let assignedClasses = [];
 
     if (role === 'hod' || role === 'admin') {
-      // 1. Total Department Students (across all years for HOD's department)
-      const deptFilter = department ? `%${department}%` : '%';
-      const [[{ deptStudents }]] = await db.execute(
-        `SELECT COUNT(st.id) AS deptStudents 
-         FROM students st 
-         JOIN classes c ON c.id = st.class_id 
-         WHERE c.department LIKE ? OR ? IS NULL OR ? = ''`,
-        [deptFilter, department || null, department || null]
+      const isFirstYearHod = department && (
+        department === 'Science and Humanities' ||
+        department === 'First Year' ||
+        department.toLowerCase().includes('science') ||
+        department.toLowerCase().includes('humanities')
       );
-      totalStudents = deptStudents;
 
-      // 2. Total Department Subjects
-      const [[{ deptSubCount }]] = await db.execute(
-        `SELECT COUNT(s.id) AS deptSubCount 
-         FROM subjects s 
-         JOIN classes c ON c.id = s.class_id 
-         WHERE c.department LIKE ? OR ? IS NULL OR ? = ''`,
-        [deptFilter, department || null, department || null]
-      );
-      totalSubjects = deptSubCount;
+      if (role === 'hod' && isFirstYearHod) {
+        // First Year HOD: Only 1st Year department classes and students
+        const [[{ deptStudents }]] = await db.query(
+          `SELECT COUNT(st.id) AS deptStudents 
+           FROM students st 
+           JOIN classes c ON c.id = st.class_id 
+           WHERE c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I'`
+        );
+        totalStudents = deptStudents;
+
+        const [[{ deptSubCount }]] = await db.query(
+          `SELECT COUNT(s.id) AS deptSubCount 
+           FROM subjects s 
+           JOIN classes c ON c.id = s.class_id 
+           WHERE c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I'`
+        );
+        totalSubjects = deptSubCount;
+      } else if (role === 'hod' && department) {
+        // Core Department HODs (IT, CSE, ECE, MECH, CIVIL, etc.):
+        // Only their department AND only Years II, III, IV
+        const [[{ deptStudents }]] = await db.query(
+          `SELECT COUNT(st.id) AS deptStudents 
+           FROM students st 
+           JOIN classes c ON c.id = st.class_id 
+           WHERE (c.department LIKE ? OR c.name LIKE ?) AND c.year_label IN ('II', 'III', 'IV')`,
+          [`%${department}%`, `%${department}%`]
+        );
+        totalStudents = deptStudents;
+
+        const [[{ deptSubCount }]] = await db.query(
+          `SELECT COUNT(s.id) AS deptSubCount 
+           FROM subjects s 
+           JOIN classes c ON c.id = s.class_id 
+           WHERE (c.department LIKE ? OR c.name LIKE ?) AND c.year_label IN ('II', 'III', 'IV')`,
+          [`%${department}%`, `%${department}%`]
+        );
+        totalSubjects = deptSubCount;
+      } else {
+        // Admin: all students and subjects
+        const [[{ count }]] = await db.query('SELECT COUNT(*) AS count FROM students');
+        totalStudents = count;
+        const [[{ subCount }]] = await db.query('SELECT COUNT(*) AS totalSubjects FROM subjects');
+        totalSubjects = subCount;
+      }
 
       // 3. If HOD is also teaching subjects, count HOD's own subjects
       if (staffId) {
@@ -89,8 +120,19 @@ router.get('/', async (req, res) => {
 
     if (role === 'hod' && department) {
       msJoin = 'JOIN subjects sub ON sub.id = ms.subject_id JOIN classes c ON c.id = sub.class_id';
-      msWhere = 'c.department LIKE ?';
-      msParams = [`%${department}%`];
+      const isFirstYear = (
+        department === 'Science and Humanities' ||
+        department === 'First Year' ||
+        department.toLowerCase().includes('science') ||
+        department.toLowerCase().includes('humanities')
+      );
+      if (isFirstYear) {
+        msWhere = "(c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I')";
+        msParams = [];
+      } else {
+        msWhere = "(c.department LIKE ? OR c.name LIKE ?) AND c.year_label IN ('II', 'III', 'IV')";
+        msParams = [`%${department}%`, `%${department}%`];
+      }
     } else if (staffId && role !== 'admin') {
       msJoin = 'JOIN subjects sub ON sub.id = ms.subject_id';
       msWhere = 'sub.faculty_id = ?';
@@ -142,12 +184,21 @@ router.get('/', async (req, res) => {
     // Year-wise Performance (I, II, III, IV)
     let yearParams = [];
     let yearWhere = '1=1';
+    let yearAllowedClause = "c.year_label IN ('I', 'II', 'III', 'IV')";
     if (role === 'hod' && department) {
-      if (department === 'Science and Humanities') {
-        yearWhere = "(c.department = 'Science and Humanities' OR c.year_label = 'I')";
+      const isFirstYear = (
+        department === 'Science and Humanities' ||
+        department === 'First Year' ||
+        department.toLowerCase().includes('science') ||
+        department.toLowerCase().includes('humanities')
+      );
+      if (isFirstYear) {
+        yearWhere = "(c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I')";
+        yearAllowedClause = "c.year_label = 'I'";
       } else {
         yearWhere = "(c.department LIKE ? OR c.name LIKE ?)";
         yearParams.push(`%${department}%`, `%${department}%`);
+        yearAllowedClause = "c.year_label IN ('II', 'III', 'IV')";
       }
     } else if (staffId && role !== 'admin' && role !== 'principal' && role !== 'vice_principal') {
       if (staffId === 'S_CHITRA' || staffId === 'FAC002') {
@@ -164,7 +215,7 @@ router.get('/', async (req, res) => {
       FROM marks_sessions ms
       JOIN classes c ON c.id = ms.class_id
       LEFT JOIN subjects sub ON sub.id = ms.subject_id
-      WHERE ${yearWhere} AND c.year_label IN ('I', 'II', 'III', 'IV')
+      WHERE ${yearWhere} AND ${yearAllowedClause}
       GROUP BY c.year_label
       ORDER BY FIELD(c.year_label, 'I', 'II', 'III', 'IV')
     `, yearParams);
