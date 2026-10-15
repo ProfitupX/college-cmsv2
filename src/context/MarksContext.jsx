@@ -85,6 +85,10 @@ function marksReducer(state, action) {
       return { ...state, isDirty: false };
     case 'CLEAR':
       return { ...state, marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
+    case 'CLEAR_SELECTION':
+      return { ...state, selectedClassId: '', selectedSubjectId: '', marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
+    case 'SET_CLASS_AND_SUBJECT':
+      return { ...state, selectedClassId: action.payload.classId, selectedSubjectId: action.payload.subjectId, marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     default:
       return state;
   }
@@ -95,6 +99,7 @@ export function MarksProvider({ children }) {
 
   const setClass      = (id)  => dispatch({ type: 'SET_CLASS',   payload: id });
   const setSubject    = (id)  => dispatch({ type: 'SET_SUBJECT', payload: id });
+  const setClassAndSubject = (classId, subjectId) => dispatch({ type: 'SET_CLASS_AND_SUBJECT', payload: { classId, subjectId } });
   const setTotalHours = (hrs) => dispatch({ type: 'SET_TOTAL_HOURS', payload: hrs });
   const setAttendance = (studentId, hours) => dispatch({ type: 'SET_ATTENDANCE', payload: { studentId, hours } });
   const setInternalExam = (studentId, mark) => dispatch({ type: 'SET_INTERNAL_EXAM', payload: { studentId, mark } });
@@ -104,10 +109,11 @@ export function MarksProvider({ children }) {
   const setSessionBulk = (data) => dispatch({ type: 'SET_SESSION_BULK', payload: data });
   const markSaved     = ()    => dispatch({ type: 'MARK_SAVED' });
   const clearMarks    = ()    => dispatch({ type: 'CLEAR' });
+  const clearSelection = ()   => dispatch({ type: 'CLEAR_SELECTION' });
 
   return (
     <MarksContext.Provider value={{ 
-      ...state, setClass, setSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks 
+      ...state, setClass, setSubject, setClassAndSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks, clearSelection 
     }}>
       {children}
     </MarksContext.Provider>

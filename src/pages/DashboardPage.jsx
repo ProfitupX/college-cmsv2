@@ -11,7 +11,7 @@ import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
 import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
+import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF, generateHodMarksPDF } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import styles from './DashboardPage.module.css';
@@ -34,6 +34,11 @@ export default function DashboardPage() {
   const [subjectModalOpen, setSubjectModalOpen] = useState(false);
   const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState([]);
+
+  // HOD Continuous Assessment state
+  const [hodMarksData, setHodMarksData] = useState(null);
+  const [hodMarksLoading, setHodMarksLoading] = useState(false);
+  const [hodSession, setHodSession] = useState('internal1');
 
   const loadData = () => {
     setLoading(true);
@@ -81,6 +86,33 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
   }, [user]);
+
+  // Load HOD Marks if user is HOD
+  useEffect(() => {
+    if (user?.role === 'hod' && user?.department) {
+      setHodMarksLoading(true);
+      statsAPI.getHodMarks(user.department, hodSession)
+        .then(res => setHodMarksData(res))
+        .catch(err => {
+          console.error('Failed to load HOD marks on dashboard:', err);
+          setHodMarksData(null);
+        })
+        .finally(() => setHodMarksLoading(false));
+    }
+  }, [user, hodSession]);
+
+  const handleDownloadHodPDF = async () => {
+    if (!user?.department) return;
+    setGenLoading(true);
+    try {
+      const d = hodMarksData || await statsAPI.getHodMarks(user.department, hodSession);
+      await generateHodMarksPDF(user.department, hodSession, d);
+    } catch (err) {
+      alert('Failed to generate HOD Marks PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
 
   const handleApproveUnlock = async (reqId, sessId, action) => {
     try {
@@ -335,8 +367,12 @@ export default function DashboardPage() {
     avgScore:    s.avg_score,
     classId:     s.class_id,
     subjectId:   s.subject_id,
-    yearLabel:   s.year_label
-  }));let sideChartTitle = 'Subject Scores';
+    yearLabel:   s.year_label,
+    semester:    s.semester,
+    sessionLabel: s.session_label
+  }));
+
+  let sideChartTitle = 'Subject Scores';
   let sideChartSub = 'Average % per subject';
 
   const colors = ['#6C63FF', '#10B981', '#F59E0B', '#22D3EE', '#EF4444', '#EC4899', '#8B5CF6'];
@@ -399,6 +435,124 @@ export default function DashboardPage() {
       </div>
 
       <StatsGrid stats={stats} />
+
+      {/* HOD Continuous Assessment & Year-wise Pass/Fail Command Center */}
+      {user?.role === 'hod' && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border-solid)',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          marginBottom: '20px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px',
+            marginBottom: '16px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid var(--border-solid)'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                <Award size={22} color="#EC4899" />
+                <span>Department Continuous Assessment Overview: {user?.department}</span>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Year-wise Pass &amp; Failed breakdown and official Anna University continuous assessment marks report.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <select 
+                value={hodSession}
+                onChange={e => setHodSession(e.target.value)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-solid)',
+                  background: 'var(--bg)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="internal1">Internal 1 (CA-1)</option>
+                <option value="internal2">Internal 2 (CA-2)</option>
+              </select>
+
+              <button 
+                onClick={handleDownloadHodPDF}
+                disabled={genLoading || !hodMarksData}
+                style={{
+                  background: 'linear-gradient(135deg, #EC4899 0%, #BE185D 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: (genLoading || !hodMarksData) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: (genLoading || !hodMarksData) ? 0.7 : 1,
+                  boxShadow: '0 2px 8px rgba(236, 72, 153, 0.3)'
+                }}
+              >
+                <Download size={15} /> Download HOD Marks (PDF)
+              </button>
+            </div>
+          </div>
+
+          {hodMarksLoading ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <Loader size={20} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px' }} />
+              Loading {user?.department} continuous assessment pass/fail data...
+            </div>
+          ) : hodMarksData ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg)' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)', fontWeight: 700 }}>Year / Semester</th>
+                    <th style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)', fontWeight: 700 }}>Total Students</th>
+                    <th style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)', fontWeight: 700 }}>Passed Students</th>
+                    <th style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)', fontWeight: 700 }}>Failed Students</th>
+                    <th style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)', fontWeight: 700 }}>Pass %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hodMarksData.years.map((y, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-solid)', transition: 'background 0.15s ease' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: 600 }}>{y.year} Year (Sem {y.semester})</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 600 }}>{y.strength}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', color: '#10B981', fontWeight: 700 }}>{y.passed}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', color: y.failed > 0 ? '#EF4444' : 'var(--text-secondary)', fontWeight: 700 }}>{y.failed}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>{y.passPct}%</td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: 'var(--surface-hover)' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--text-primary)' }}>OVERALL DEPARTMENT TOTAL</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800 }}>{hodMarksData.overall.strength}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#10B981' }}>{hodMarksData.overall.passed}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: hodMarksData.overall.failed > 0 ? '#EF4444' : 'inherit' }}>{hodMarksData.overall.failed}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>{hodMarksData.overall.passPct}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              No continuous assessment data available for this session.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Class In-charge Dedicated Command Center */}
       {user?.isClassCoordinator && coordinatedClass && (

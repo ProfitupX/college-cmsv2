@@ -1618,6 +1618,7 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
     `${yData.year} Year (Sem ${yData.semester})`,
     yData.strength,
     yData.passed,
+    yData.failed !== undefined ? yData.failed : Math.max(0, yData.strength - yData.passed),
     `${yData.passPct}%`
   ]);
 
@@ -1625,16 +1626,17 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
     { content: 'OVERALL DEPARTMENT TOTAL', styles: { fontStyle: 'bold' } },
     { content: data.overall.strength, styles: { fontStyle: 'bold' } },
     { content: data.overall.passed, styles: { fontStyle: 'bold' } },
+    { content: data.overall.failed !== undefined ? data.overall.failed : Math.max(0, data.overall.strength - data.overall.passed), styles: { fontStyle: 'bold' } },
     { content: `${data.overall.passPct}%`, styles: { fontStyle: 'bold' } }
   ]);
 
   autoTable(doc, {
     startY: y + 10,
-    head: [['Year / Semester', 'Total Students', 'Passed Students', 'Pass Percentage']],
+    head: [['Year / Semester', 'Total Students', 'Passed Students', 'Failed Students', 'Pass Percentage']],
     body: tableBody,
     theme: 'grid',
-    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 12, cellPadding: 10 },
-    bodyStyles: { halign: 'center', fontSize: 12, cellPadding: 10 },
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 11, cellPadding: 8 },
+    bodyStyles: { halign: 'center', fontSize: 11, cellPadding: 8 },
     alternateRowStyles: { fillColor: [245, 245, 245] },
     margin: { left: 14, right: 14 }
   });

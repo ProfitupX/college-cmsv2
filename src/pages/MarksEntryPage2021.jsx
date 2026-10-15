@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api';
@@ -29,10 +29,11 @@ import styles from './MarksEntryPage.module.css';
  */
 export default function MarksEntryPage2021() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const {
     selectedClassId, selectedSubjectId,
     marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
-    setClass, setSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks,
+    setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
   } = useMarks();
 
   const [classes,   setClasses]   = useState([]);
@@ -62,11 +63,19 @@ export default function MarksEntryPage2021() {
 
   // ── Handle incoming navigation state ────────────────────────
   useEffect(() => {
-    if (location.state?.classId && location.state?.subjectId) {
-      setClass(location.state.classId);
-      setSubject(location.state.subjectId);
+    const targetClassId = location.state?.classId || location.state?.class_id;
+    const targetSubjectId = location.state?.subjectId || location.state?.subject_id;
+    const targetSession = location.state?.sessionLabel || location.state?.session_label;
+
+    if (targetClassId && targetSubjectId) {
+      setClassAndSubject(targetClassId, targetSubjectId);
+    } else if (targetClassId) {
+      setClass(targetClassId);
     }
-  }, [location.state, setClass, setSubject]);
+    if (targetSession) {
+      setAssessmentMode(targetSession);
+    }
+  }, [location.state]);
 
   // ── Load classes on mount — filter to 3rd/4th year only, restricted by user role ────
   useEffect(() => {
@@ -75,6 +84,7 @@ export default function MarksEntryPage2021() {
         // 2021 Regulation: only show III and IV year classes (semester 5,6,7,8)
         let filtered = allClasses.filter(c =>
           c.year_label === 'III' || c.year_label === 'IV' ||
+          c.year_label === '3' || c.year_label === '4' ||
           parseInt(c.semester) >= 5
         );
 
@@ -95,26 +105,52 @@ export default function MarksEntryPage2021() {
           filtered = filtered.filter(c => teachIds.includes(c.id));
         }
 
+        // Guarantee target class from redirect is available in classes list for HoD/Staff
+        const targetClassId = location.state?.classId || location.state?.class_id;
+        if (targetClassId) {
+          const matchedTarget = allClasses.find(c => c.id === targetClassId);
+          if (matchedTarget && !filtered.some(c => c.id === targetClassId)) {
+            filtered.push(matchedTarget);
+          }
+        }
+
         setClasses(filtered);
       })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, location.state]);
+
+  // Ensure stale 2025 classes are cleanly removed on regulation switch without refresh
+  useEffect(() => {
+    if (classes.length > 0 && selectedClassId) {
+      const isValid = classes.some(c => c.id === selectedClassId);
+      const targetClassId = location.state?.classId || location.state?.class_id;
+      if (!isValid && !targetClassId) {
+        clearSelection();
+      }
+    }
+  }, [classes, selectedClassId]);
 
   // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
     if (!selectedClassId) { setSubjects([]); return; }
     subjectsAPI.getByClass(selectedClassId).then((allSubs) => {
-      const isElevated = user?.role === 'hod' || user?.role === 'admin';
+      const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
       const isCoordinator = user?.isClassCoordinator && (
         user.coordinatedClassId === selectedClassId || 
         (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
       );
 
+      let visibleSubs = allSubs;
       if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
-        setSubjects(allSubs.filter(s => user.assignedSubjectIds.includes(s.id)));
-      } else {
-        setSubjects(allSubs);
+        visibleSubs = allSubs.filter(s => user.assignedSubjectIds.includes(s.id));
+      }
+      setSubjects(visibleSubs);
+
+      // Restore target subject reliably from incoming state or existing selection
+      const targetSubId = location.state?.subjectId || location.state?.subject_id || selectedSubjectId;
+      if (targetSubId && visibleSubs.some(s => s.id === targetSubId)) {
+        setSubject(targetSubId);
       }
     }).catch(() => setSubjects([]));
   }, [selectedClassId, user]);
@@ -382,6 +418,73 @@ export default function MarksEntryPage2021() {
 
   return (
     <div>
+      {/* Fast Regulation Switcher */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        background: 'var(--surface)',
+        border: '1px solid var(--border-solid)',
+        borderRadius: '12px',
+        padding: '10px 16px',
+        marginBottom: '20px',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Academic Regulation:</span>
+          <div style={{ display: 'inline-flex', background: 'var(--bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-solid)' }}>
+            <button
+              type="button"
+              onClick={() => {
+                clearSelection();
+                navigate('/marks-entry');
+              }}
+              style={{
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+              title="Switch to 2025 Regulation"
+            >
+              ⚡ 2025 Regulation (I &amp; II Year)
+            </button>
+            <button
+              type="button"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'default',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📜 2021 Regulation (III &amp; IV Year)
+            </button>
+          </div>
+        </div>
+
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          Anna University 2021 Regulation · CIA + Internal Exam /100
+        </div>
+      </div>
+
       {/* 2021 Regulation Banner */}
       <div style={{
         background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',

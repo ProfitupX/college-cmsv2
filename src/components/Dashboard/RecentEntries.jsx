@@ -61,12 +61,20 @@ export default function RecentEntries({ entries }) {
             className={styles.row}
             style={{ animationDelay: `${i * 60}ms`, cursor: 'pointer' }}
             onClick={() => {
-              const route = (e.yearLabel === 'III' || e.yearLabel === 'IV') ? '/marks-entry-2021' : '/marks-entry';
-              navigate(route, { state: { loadSessionId: e.id, classId: e.classId, subjectId: e.subjectId } });
+              const is2021 = e.yearLabel === 'III' || e.yearLabel === 'IV' || e.yearLabel === '3' || e.yearLabel === '4' || parseInt(e.semester) >= 5;
+              const route = is2021 ? '/marks-entry-2021' : '/marks-entry';
+              navigate(route, { 
+                state: { 
+                  loadSessionId: e.id, 
+                  classId: e.classId, 
+                  subjectId: e.subjectId,
+                  sessionLabel: e.sessionLabel
+                } 
+              });
             }}
-            title="Click to view full marks entry"
+            title="Click subject to view & edit marks entry"
           >
-            <span className={styles.subject}>{e.subject}</span>
+            <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700 }}>{e.subject}</span>
             <span className={styles.class}>{e.class}</span>
             <span className={styles.date}>{formatDate(e.submittedAt)}</span>
             <span className={styles.count}>{e.count}</span>

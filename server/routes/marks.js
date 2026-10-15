@@ -213,7 +213,7 @@ router.get('/sessions', async (req, res) => {
       SELECT ms.id, ms.session_label, ms.total_max, ms.status,
              ms.avg_score, ms.student_count, ms.created_at, ms.subject_id, ms.class_id,
              sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
-             cl.name  AS class_name, cl.department AS class_department, cl.year_label,
+             cl.name  AS class_name, cl.department AS class_department, cl.year_label, cl.semester,
              st.name  AS staff_name
       FROM marks_sessions ms
       JOIN subjects sub ON sub.id = ms.subject_id

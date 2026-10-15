@@ -64,6 +64,7 @@ export default function ReportsPage() {
   const [overallFromDate, setOverallFromDate] = useState('');
   const [overallToDate, setOverallToDate] = useState('');
   const [hodMarksData, setHodMarksData] = useState(null);
+  const [hodMarksLoading, setHodMarksLoading] = useState(false);
 
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
@@ -176,11 +177,16 @@ export default function ReportsPage() {
 
   // 4. Load HOD Marks if user is HOD
   useEffect(() => {
-    if (user?.role === 'hod') {
+    if (user?.role === 'hod' && user?.department) {
+      setHodMarksLoading(true);
       import('../services/api').then(({ statsAPI }) => {
         statsAPI.getHodMarks(user.department, sessionLabel)
-          .then(setHodMarksData)
-          .catch(err => console.error('Failed to load HOD marks:', err));
+          .then(data => setHodMarksData(data))
+          .catch(err => {
+            console.error('Failed to load HOD marks:', err);
+            setHodMarksData(null);
+          })
+          .finally(() => setHodMarksLoading(false));
       });
     }
   }, [user, sessionLabel]);
@@ -320,10 +326,17 @@ export default function ReportsPage() {
   };
 
   const handleHistoryRowClick = (session) => {
-    // Check if class is 2025 Regulation (1st & 2nd Year)
-    const is2025 = session.year_label === 'I' || session.year_label === 'II' || parseInt(session.semester) <= 4;
-    const path = is2025 ? '/marks-entry' : '/marks-entry-2021';
-    navigate(path, { state: { classId: session.class_id, subjectId: session.subject_id } });
+    // Check if class is 2021 Regulation (3rd & 4th Year)
+    const is2021 = session.year_label === 'III' || session.year_label === 'IV' || session.year_label === '3' || session.year_label === '4' || parseInt(session.semester) >= 5;
+    const path = is2021 ? '/marks-entry-2021' : '/marks-entry';
+    navigate(path, { 
+      state: { 
+        loadSessionId: session.id,
+        classId: session.class_id || session.classId, 
+        subjectId: session.subject_id || session.subjectId,
+        sessionLabel: session.session_label || session.sessionLabel
+      } 
+    });
   };
 
   if (loading) {
@@ -529,7 +542,12 @@ export default function ReportsPage() {
                 </button>
               </div>
               
-              {hodMarksData && (
+              {hodMarksLoading ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <Loader size={18} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px' }} />
+                  Loading year-wise continuous assessment marks...
+                </div>
+              ) : hodMarksData ? (
                 <div style={{ overflowX: 'auto', marginTop: '10px' }}>
                   <table className={styles.table} style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
@@ -537,6 +555,7 @@ export default function ReportsPage() {
                         <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Year / Sem</th>
                         <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Total Students</th>
                         <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Passed Students</th>
+                        <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Failed Students</th>
                         <th style={{ textAlign: 'center', padding: '10px', borderBottom: '2px solid var(--border-solid)', color: 'var(--text-secondary)' }}>Pass %</th>
                       </tr>
                     </thead>
@@ -545,18 +564,24 @@ export default function ReportsPage() {
                         <tr key={idx} style={{ borderBottom: '1px solid var(--border-solid)' }}>
                           <td style={{ padding: '10px', fontWeight: 600 }}>{y.year} Year (Sem {y.semester})</td>
                           <td style={{ padding: '10px', textAlign: 'center' }}>{y.strength}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{y.passed}</td>
+                          <td style={{ padding: '10px', textAlign: 'center', color: '#10B981', fontWeight: 600 }}>{y.passed}</td>
+                          <td style={{ padding: '10px', textAlign: 'center', color: y.failed > 0 ? '#EF4444' : 'var(--text-secondary)', fontWeight: 600 }}>{y.failed}</td>
                           <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{y.passPct}%</td>
                         </tr>
                       ))}
                       <tr style={{ background: 'var(--surface-hover)' }}>
                         <td style={{ padding: '10px', fontWeight: 700 }}>OVERALL TOTAL</td>
                         <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>{hodMarksData.overall.strength}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>{hodMarksData.overall.passed}</td>
-                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--danger)' }}>{hodMarksData.overall.passPct}%</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{hodMarksData.overall.passed}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: hodMarksData.overall.failed > 0 ? '#EF4444' : 'inherit' }}>{hodMarksData.overall.failed}</td>
+                        <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{hodMarksData.overall.passPct}%</td>
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              ) : (
+                <div style={{ padding: '15px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  No continuous assessment marks recorded yet for this session.
                 </div>
               )}
             </div>
