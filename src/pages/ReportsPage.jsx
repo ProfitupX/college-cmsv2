@@ -99,6 +99,7 @@ export default function ReportsPage() {
         }
 
         allowed.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+
         setClasses(allowed);
 
         // Pick initial class: prioritized to coordinated class, or first allowed class
@@ -121,7 +122,6 @@ export default function ReportsPage() {
         if (!isElevated && !user?.isClassCoordinator) {
           filteredSubs = subs.filter(sub => user?.assignedSubjectIds?.includes(sub.id));
         }
-        filteredSubs.sort((a, b) => (a.code || a.name || '').localeCompare(b.code || b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
         setSubjects(filteredSubs);
         setStudents(stds);
         if (filteredSubs.length > 0) setSelectedSubjectId(filteredSubs[0].id);
@@ -146,7 +146,6 @@ export default function ReportsPage() {
         if (!isElevated && !isCoordOfThis) {
           visibleSubs = allSubs.filter(sub => user?.assignedSubjectIds?.includes(sub.id));
         }
-        visibleSubs.sort((a, b) => (a.code || a.name || '').localeCompare(b.code || b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
         setSubjects(visibleSubs);
         if (visibleSubs.length > 0) {
           setSelectedSubjectId(visibleSubs[0].id);

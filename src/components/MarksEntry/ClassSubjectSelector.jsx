@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import styles from './ClassSubjectSelector.module.css';
 
@@ -9,22 +8,38 @@ export default function ClassSubjectSelector({
   selectedSubject,
   onClassChange,
   onSubjectChange,
+  regulation,
+  onRegulationChange,
 }) {
-  const sortedClasses = useMemo(() => {
-    return [...(classes || [])].sort((a, b) => 
-      (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
-    );
-  }, [classes]);
-
-  const sortedSubjects = useMemo(() => {
-    return [...(subjects || [])].sort((a, b) => 
-      (a.code || a.name || '').localeCompare(b.code || b.name || '', undefined, { numeric: true, sensitivity: 'base' })
-    );
-  }, [subjects]);
+  // Sort classes alphabetically
+  const sortedClasses = [...classes].sort((a, b) => 
+    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+  );
 
   return (
     <div className={styles.wrapper}>
       <div className={styles.selectorGroup}>
+        {/* Regulation Selector */}
+        {onRegulationChange && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="regulation-select">
+              Regulation
+            </label>
+            <div className={styles.selectWrap}>
+              <select
+                id="regulation-select"
+                className={styles.select}
+                value={regulation || '2025'}
+                onChange={(e) => onRegulationChange(e.target.value)}
+              >
+                <option value="2025">2025 Regulation (I &amp; II Year)</option>
+                <option value="2021">2021 Regulation (III &amp; IV Year)</option>
+              </select>
+              <ChevronDown size={16} className={styles.chevron} />
+            </div>
+          </div>
+        )}
+
         {/* Class Selector */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor="class-select">
@@ -59,16 +74,16 @@ export default function ClassSubjectSelector({
               className={styles.select}
               value={selectedSubject}
               onChange={(e) => onSubjectChange(e.target.value)}
-              disabled={!selectedClass || sortedSubjects.length === 0}
+              disabled={!selectedClass || subjects.length === 0}
             >
               <option value="">
                 {!selectedClass
                   ? '— Select a class first —'
-                  : sortedSubjects.length === 0
+                  : subjects.length === 0
                   ? '— No subjects available —'
                   : '— Choose a Subject —'}
               </option>
-              {sortedSubjects.map((s) => (
+              {subjects.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} — {s.name}
                 </option>

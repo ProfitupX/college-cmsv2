@@ -493,73 +493,6 @@ export default function MarksEntryPage() {
 
   return (
     <div>
-      {/* Fast Regulation Switcher */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        background: 'var(--surface)',
-        border: '1px solid var(--border-solid)',
-        borderRadius: '12px',
-        padding: '10px 16px',
-        marginBottom: '20px',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Academic Regulation:</span>
-          <div style={{ display: 'inline-flex', background: 'var(--bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-solid)' }}>
-            <button
-              type="button"
-              style={{
-                background: 'var(--primary)',
-                color: '#fff',
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'default',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              ⚡ 2025 Regulation (I &amp; II Year)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                clearSelection();
-                navigate('/marks-entry-2021');
-              }}
-              style={{
-                background: 'transparent',
-                color: 'var(--text-secondary)',
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.15s ease'
-              }}
-              title="Switch to 2021 Regulation"
-            >
-              📜 2021 Regulation (III &amp; IV Year)
-            </button>
-          </div>
-        </div>
-
-        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Autonomous Regulation · CIA /40 + Internal Exam /60
-        </div>
-      </div>
-
       <div className={styles.steps}>
         {[
           { n: 1, label: 'Select Class & Subject' },
@@ -584,6 +517,13 @@ export default function MarksEntryPage() {
         selectedSubject={selectedSubjectId}
         onClassChange={handleClassChange}
         onSubjectChange={handleSubjectChange}
+        regulation="2025"
+        onRegulationChange={(newReg) => {
+          if (newReg === '2021') {
+            clearSelection();
+            navigate('/marks-entry-2021');
+          }
+        }}
       />
 
       {selectedSubject && (
