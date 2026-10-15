@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import styles from './ClassSubjectSelector.module.css';
 
@@ -9,6 +10,18 @@ export default function ClassSubjectSelector({
   onClassChange,
   onSubjectChange,
 }) {
+  const sortedClasses = useMemo(() => {
+    return [...(classes || [])].sort((a, b) => 
+      (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [classes]);
+
+  const sortedSubjects = useMemo(() => {
+    return [...(subjects || [])].sort((a, b) => 
+      (a.code || a.name || '').localeCompare(b.code || b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [subjects]);
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.selectorGroup}>
@@ -25,7 +38,7 @@ export default function ClassSubjectSelector({
               onChange={(e) => onClassChange(e.target.value)}
             >
               <option value="">— Choose a Class —</option>
-              {classes.map((c) => (
+              {sortedClasses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -46,16 +59,16 @@ export default function ClassSubjectSelector({
               className={styles.select}
               value={selectedSubject}
               onChange={(e) => onSubjectChange(e.target.value)}
-              disabled={!selectedClass || subjects.length === 0}
+              disabled={!selectedClass || sortedSubjects.length === 0}
             >
               <option value="">
                 {!selectedClass
                   ? '— Select a class first —'
-                  : subjects.length === 0
+                  : sortedSubjects.length === 0
                   ? '— No subjects available —'
                   : '— Choose a Subject —'}
               </option>
-              {subjects.map((s) => (
+              {sortedSubjects.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} — {s.name}
                 </option>

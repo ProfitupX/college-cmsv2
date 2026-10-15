@@ -52,7 +52,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   doc.line(dividerX, 8, dividerX, 34); // Right divider for Format Info
   
   // Format Info Box on top right
-  doc.setFontSize(7);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.text(`Format No. : ${formatNo || 'NAC/TLP-07a.21'}`, dividerX + 2, 13);
   doc.text(`Rev.No     : ${revNo || '01'}`, dividerX + 2, 18);
@@ -79,9 +79,9 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   doc.setFillColor(245, 247, 250);
   doc.rect(10.1, 34.1, boxWidth - 0.2, 6.8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(0, 0, 0);
-  doc.text(title, centerX, 38.5, { align: 'center' });
+  doc.text(title, centerX, 38.8, { align: 'center' });
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -95,7 +95,8 @@ export const generateSubjectAnalysisPDF = async ({
   await drawCollegeHeader(doc, 'Test Analysis Report (Subject wise)', 'NAC/TLP-07a.21', '01', '', '1 of 1');
 
   // Subheader Details Table Block
-  doc.setFontSize(8);
+  const academicYear = classObj?.academic_year || session?.academic_year || '2025 - 2026';
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   
   let y = 46;
@@ -103,7 +104,7 @@ export const generateSubjectAnalysisPDF = async ({
   doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year    : ${academicYear}`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -232,15 +233,15 @@ export const generateSubjectAnalysisPDF = async ({
       ]
     ],
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' }
+    styles: { fontSize: 9, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }
   });
 
   y = doc.lastAutoTable.finalY + 5;
 
   // Summary Metrics Table Block
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.text(`No. of Students Appeared :  ${appeared}`, 14, y);
   doc.text(`Pass Percentage  :  ${passPct}%`, 120, y);
   y += 5;
@@ -255,6 +256,7 @@ export const generateSubjectAnalysisPDF = async ({
 
   // Section 2: Declaration
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
   doc.text('2. Declaration by Staff:', 14, y);
   y += 5;
   doc.setFont('helvetica', 'normal');
@@ -292,7 +294,7 @@ export const generateSubjectAnalysisPDF = async ({
   y = doc.internal.pageSize.getHeight() - 30; // 30mm from the bottom of the page
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(9.5);
   doc.text('STAFF INCHARGE', 20, y);
   doc.text('HOD', 75, y);
   doc.text('VICE PRINCIPAL', 120, y);
@@ -314,25 +316,26 @@ export const generateSubjectMarksListPDF = async ({
   
   await drawCollegeHeader(doc, `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List`, '', '', '', '1 of 1');
   
+  const academicYear = classObj?.academic_year || session?.academic_year || '2025 - 2026';
   let y = 46;
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text(`Year / Sem             : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
   doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year    : ${academicYear}`, 120, y);
   y += 5;
   const totHoursDisplay = parseInt(int1Hours || 0) + parseInt(int2Hours || 0) + parseInt(labHours || 0) || totalHours || 0;
-  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
+  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Working Hrs: ${totHoursDisplay}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 8;
 
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
-  // Prepare Table Headers
-  const headRow = ['S.No', 'Roll No', 'Name', 'P Hrs', '100 marks internal', 'Activities mark'];
+  // Prepare Table Headers with clear Present & Absent hours
+  const headRow = ['S.No', 'Roll No', 'Name', 'P.Hrs\n(Present)', 'A.Hrs\n(Absent)', '100 marks internal', 'Activities mark'];
 
   // Prepare Table Body
   let finalTotalMaxHours = 0;
@@ -392,23 +395,25 @@ export const generateSubjectMarksListPDF = async ({
     const internalExamMark = internalExamData[student.id];
     const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
 
+    const attendedNum = parseInt(attendanceDaysStr);
+    const absentHours = finalTotalMaxHours > 0 && !isNaN(attendedNum) ? Math.max(0, finalTotalMaxHours - attendedNum) : '-';
+
     const row = [
       idx + 1,
       student.roll_no,
       student.name,
-      attendanceDaysStr,          // P Hrs
-      internalExamMarkStr,        // 100 marks internal
-      convertedTotal              // Activities mark
+      attendanceDaysStr || '0',          // P.Hrs (Present)
+      absentHours,                        // A.Hrs (Absent)
+      internalExamMarkStr,                // 100 marks internal
+      convertedTotal                      // Activities mark
     ];
 
     return row;
   });
 
   const footRow = Array(headRow.length).fill('');
-  const attdColIdx = headRow.indexOf('Attendance');
-  if (attdColIdx !== -1 && finalTotalMaxHours > 0) {
-    footRow[attdColIdx] = `Total Hrs:\n${finalTotalMaxHours}`;
-  }
+  footRow[3] = 'P.Hrs';
+  footRow[4] = finalTotalMaxHours > 0 ? `W.Hrs: ${finalTotalMaxHours}` : '';
 
   autoTable(doc, {
     startY: y,
@@ -416,15 +421,33 @@ export const generateSubjectMarksListPDF = async ({
     body: bodyRows,
     foot: [footRow],
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
-    footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
-    columnStyles: { 2: { halign: 'left' } }
+    styles: { fontSize: 9, halign: 'center', cellPadding: 2.5 },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 },
+    footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold', fontSize: 8.5 },
+    columnStyles: { 
+      0: { cellWidth: 10 },
+      1: { cellWidth: 26 },
+      2: { halign: 'left', cellWidth: 42 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 32 },
+      6: { cellWidth: 30 }
+    }
   });
 
-  // Footer Signatures
-  y = doc.lastAutoTable.finalY + 20;
+  // Footer Note & Signatures
+  y = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`*** P.Hrs = Present Hours, A.Hrs = Absent Hours (Total Working Hours: ${finalTotalMaxHours || totHoursDisplay})`, 14, y);
+
+  y += 18;
+  if (y > doc.internal.pageSize.getHeight() - 25) {
+    doc.addPage();
+    y = 25;
+  }
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
   doc.text('STAFF INCHARGE', 20, y);
   doc.text('HOD', 170, y);
 
@@ -443,14 +466,15 @@ export const generateClassAnalysisPDF = async ({
 
   await drawCollegeHeader(doc, 'Test Analysis Report (Class wise / Performance Analysis)', 'NAC/TLP-20', '01', '', '1 of 1');
 
+  const academicYear = classObj?.academic_year || '2025 - 2026';
   let y = 46;
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text(`Year/Sem        : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
   doc.text(`Dept                  : ${classObj?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year : ${academicYear}`, 120, y);
   y += 5;
   doc.text(`Student Strength : ${students.length}`, 14, y);
   doc.text(`Date                 : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -509,8 +533,8 @@ export const generateClassAnalysisPDF = async ({
     head: [['Sl.No', 'Subject Name', 'Subject Code', 'Staff Name', 'No. of Students Passed', 'No. of Students Failed', 'Pass Percentage']],
     body: subjectRows,
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    styles: { fontSize: 9, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 },
     columnStyles: { 1: { halign: 'left' } }
   });
 
@@ -518,6 +542,7 @@ export const generateClassAnalysisPDF = async ({
 
   // Failure Count Summary Table (Dynamic calculation per student)
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
   doc.text('2. Failure Count in this Internal Test:', 14, y);
   y += 3;
 
@@ -559,14 +584,15 @@ export const generateClassAnalysisPDF = async ({
       ['No.of Students', allPassCount, oneFailCount, twoFailCount, threeFailCount, moreFailCount, passPctClass]
     ],
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center' },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' }
+    styles: { fontSize: 9, halign: 'center' },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 }
   });
 
   y = doc.lastAutoTable.finalY + 6;
 
   // Faculty Feedback Corrective Action Table
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
   doc.text('3. Faculty Feed Back - Corrective Action:', 14, y);
   y += 3;
 
@@ -585,15 +611,15 @@ export const generateClassAnalysisPDF = async ({
     head: [['Subject Code', 'Subject Name', 'Faculty Name', 'Remedial Actions to be taken by the Faculty']],
     body: remedialRows,
     theme: 'grid',
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 9 },
     columnStyles: { 3: { cellWidth: 80 } }
   });
 
   y = doc.lastAutoTable.finalY + 6;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.text(`4. Remarks by HOD / Class In-charge: ${remarks || 'Satisfactory performance.'}`, 14, y);
   y += 5;
   doc.text(`5. Overall Improvement Plan: ${remedialAction || 'Follow up with slow learners.'}`, 14, y);
@@ -606,7 +632,7 @@ export const generateClassAnalysisPDF = async ({
 
   // Signatures (Class Incharge, HOD, VP, Principal)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(9.5);
   doc.text('CLASS IN-CHARGE', 16, y);
   doc.text('HOD', 75, y);
   doc.text('VICE PRINCIPAL', 125, y);
@@ -621,13 +647,16 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
   const doc = new jsPDF('p', 'mm', 'a4');
   await drawCollegeHeader(doc, 'COLLEGE PERFORMANCE OVERVIEW', 'NSCET/PRIN/01', '0', null, '1 of 1');
 
+  const academicYear = overview?.academicYear || '2025 - 2026';
   let y = 46;
-  doc.setFontSize(10);
+  doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
   doc.text('Key Metrics:', 14, y);
+  doc.text(`Academic Year: ${academicYear}`, 120, y);
   
   y += 6;
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
   doc.text(`Total Students: ${overview.totalStudents}`, 20, y);
   doc.text(`Total Departments: ${overview.totalDepartments}`, 20, y + 6);
   doc.text(`Total Faculty: ${overview.totalFaculty}`, 120, y);
@@ -635,7 +664,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 
   y += 18;
   // Department-wise Stats
-  doc.setFontSize(10);
+  doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
   doc.text('Department-wise Detailed Analytics:', 14, y);
   
@@ -660,8 +689,8 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
     startY: y,
     head: [['S.No', 'Department Name', 'Total Students', 'Avg Score', 'Status']],
     body: tableBody,
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1, lineColor: [0,0,0] },
+    styles: { fontSize: 9.5, cellPadding: 3.5 },
+    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 10, lineWidth: 0.1, lineColor: [0,0,0] },
     bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },
     alternateRowStyles: { fillColor: [255, 255, 255] },
     columnStyles: {
@@ -676,6 +705,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
   const finalY = doc.lastAutoTable.finalY + 30;
   if (finalY < doc.internal.pageSize.getHeight() - 20) {
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
     doc.text('Prepared By', 20, finalY);
     doc.text('Principal', doc.internal.pageSize.getWidth() - 40, finalY);
   }
@@ -697,14 +727,15 @@ export const generateConsolidatedMarksPDF = async ({
 
   await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
 
+  const academicYear = classObj?.academic_year || '2025 - 2026';
   let y = 46;
-  doc.setFontSize(8);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
   doc.text(`Year / Semester : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
   doc.text(`Department      : ${classObj?.department || 'IT'}`, 140, y);
   y += 5;
   doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : 2026 - 2027`, 140, y);
+  doc.text(`Academic Year : ${academicYear}`, 140, y);
   y += 5;
   doc.text(`Student Strength : ${students.length}`, 14, y);
   y += 6;
@@ -919,7 +950,7 @@ export const generateConsolidatedMarksPDF = async ({
   colStyles[2 + numSubs + 1] = { cellWidth: summaryColWidth, halign: 'center' };
   colStyles[2 + numSubs + 2] = { cellWidth: summaryColWidth, halign: 'center' };
 
-  const fontSize = numSubs > 7 ? 6.5 : 7;
+  const fontSize = numSubs > 7 ? 7.5 : 8.5;
   const cellPadding = numSubs > 7 ? 1.0 : 1.3;
 
   autoTable(doc, {
@@ -943,7 +974,7 @@ export const generateConsolidatedMarksPDF = async ({
       fillColor: [240, 242, 245], 
       textColor: [0, 0, 0], 
       fontStyle: 'bold', 
-      fontSize,
+      fontSize: numSubs > 7 ? 8 : 9,
       lineWidth: 0.1,
       lineColor: [0, 0, 0]
     },
@@ -971,7 +1002,7 @@ export const generateConsolidatedMarksPDF = async ({
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
@@ -1009,8 +1040,9 @@ export const generateSubjectMarksListPDF2021 = async ({
   const title = `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (2021 Regulation)`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.21', '01', '', '1 of 1');
 
+  const academicYear = classObj?.academic_year || session?.academic_year || '2025 - 2026';
   let y = 46;
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
 
   // Info rows
@@ -1018,7 +1050,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Dept                   : ${subject?.department || 'CSE'}`, 120, y);
   y += 5;
   doc.text(`Staff Name         : ${staff?.name || 'Faculty Staff'}`, 14, y);
-  doc.text(`Academic Year  : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year  : ${academicYear}`, 120, y);
   y += 5;
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
@@ -1033,7 +1065,8 @@ export const generateSubjectMarksListPDF2021 = async ({
     'S.No',
     'Roll No',
     'Student Name',
-    `Attendance\n(${totHours > 0 ? `/${totHours}` : 'Attd'})`,
+    'P.Hrs\n(Present)',
+    'A.Hrs\n(Absent)',
     `Internal Marks\n(/${ciaMax})`
   ];
 
@@ -1080,16 +1113,15 @@ export const generateSubjectMarksListPDF2021 = async ({
     }
 
     const attdVal = attendanceData[student.id];
-    let attdDisplay = '-';
-    if (attdVal !== undefined && attdVal !== null && attdVal !== '') {
-      attdDisplay = totHours > 0 ? `${attdVal}/${totHours}` : `${attdVal}`;
-    }
+    const presentHours = (attdVal !== undefined && attdVal !== null && attdVal !== '') ? parseInt(attdVal) : 0;
+    const absentHours = totHours > 0 ? Math.max(0, totHours - presentHours) : '-';
 
     const row = [
       idx + 1,
       student.roll_no || student.rollNo || '-',
       student.name,
-      attdDisplay,
+      presentHours,
+      absentHours,
       ciaTotal === 0 ? '-' : ciaTotal,
     ];
 
@@ -1115,8 +1147,9 @@ export const generateSubjectMarksListPDF2021 = async ({
   const colStyles = {
     0: { cellWidth: 8 },
     1: { cellWidth: 26 },
-    2: { cellWidth: 42, halign: 'left' },
-    3: { cellWidth: 20 },
+    2: { cellWidth: 40, halign: 'left' },
+    3: { cellWidth: 15 },
+    4: { cellWidth: 15 },
   };
 
   autoTable(doc, {
@@ -1124,12 +1157,12 @@ export const generateSubjectMarksListPDF2021 = async ({
     head: [headRow],
     body: bodyRows,
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center', valign: 'middle' },
+    styles: { fontSize: 9, halign: 'center', valign: 'middle' },
     headStyles: {
       fillColor: [124, 58, 237],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 8.5,
       cellPadding: 2,
     },
     alternateRowStyles: { fillColor: [248, 245, 255] },
@@ -1144,7 +1177,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.text('STAFF INCHARGE', 20, y);
   doc.text('HOD', 170, y);
 
@@ -1166,7 +1199,13 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 
   await drawCollegeHeader(doc, title, 'NSCET/PRIN/CA-01', '01', null, '1 of 1');
 
+  const academicYear = caData?.academicYear || '2025 - 2026';
   let y = 46;
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Academic Year    : ${academicYear}`, 14, y);
+  doc.text(`Assessment Period : ${isCA2 ? 'Internal Test 2 (CA-2)' : 'Internal Test 1 (CA-1)'}`, 120, y);
+  y += 7;
 
   // Build table body with department spans
   const bodyRows = [];
@@ -1223,21 +1262,21 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
     head: [['Department', 'Year', 'Strength', 'Passed', 'Percentage', 'Percentage (Over all)']],
     body: bodyRows,
     theme: 'grid',
-    styles: { fontSize: 8, halign: 'center', cellPadding: 2 },
+    styles: { fontSize: 9, halign: 'center', cellPadding: 2.2 },
     headStyles: {
       fillColor: [128, 0, 0],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'center',
-      fontSize: 8
+      fontSize: 9.5
     },
     columnStyles: {
-      0: { cellWidth: 38, halign: 'left' },
-      1: { cellWidth: 16 },
+      0: { cellWidth: 42, halign: 'left' },
+      1: { cellWidth: 22 },
       2: { cellWidth: 24 },
       3: { cellWidth: 24 },
-      4: { cellWidth: 34 },
-      5: { cellWidth: 44 }
+      4: { cellWidth: 32 },
+      5: { cellWidth: 38 }
     }
   });
 
@@ -1249,7 +1288,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.text('VICE PRINCIPAL', 30, y);
   doc.text('PRINCIPAL', 160, y);
 
@@ -1330,12 +1369,13 @@ export const generateOverallMarksAndAttendancePDF = async ({
     doc.text(`Student Attendance Details and Mark Statement as on ${dateStr}`, centerX, 27, { align: 'center' });
   }
 
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   const deptLabel = `Dept: ${classObj?.department || 'IT'}`;
   const secLabel = `Section: ${classObj?.section || 'A'}`;
   const semLabel = `Semester: ${classObj?.semester || '4'}`;
-  const acadLabel = `Academic Year: 2026 - 2027`;
+  const academicYear = classObj?.academic_year || '2025 - 2026';
+  const acadLabel = `Academic Year: ${academicYear}`;
   
   doc.text(deptLabel, 35, 34);
   doc.text(secLabel, 125, 34);
@@ -1534,8 +1574,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
   colStyles[colIdx + 1] = { cellWidth: overAllSubColWidth, halign: 'center' };
   colStyles[colIdx + 2] = { cellWidth: overAllSubColWidth, halign: 'center', fontStyle: 'bold' };
 
-  const fontSize = numSubs >= 8 ? 6 : (numSubs >= 6 ? 6.5 : 7);
-  const cellPadding = numSubs >= 8 ? 0.7 : (numSubs >= 6 ? 1.0 : 1.2);
+  const fontSize = numSubs >= 8 ? 7 : (numSubs >= 6 ? 7.5 : 8.5);
+  const cellPadding = numSubs >= 8 ? 0.8 : (numSubs >= 6 ? 1.0 : 1.2);
 
   autoTable(doc, {
     startY: y,
@@ -1557,7 +1597,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
       fillColor: [240, 242, 245], 
       textColor: [0, 0, 0], 
       fontStyle: 'bold', 
-      fontSize, 
+      fontSize: numSubs >= 8 ? 7.5 : 8.5, 
       lineWidth: 0.1, 
       lineColor: [0, 0, 0] 
     },
@@ -1579,13 +1619,13 @@ export const generateOverallMarksAndAttendancePDF = async ({
     sigY = finalY + 8;
   }
 
-  doc.setFontSize(7);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.text('*** W.Hrs = Working Hours, P.Hrs = Present Hours, % = Attendance Percentage', marginLeft, sigY);
+  doc.text('*** P.Hrs = Present Hours, A.Hrs = Absent Hours, W.Hrs = Working Hours, % = Attendance Percentage', marginLeft, sigY);
   
   sigY += 16;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.text('Class Incharge', marginLeft + 15, sigY);
   doc.text('H.O.D', pageWidth * 0.38, sigY);
   doc.text('Principal', pageWidth * 0.68, sigY);
@@ -1612,7 +1652,9 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
   doc.setFont('helvetica', 'normal');
   const sessionName = sessionLabel === 'internal1' ? 'Internal Test 1 (CA-1)' : sessionLabel === 'internal2' ? 'Internal Test 2 (CA-2)' : 'Model Exam';
   doc.text(`Assessment Mode: ${sessionName}`, 140, y);
-  y += 10;
+  y += 6;
+  doc.text(`Academic Year: ${data?.academicYear || '2025 - 2026'}`, 14, y);
+  y += 8;
 
   const tableBody = data.years.map(yData => [
     `${yData.year} Year (Sem ${yData.semester})`,
