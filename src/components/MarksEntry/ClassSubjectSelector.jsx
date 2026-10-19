@@ -9,6 +9,9 @@ export default function ClassSubjectSelector({
   onClassChange,
   onSubjectChange,
 }) {
+  const sortedClasses = [...classes].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const sortedSubjects = [...subjects].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.selectorGroup}>
@@ -25,7 +28,7 @@ export default function ClassSubjectSelector({
               onChange={(e) => onClassChange(e.target.value)}
             >
               <option value="">— Choose a Class —</option>
-              {classes.map((c) => (
+              {sortedClasses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -55,7 +58,7 @@ export default function ClassSubjectSelector({
                   ? '— No subjects available —'
                   : '— Choose a Subject —'}
               </option>
-              {subjects.map((s) => (
+              {sortedSubjects.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} — {s.name}{s.faculty_name ? ` • [Staff: ${s.faculty_name}]` : ''}
                 </option>

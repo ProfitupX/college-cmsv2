@@ -400,7 +400,7 @@ export default function ReportsPage() {
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
             >
-              {classes.map(c => (
+              {[...classes].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} {user?.coordinatedClassId === c.id ? '(In-charge)' : ''}
                 </option>

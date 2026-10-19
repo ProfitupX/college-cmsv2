@@ -1168,6 +1168,10 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
   await drawCollegeHeader(doc, title, 'NSCET/PRIN/CA-01', '01', null, '1 of 1');
 
   let y = 46;
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Academic Year : 2026 - 2027`, 14, y);
+  y += 6;
 
   // Build table body with department spans
   const bodyRows = [];
@@ -1605,15 +1609,17 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
 
   let y = 45;
   
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text(`Department: ${department}`, 14, y);
   
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
   const sessionName = sessionLabel === 'internal1' ? 'Internal Test 1 (CA-1)' : sessionLabel === 'internal2' ? 'Internal Test 2 (CA-2)' : 'Model Exam';
-  doc.text(`Assessment Mode: ${sessionName}`, 140, y);
-  y += 10;
+  doc.text(`Assessment Mode: ${sessionName}`, 120, y);
+  y += 5;
+  doc.text(`Academic Year: 2026 - 2027`, 14, y);
+  y += 6;
 
   const tableBody = data.years.map(yData => [
     `${yData.year} Year (Sem ${yData.semester})`,
