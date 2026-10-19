@@ -68,13 +68,22 @@ export default function RecentEntries({ entries }) {
                   loadSessionId: e.id, 
                   classId: e.classId, 
                   subjectId: e.subjectId,
-                  sessionLabel: e.sessionLabel
+                  sessionLabel: e.sessionLabel,
+                  staffName: e.staffName,
+                  staffDesignation: e.staffDesignation
                 } 
               });
             }}
             title="Click subject to view & edit marks entry"
           >
-            <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700 }}>{e.subject}</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700 }}>{e.subject}</span>
+              {e.staffName && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                  👤 {e.staffName}
+                </span>
+              )}
+            </div>
             <span className={styles.class}>{e.class}</span>
             <span className={styles.date}>{formatDate(e.submittedAt)}</span>
             <span className={styles.count}>{e.count}</span>

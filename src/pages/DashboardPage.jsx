@@ -369,7 +369,9 @@ export default function DashboardPage() {
     subjectId:   s.subject_id,
     yearLabel:   s.year_label,
     semester:    s.semester,
-    sessionLabel: s.session_label
+    sessionLabel: s.session_label,
+    staffName:   s.staff_name,
+    staffDesignation: s.staff_designation
   }));
 
   let sideChartTitle = 'Subject Scores';

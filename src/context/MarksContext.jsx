@@ -3,6 +3,7 @@ import { createContext, useContext, useReducer } from 'react';
 const MarksContext = createContext(null);
 
 const initialState = {
+  activeRegulation: null, // '2025' | '2021'
   selectedClassId:   '',
   selectedSubjectId: '',
   marksData:  {},   // { studentId: { componentUid: value } }
@@ -15,6 +16,21 @@ const initialState = {
 
 function marksReducer(state, action) {
   switch (action.type) {
+    case 'SET_REGULATION': {
+      if (state.activeRegulation === action.payload) return state;
+      return {
+        ...state,
+        activeRegulation: action.payload,
+        selectedClassId: '',
+        selectedSubjectId: '',
+        marksData: {},
+        attendanceData: {},
+        internalExamData: {},
+        labData: {},
+        totalHours: 0,
+        isDirty: false
+      };
+    }
     case 'SET_CLASS':
       return { ...state, selectedClassId: action.payload, selectedSubjectId: '', marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     case 'SET_SUBJECT':
@@ -97,6 +113,7 @@ function marksReducer(state, action) {
 export function MarksProvider({ children }) {
   const [state, dispatch] = useReducer(marksReducer, initialState);
 
+  const setRegulation = (reg) => dispatch({ type: 'SET_REGULATION', payload: reg });
   const setClass      = (id)  => dispatch({ type: 'SET_CLASS',   payload: id });
   const setSubject    = (id)  => dispatch({ type: 'SET_SUBJECT', payload: id });
   const setClassAndSubject = (classId, subjectId) => dispatch({ type: 'SET_CLASS_AND_SUBJECT', payload: { classId, subjectId } });
@@ -113,7 +130,7 @@ export function MarksProvider({ children }) {
 
   return (
     <MarksContext.Provider value={{ 
-      ...state, setClass, setSubject, setClassAndSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks, clearSelection 
+      ...state, setRegulation, setClass, setSubject, setClassAndSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks, clearSelection 
     }}>
       {children}
     </MarksContext.Provider>

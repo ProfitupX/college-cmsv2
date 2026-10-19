@@ -8,7 +8,7 @@ import MarksTable2021 from '../components/MarksEntry/MarksTable2021';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
 import { generateSubjectMarksListPDF2021, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
-import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, FileText } from 'lucide-react';
+import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, FileText, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
 /**
@@ -31,10 +31,15 @@ export default function MarksEntryPage2021() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const {
+    activeRegulation,
     selectedClassId, selectedSubjectId,
     marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
-    setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
+    setRegulation, setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
   } = useMarks();
+
+  const isCorrectReg = activeRegulation === '2021';
+  const effectiveClassId = isCorrectReg ? selectedClassId : '';
+  const effectiveSubjectId = isCorrectReg ? selectedSubjectId : '';
 
   const [classes,   setClasses]   = useState([]);
   const [subjects,  setSubjects]  = useState([]);
@@ -61,33 +66,20 @@ export default function MarksEntryPage2021() {
 
   const location = useLocation();
 
+  // ── Handle incoming navigation state ────────────────────────
   useEffect(() => {
+    setRegulation('2021');
     const targetClassId = location.state?.classId || location.state?.class_id;
     const targetSubjectId = location.state?.subjectId || location.state?.subject_id;
     const targetSession = location.state?.sessionLabel || location.state?.session_label;
 
-    if (targetClassId) {
-      classesAPI.getAll().then((allClasses) => {
-        const targetCls = allClasses.find(c => c.id === targetClassId);
-        const is2021 = targetCls && (
-          targetCls.year_label === 'III' || targetCls.year_label === 'IV' ||
-          targetCls.year_label === '3' || targetCls.year_label === '4' ||
-          parseInt(targetCls.semester) >= 5
-        );
-        if (is2021) {
-          if (targetSubjectId) {
-            setClassAndSubject(targetClassId, targetSubjectId);
-          } else {
-            setClass(targetClassId);
-          }
-          if (targetSession) {
-            setAssessmentMode(targetSession);
-          }
-        } else {
-          clearSelection();
-          clearMarks();
-        }
-      });
+    if (targetClassId && targetSubjectId) {
+      setClassAndSubject(targetClassId, targetSubjectId);
+    } else if (targetClassId) {
+      setClass(targetClassId);
+    }
+    if (targetSession) {
+      setAssessmentMode(targetSession);
     }
   }, [location.state]);
 
@@ -119,16 +111,11 @@ export default function MarksEntryPage2021() {
           filtered = filtered.filter(c => teachIds.includes(c.id));
         }
 
-        // Guarantee target class from redirect is available in classes list for HoD/Staff ONLY IF it is 2021
+        // Guarantee target class from redirect is available in classes list for HoD/Staff
         const targetClassId = location.state?.classId || location.state?.class_id;
         if (targetClassId) {
           const matchedTarget = allClasses.find(c => c.id === targetClassId);
-          const is2021 = matchedTarget && (
-            matchedTarget.year_label === 'III' || matchedTarget.year_label === 'IV' ||
-            matchedTarget.year_label === '3' || matchedTarget.year_label === '4' ||
-            parseInt(matchedTarget.semester) >= 5
-          );
-          if (matchedTarget && is2021 && !filtered.some(c => c.id === targetClassId)) {
+          if (matchedTarget && !filtered.some(c => c.id === targetClassId)) {
             filtered.push(matchedTarget);
           }
         }
@@ -141,25 +128,23 @@ export default function MarksEntryPage2021() {
 
   // Ensure stale 2025 classes are cleanly removed on regulation switch without refresh
   useEffect(() => {
-    if (classes.length > 0 && selectedClassId) {
-      const isValid = classes.some(c => c.id === selectedClassId);
-      if (!isValid) {
+    if (classes.length > 0 && effectiveClassId) {
+      const isValid = classes.some(c => c.id === effectiveClassId);
+      const targetClassId = location.state?.classId || location.state?.class_id;
+      if (!isValid && !targetClassId) {
         clearSelection();
-        clearMarks();
-        setAssessmentComponents([]);
-        setCurrentSession(null);
       }
     }
-  }, [classes, selectedClassId]);
+  }, [classes, effectiveClassId]);
 
   // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
-    if (!selectedClassId) { setSubjects([]); return; }
-    subjectsAPI.getByClass(selectedClassId).then((allSubs) => {
+    if (!effectiveClassId) { setSubjects([]); return; }
+    subjectsAPI.getByClass(effectiveClassId).then((allSubs) => {
       const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
       const isCoordinator = user?.isClassCoordinator && (
-        user.coordinatedClassId === selectedClassId || 
-        (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+        user.coordinatedClassId === effectiveClassId || 
+        (user.coordinatedClasses || []).some(c => c.id === effectiveClassId)
       );
 
       let visibleSubs = allSubs;
@@ -169,25 +154,33 @@ export default function MarksEntryPage2021() {
       setSubjects(visibleSubs);
 
       // Restore target subject reliably from incoming state or existing selection
-      const targetSubId = location.state?.subjectId || location.state?.subject_id || selectedSubjectId;
+      const targetSubId = location.state?.subjectId || location.state?.subject_id || effectiveSubjectId;
       if (targetSubId && visibleSubs.some(s => s.id === targetSubId)) {
         setSubject(targetSubId);
       }
     }).catch(() => setSubjects([]));
-  }, [selectedClassId, user]);
+  }, [effectiveClassId, user]);
 
   // ── Load students when class changes ──────────────────────
   useEffect(() => {
-    if (!selectedClassId) { setStudents([]); return; }
-    studentsAPI.getByClass(selectedClassId).then(setStudents).catch(() => setStudents([]));
-  }, [selectedClassId]);
+    if (!effectiveClassId) { setStudents([]); return; }
+    studentsAPI.getByClass(effectiveClassId).then(setStudents).catch(() => setStudents([]));
+  }, [effectiveClassId]);
 
   // ── Load existing session when subject or mode changes ────
   useEffect(() => {
-    if (!selectedClassId || !selectedSubjectId || !user?.id) return;
+    if (!effectiveClassId || !effectiveSubjectId || !user?.id) {
+      setCurrentSession(null);
+      setSessionStatus('draft');
+      setAssessmentComponents([]);
+      setRemedialAction('');
+      setSaved(false);
+      setIsComponentsDirty(false);
+      return;
+    }
     setLoading(true);
 
-    marksAPI.getSessions({ classId: selectedClassId, subjectId: selectedSubjectId, sessionLabel: assessmentMode })
+    marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
       .then((sessions) => {
         if (sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
         return null;
@@ -235,10 +228,20 @@ export default function MarksEntryPage2021() {
       })
       .catch((err) => console.error('Failed to load marks session (2021):', err))
       .finally(() => setLoading(false));
-  }, [selectedClassId, selectedSubjectId, user?.id, subjects, assessmentMode]);
+  }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode]);
 
-  const selectedClass   = classes.find(c => c.id === selectedClassId);
-  const selectedSubject = subjects.find(s => s.id === selectedSubjectId);
+  const selectedClass   = classes.find(c => c.id === effectiveClassId);
+  const selectedSubject = subjects.find(s => s.id === effectiveSubjectId);
+  const handlingFacultyName =
+    currentSession?.staff_name ||
+    location.state?.staffName ||
+    selectedSubject?.faculty_name ||
+    (user?.role === 'staff' || user?.role === 'faculty' ? user.name : 'Faculty Not Assigned');
+  const handlingFacultyDesig =
+    currentSession?.staff_designation ||
+    location.state?.staffDesignation ||
+    selectedSubject?.faculty_designation ||
+    (user?.role === 'staff' || user?.role === 'faculty' ? user.designation : '');
 
   // ── Save handler ───────────────────────────────────────────
   const handleSave = async (actionType = 'draft') => {
@@ -267,8 +270,8 @@ export default function MarksEntryPage2021() {
       }));
 
       const payload = {
-        subjectId:    selectedSubjectId,
-        classId:      selectedClassId,
+        subjectId:    effectiveSubjectId,
+        classId:      effectiveClassId,
         staffId:      user.id,
         sessionLabel: assessmentMode,
         totalHours:   parseInt(totalHours || 0),
@@ -315,8 +318,8 @@ export default function MarksEntryPage2021() {
     try {
       await marksAPI.requestUnlock({
         sessionId: currentSession.id,
-        subjectId: selectedSubjectId,
-        classId: selectedClassId,
+        subjectId: effectiveSubjectId,
+        classId: effectiveClassId,
         staffId: user.id,
         reason: unlockReason
       });
@@ -413,22 +416,24 @@ export default function MarksEntryPage2021() {
     setDeclarationModalOpen(true);
   };
 
-  const handleClassChange   = (val) => { setClass(val); setAssessmentComponents([]); setSaved(false); setSaveErr(''); };
-  const handleSubjectChange = (val) => { setSubject(val); setAssessmentComponents([]); setSaved(false); setSaveErr(''); };
-
-  const step = !selectedSubject ? 1 : assessmentComponents.length === 0 ? 2 : 3;
-  const handleRegulationChange = (newReg) => {
-    if (newReg === '2025') {
-      clearSelection();
-      clearMarks();
-      setAssessmentComponents([]);
-      setCurrentSession(null);
-      setSessionStatus('draft');
-      setSaved(false);
-      navigate('/marks-entry', { replace: true, state: null });
-    }
+  const handleClassChange = (val) => {
+    setClass(val);
+    setAssessmentComponents([]);
+    setCurrentSession(null);
+    setSessionStatus('draft');
+    setSaved(false);
+    setSaveErr('');
+  };
+  const handleSubjectChange = (val) => {
+    setSubject(val);
+    setAssessmentComponents([]);
+    setCurrentSession(null);
+    setSessionStatus('draft');
+    setSaved(false);
+    setSaveErr('');
   };
 
+  const step = !selectedSubject ? 1 : assessmentComponents.length === 0 ? 2 : 3;
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
   const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && user?.role !== 'hod' && user?.role !== 'admin');
   const canEnterMarks = isPrincipal ? true : assessmentComponents.length > 0;
@@ -496,12 +501,10 @@ export default function MarksEntryPage2021() {
       <ClassSubjectSelector
         classes={classes}
         subjects={subjects}
-        selectedClass={selectedClassId}
-        selectedSubject={selectedSubjectId}
+        selectedClass={effectiveClassId}
+        selectedSubject={effectiveSubjectId}
         onClassChange={handleClassChange}
         onSubjectChange={handleSubjectChange}
-        regulation="2021"
-        onRegulationChange={handleRegulationChange}
       />
 
       {selectedSubject && (
@@ -535,30 +538,85 @@ export default function MarksEntryPage2021() {
             </div>
           )}
 
-          {/* Subject strip */}
+          {/* Enhanced Subject & Faculty Banner */}
           <div className={styles.subjectStrip}>
-            <div>
-              <h3>{selectedSubject.name}</h3>
-              <p>
-                {selectedSubject.code} · {selectedClass?.name}
-                {selectedSubject.ltpc ? ` · LTPC: ${selectedSubject.ltpc}` : ''}
-                {' · '}
-                <strong style={{ color: '#7c3aed' }}>
-                  {isLabType ? `Lab-cum-Theory · CIA /50` : `Theory · CIA /40`}
-                </strong>
+            <div className={styles.subjectInfoLeft}>
+              <div className={styles.badgeRow}>
+                <span className={styles.codeBadge}>{selectedSubject.code}</span>
+                <span className={styles.typeBadge}>
+                  {isLabType ? 'Lab-cum-Theory (CIA /50)' : 'Theory (CIA /40)'}
+                </span>
+                <span className={styles.regBadge}>Regulation 2021</span>
+                {selectedSubject.ltpc && (
+                  <span className={styles.ltpcBadge}>LTPC: {selectedSubject.ltpc}</span>
+                )}
+                {isPrincipal ? (
+                  <span className={styles.roleBadgePrincipal}>
+                    🏛 Principal Review Panel
+                  </span>
+                ) : user?.role === 'hod' ? (
+                  <span className={styles.roleBadgeHod}>
+                    🏢 HOD Monitoring Panel • {user?.department || selectedClass?.department || 'Dept'}
+                  </span>
+                ) : user?.isClassCoordinator ? (
+                  <span className={styles.roleBadgeCoord}>
+                    📋 Class In-Charge View
+                  </span>
+                ) : (
+                  <span className={styles.roleBadgeStaff}>
+                    📝 Faculty Marks Entry Portal
+                  </span>
+                )}
+              </div>
+
+              <h2 className={styles.subjectTitle}>{selectedSubject.name}</h2>
+              <p className={styles.classDeptInfo}>
+                🎓 Class: {selectedClass?.name || 'Class'} · {selectedClass?.department || selectedSubject?.department || 'Engineering'}
               </p>
+
+              {/* Prominent Faculty In-Charge Indicator */}
+              <div className={styles.staffInChargeBox}>
+                <div className={styles.staffIconCircle}>
+                  <UserCheck size={18} />
+                </div>
+                <div className={styles.staffTextGroup}>
+                  <span className={styles.staffLabel}>FACULTY / STAFF IN-CHARGE</span>
+                  <div className={styles.staffNameHighlight}>
+                    <span>{handlingFacultyName}</span>
+                    {handlingFacultyDesig && (
+                      <span className={styles.staffDesig}>({handlingFacultyDesig})</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className={styles.assessmentSelector}>
-              <label>Assessment Mode:</label>
-              <select
-                value={assessmentMode}
-                onChange={(e) => setAssessmentMode(e.target.value)}
-                className={styles.dropdown}
-              >
-                <option value="internal1">Internal Assessment 1</option>
-                <option value="internal2">Internal Assessment 2</option>
-              </select>
+            <div className={styles.subjectStripRight}>
+              <div className={styles.assessmentSelector}>
+                <label>Assessment Mode:</label>
+                <select
+                  value={assessmentMode}
+                  onChange={(e) => setAssessmentMode(e.target.value)}
+                  className={styles.dropdown}
+                >
+                  <option value="internal1">Internal Assessment 1</option>
+                  <option value="internal2">Internal Assessment 2</option>
+                </select>
+              </div>
+
+              {sessionStatus === 'locked' ? (
+                <div className={`${styles.sessionStateBadge} ${styles.stateLocked}`}>
+                  <Lock size={12} /> Status: Marks Frozen &amp; Locked
+                </div>
+              ) : sessionStatus === 'unlock_requested' ? (
+                <div className={`${styles.sessionStateBadge} ${styles.statePending}`}>
+                  <Clock size={12} /> Status: Unlock Approval Pending
+                </div>
+              ) : (
+                <div className={`${styles.sessionStateBadge} ${styles.stateDraft}`}>
+                  <Clock size={12} /> Status: Draft (Editable)
+                </div>
+              )}
             </div>
           </div>
 

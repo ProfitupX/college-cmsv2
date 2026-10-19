@@ -214,11 +214,11 @@ router.get('/sessions', async (req, res) => {
              ms.avg_score, ms.student_count, ms.created_at, ms.subject_id, ms.class_id,
              sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
              cl.name  AS class_name, cl.department AS class_department, cl.year_label, cl.semester,
-             st.name  AS staff_name
+             st.name  AS staff_name, st.designation AS staff_designation
       FROM marks_sessions ms
       JOIN subjects sub ON sub.id = ms.subject_id
       JOIN classes  cl  ON cl.id  = ms.class_id
-      JOIN staffs   st  ON st.id  = ms.staff_id
+      LEFT JOIN staffs st ON st.id = ms.staff_id
     `;
     const params = [];
     const where = [];
@@ -251,10 +251,12 @@ router.get('/sessions/:id', async (req, res) => {
 
     // Session info
     const [sessions] = await db.execute(
-      `SELECT ms.*, sub.name AS subject, sub.code, cl.name AS class_name
+      `SELECT ms.*, sub.name AS subject, sub.code, cl.name AS class_name,
+              st.name AS staff_name, st.designation AS staff_designation, st.department AS staff_department
        FROM marks_sessions ms
        JOIN subjects sub ON sub.id = ms.subject_id
        JOIN classes  cl  ON cl.id  = ms.class_id
+       LEFT JOIN staffs st ON st.id = ms.staff_id
        WHERE ms.id = ?`, [id]
     );
     if (!sessions.length) return res.status(404).json({ error: 'Session not found.' });

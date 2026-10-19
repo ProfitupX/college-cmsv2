@@ -52,19 +52,11 @@ export const studentsAPI = {
 // ─────────────────────────────────────────
 // CLASSES
 // ─────────────────────────────────────────
-let classesCache = null;
 export const classesAPI = {
-  getAll: (forceRefresh = false) => {
-    if (classesCache && !forceRefresh) return Promise.resolve(classesCache);
-    return get('/classes').then(data => {
-      classesCache = data;
-      return data;
-    });
-  },
-  clearCache: () => { classesCache = null; },
-  create: (data) => post('/classes', data).then(res => { classesCache = null; return res; }),
-  update: (id, data)=> put(`/classes/${id}`, data).then(res => { classesCache = null; return res; }),
-  delete: (id)   => remove(`/classes/${id}`).then(res => { classesCache = null; return res; }),
+  getAll: ()     => get('/classes'),
+  create: (data) => post('/classes', data),
+  update: (id, data)=> put(`/classes/${id}`, data),
+  delete: (id)   => remove(`/classes/${id}`),
 };
 
 // ─────────────────────────────────────────

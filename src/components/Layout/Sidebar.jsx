@@ -21,7 +21,7 @@ import styles from './Sidebar.module.css';
 
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose }) {
   const { user, logout } = useAuth();
-  const { clearSelection, clearMarks } = useMarks();
+  const { setRegulation } = useMarks();
   const navigate = useNavigate();
 
   const isAdmin = user?.role === 'admin';
@@ -92,10 +92,8 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose
               to={to}
               onClick={() => {
                 onMobileClose?.();
-                if (to === '/marks-entry' || to === '/marks-entry-2021') {
-                  clearSelection();
-                  clearMarks();
-                }
+                if (to === '/marks-entry') setRegulation('2025');
+                else if (to === '/marks-entry-2021') setRegulation('2021');
               }}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.active : ''}`

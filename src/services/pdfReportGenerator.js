@@ -691,7 +691,8 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 export const generateConsolidatedMarksPDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds
 }) => {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
+  // Standard A4 paper in landscape mode (297 x 210 mm)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -884,20 +885,20 @@ export const generateConsolidatedMarksPDF = async ({
     ['', 'Pass Percentage', ...perSubjectPassPct, '-', '-', '-']
   ];
 
-  // Dynamic layout & column width allocation across Legal paper landscape
-  const maxUsableWidth = pageWidth - 20; // 335.6mm with 10mm margins
-  const regWidth = 26;
-  let nameWidth = numSubs <= 3 ? 65 : (numSubs <= 6 ? 50 : 40);
-  let summaryColWidth = numSubs <= 3 ? 24 : (numSubs <= 6 ? 20 : 18);
+  // Dynamic layout & column width allocation across standard A4 paper landscape
+  const maxUsableWidth = pageWidth - 20; // 277mm with 10mm margins on A4
+  const regWidth = 24;
+  let nameWidth = numSubs <= 3 ? 55 : (numSubs <= 6 ? 42 : 36);
+  let summaryColWidth = numSubs <= 3 ? 20 : (numSubs <= 6 ? 16 : 14);
 
   const safeSubsCount = Math.max(1, numSubs);
   let perSubColWidth;
   if (numSubs <= 2) {
-    perSubColWidth = 35;
+    perSubColWidth = 32;
   } else if (numSubs <= 4) {
-    perSubColWidth = 28;
+    perSubColWidth = 26;
   } else if (numSubs <= 6) {
-    perSubColWidth = 24;
+    perSubColWidth = 22;
   } else {
     const fixedTotal = regWidth + nameWidth + (summaryColWidth * 3);
     const rem = maxUsableWidth - fixedTotal;
@@ -919,8 +920,8 @@ export const generateConsolidatedMarksPDF = async ({
   colStyles[2 + numSubs + 1] = { cellWidth: summaryColWidth, halign: 'center' };
   colStyles[2 + numSubs + 2] = { cellWidth: summaryColWidth, halign: 'center' };
 
-  const fontSize = numSubs > 7 ? 6.5 : 7;
-  const cellPadding = numSubs > 7 ? 1.0 : 1.3;
+  const fontSize = numSubs > 7 ? 6.5 : (numSubs > 5 ? 7 : 7.5);
+  const cellPadding = numSubs > 7 ? 0.9 : 1.2;
 
   autoTable(doc, {
     startY: y,

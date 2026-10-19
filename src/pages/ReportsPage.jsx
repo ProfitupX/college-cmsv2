@@ -513,7 +513,7 @@ export default function ReportsPage() {
                   onClick={() => openSubjectSelectionModal('overall_statement')}
                   disabled={genLoading || !selectedClassId}
                 >
-                  <FileText size={15} /> Overall Mark Statement
+                  <FileText size={15} /> Overall Mark Statement (Legal Format)
                 </button>
               </div>
             )}
