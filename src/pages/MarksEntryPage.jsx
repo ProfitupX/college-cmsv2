@@ -20,7 +20,7 @@ export default function MarksEntryPage() {
   const {
     activeRegulation,
     selectedClassId, selectedSubjectId,
-    marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
+    marksData, attendanceData, attendanceMarks, internalExamData, labData, totalHours, isDirty,
     setRegulation, setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
   } = useMarks();
 
@@ -223,6 +223,7 @@ export default function MarksEntryPage() {
               setSessionBulk({
                 marks: loadedMarks,
                 attendance: detail.attendance || {},
+                attendanceMarks: detail.attendanceMarks || {},
                 internalExam: detail.internalExam || {},
                 labData: detail.labData || {},
                 totalHours: detail.session.total_hours || 0
@@ -326,6 +327,8 @@ export default function MarksEntryPage() {
       const attendancePayload = students.map(st => ({
         studentId: st.id,
         hoursAttended: attendanceData[st.id] || 0,
+        actualTakenHours: attendanceData[st.id] || 0,
+        int1AttendanceHours: int1AttendanceData[st.id] || 0,
         internalExamMark: internalExamData[st.id] || '',
         labAttendance: (labData[st.id] && labData[st.id].labAttendance) || 0,
         labMark: (labData[st.id] && labData[st.id].labMark) || ''
@@ -336,7 +339,10 @@ export default function MarksEntryPage() {
         classId:       effectiveClassId,
         staffId:       user.id,
         sessionLabel:  assessmentMode,
-        totalHours:    totalHours || 0,
+        totalHours:    displayHours || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || totalHours || 0,
+        int1Hours:     int1Hours || 0,
+        int2Hours:     int2Hours || 0,
+        labHours:      labHours || 0,
         remedialAction: remedialAction,
         components:    assessmentComponents.map((c) => ({
           typeId:   c.typeId,
@@ -594,6 +600,25 @@ export default function MarksEntryPage() {
                 {selectedSubject.ltpc && (
                   <span className={styles.ltpcBadge}>LTPC: {selectedSubject.ltpc}</span>
                 )}
+                {/* Auto-display Total Hours assigned via LTPC at top */}
+                <span className={styles.totalHoursBadge} style={{
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}>
+                  ⏱ Total Hours: <strong>{assessmentMode === 'internal1' ? int1Hours : int2Hours} hrs</strong>
+                  {selectedSubject?.type?.includes('Lab') && labHours > 0 ? ` + ${labHours} Lab hrs` : ''}
+                  <span style={{ opacity: 0.75, fontWeight: 500 }}>
+                    ({selectedSubject?.total_hours || (int1Hours + int2Hours + labHours)} Course Hrs)
+                  </span>
+                </span>
                 {isPrincipal ? (
                   <span className={styles.roleBadgePrincipal}>
                     🏛 Principal Review Panel
@@ -680,6 +705,7 @@ export default function MarksEntryPage() {
             components={assessmentComponents}
             marksData={marksData}
             attendanceData={attendanceData}
+            attendanceMarks={attendanceMarks}
             int1AttendanceData={int1AttendanceData}
             internalExamData={internalExamData}
             labData={labData}

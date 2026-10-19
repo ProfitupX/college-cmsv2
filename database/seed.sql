@@ -1390,6 +1390,8 @@ CREATE TABLE IF NOT EXISTS `session_attendance` (
   `session_id` int NOT NULL,
   `student_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `hours_attended` int DEFAULT '0',
+  `actual_taken_hours` int DEFAULT '0',
+  `attendance_mark` decimal(4,2) DEFAULT '0.00',
   `internal_exam_mark` decimal(5,2) DEFAULT NULL,
   `lab_attendance` int DEFAULT NULL,
   `lab_mark` decimal(6,2) DEFAULT NULL,

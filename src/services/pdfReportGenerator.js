@@ -331,11 +331,10 @@ export const generateSubjectMarksListPDF = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
-  // Prepare Table Headers
-  const headRow = ['S.No', 'Roll No', 'Name', 'P Hrs', '100 marks internal', 'Activities mark'];
+  // Prepare Table Headers - Showing only converted attendance mark (hiding actual taken hours)
+  const headRow = ['S.No', 'Roll No', 'Name', 'Attd Mark\n(Max: 5)', '100 marks internal', 'Activities mark'];
 
   // Prepare Table Body
-  let finalTotalMaxHours = 0;
   const bodyRows = students.map((student, idx) => {
     // 1. Calculate Internal Marks
     let convertedTotal = 0;
@@ -346,28 +345,25 @@ export const generateSubjectMarksListPDF = async ({
     });
     convertedTotal = Math.round(convertedTotal);
 
-    // 2. Calculate Attendance Mark
+    // 2. Calculate Attendance Mark (Anna Univ 25th Regulation)
     const getAttendanceMark = (attended, maxHours) => {
       if (!maxHours || maxHours <= 0) return 0;
       const pct = (attended / maxHours) * 100;
-      if (pct >= 80 && pct <= 85) return 1;
-      if (pct > 85 && pct <= 90) return 2;
-      if (pct > 90 && pct <= 95) return 3;
-      if (pct > 95) return 5;
+      if (pct >= 95) return 5;
+      if (pct >= 90) return 3;
+      if (pct >= 85) return 2;
+      if (pct >= 80) return 1;
       return 0; // Below 80% is 0 mark
     };
 
     let attendanceMark = 0;
-    let attendanceDaysStr = '';
 
     if (!isInternal2) {
       const tHours = parseInt(int1Hours || 0);
       const aHours = parseInt(attendanceData[student.id] || 0);
-      finalTotalMaxHours = tHours;
       if (tHours > 0 && !isNaN(aHours)) {
         attendanceMark = getAttendanceMark(aHours, tHours);
       }
-      attendanceDaysStr = isNaN(aHours) ? '-' : `${aHours}`;
     } else {
       const i1Attd = parseInt(int1AttendanceData[student.id] || 0);
       const i2Attd = parseInt(attendanceData[student.id] || 0);
@@ -378,16 +374,11 @@ export const generateSubjectMarksListPDF = async ({
       const i2Max = parseInt(int2Hours || 0);
       const lMax  = hasLab ? parseInt(labHours || 0) : 0;
       const cumulativeMaxHours = i1Max + i2Max + lMax;
-      
-      finalTotalMaxHours = cumulativeMaxHours;
 
       if (cumulativeMaxHours > 0) {
         attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
       }
-      attendanceDaysStr = `${cumulativeAttended}`;
     }
-
-    const finalScore = convertedTotal + attendanceMark;
 
     const internalExamMark = internalExamData[student.id];
     const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
@@ -396,7 +387,7 @@ export const generateSubjectMarksListPDF = async ({
       idx + 1,
       student.roll_no,
       student.name,
-      attendanceDaysStr,          // P Hrs
+      attendanceMark,             // Only converted attendance mark (hiding actual_taken_hours from student view)
       internalExamMarkStr,        // 100 marks internal
       convertedTotal              // Activities mark
     ];
@@ -405,9 +396,9 @@ export const generateSubjectMarksListPDF = async ({
   });
 
   const footRow = Array(headRow.length).fill('');
-  const attdColIdx = headRow.indexOf('Attendance');
-  if (attdColIdx !== -1 && finalTotalMaxHours > 0) {
-    footRow[attdColIdx] = `Total Hrs:\n${finalTotalMaxHours}`;
+  const attdColIdx = headRow.indexOf('Attd Mark\n(Max: 5)');
+  if (attdColIdx !== -1) {
+    footRow[attdColIdx] = `Max: 5`;
   }
 
   autoTable(doc, {
@@ -1397,7 +1388,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const headRow2 = [];
   targetSubjects.forEach(() => {
     if (!is2021) {
-      headRow2.push('P.Hrs', 'Int\nMarks', 'Act');
+      headRow2.push('Attd\nMark', 'Int\nMarks', 'Act');
     } else {
       headRow2.push('W.Hrs', 'P.Hrs', 'Marks');
     }
@@ -1493,7 +1484,17 @@ export const generateOverallMarksAndAttendancePDF = async ({
       const markStr = (score === null || isNaN(score)) ? 'AB' : Math.round(score);
       
       if (!is2021) {
-        row.push(pHrs, markStr, '');
+        let attMark = 0;
+        if (att && att.attendance_mark !== undefined && att.attendance_mark !== null) {
+          attMark = Math.round(parseFloat(att.attendance_mark));
+        } else if (wHrs > 0 && pHrs > 0) {
+          const pct = (pHrs / wHrs) * 100;
+          if (pct >= 95) attMark = 5;
+          else if (pct >= 90) attMark = 3;
+          else if (pct >= 85) attMark = 2;
+          else if (pct >= 80) attMark = 1;
+        }
+        row.push(attMark, markStr, '');
       } else {
         row.push(wHrs, pHrs, markStr);
       }

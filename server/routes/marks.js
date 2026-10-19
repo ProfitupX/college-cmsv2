@@ -41,13 +41,15 @@ router.post('/submit', async (req, res) => {
     const studentIds = [...new Set(marks.map((m) => m.studentId))];
     const studentCount = studentIds.length;
 
+    // Anna Univ 25th Regulation attendance rule:
+    // 95–100% → 5 marks, 90–95% → 3 marks, 85–90% → 2 marks, 80–85% → 1 mark, <80% → 0 marks
     const getAttendanceMark = (attended, maxHours) => {
       if (!maxHours || maxHours <= 0) return 0;
       const pct = (attended / maxHours) * 100;
-      if (pct >= 80 && pct <= 85) return 1;
-      if (pct > 85 && pct <= 90) return 2;
-      if (pct > 90 && pct <= 95) return 3;
-      if (pct > 95) return 5;
+      if (pct >= 95) return 5;
+      if (pct >= 90) return 3;
+      if (pct >= 85) return 2;
+      if (pct >= 80) return 1;
       return 0; // Below 80% is 0 mark
     };
 
@@ -70,12 +72,21 @@ router.post('/submit', async (req, res) => {
       const tHours = parseInt(totalHours || 0);
       for (const a of attendance) {
         if (!studentTotals[a.studentId]) studentTotals[a.studentId] = 0;
-        const hrs = parseInt(a.hoursAttended || 0);
+        const rawHours = parseInt(a.actualTakenHours !== undefined ? a.actualTakenHours : (a.hoursAttended || 0));
         const labHrs = parseInt(a.labAttendance || 0);
-        const totalAttd = hrs + labHrs;
-        if (tHours > 0) {
-          studentTotals[a.studentId] += getAttendanceMark(totalAttd, tHours);
+        let attMark = 0;
+        if (sessionLabel === 'internal2') {
+          const i1Attd = parseInt(a.int1AttendanceHours || 0);
+          const cumAttd = i1Attd + rawHours + labHrs;
+          const i1Max = parseInt(req.body.int1Hours || Math.ceil(tHours) || 0);
+          const i2Max = parseInt(req.body.int2Hours || Math.floor(tHours) || 0);
+          const lMax = parseInt(req.body.labHours || 0);
+          const cumMax = (i1Max + i2Max + lMax) || tHours;
+          attMark = getAttendanceMark(cumAttd, cumMax);
+        } else {
+          attMark = getAttendanceMark(rawHours + labHrs, tHours);
         }
+        studentTotals[a.studentId] += attMark;
       }
     }
 
@@ -118,19 +129,44 @@ router.post('/submit', async (req, res) => {
 
     // 5. Insert Attendance & Internal Exam
     if (attendance && Array.isArray(attendance)) {
+      const tHours = parseInt(totalHours || 0);
       for (const a of attendance) {
+        const rawHours = parseInt(a.actualTakenHours !== undefined ? a.actualTakenHours : (a.hoursAttended || 0));
+        const labHrs = parseInt(a.labAttendance || 0);
+        let attMark = 0;
+        
+        if (sessionLabel === 'internal2') {
+          const i1Attd = parseInt(a.int1AttendanceHours || 0);
+          const cumAttd = i1Attd + rawHours + labHrs;
+          const i1Max = parseInt(req.body.int1Hours || Math.ceil(tHours) || 0);
+          const i2Max = parseInt(req.body.int2Hours || Math.floor(tHours) || 0);
+          const lMax = parseInt(req.body.labHours || 0);
+          const cumMax = (i1Max + i2Max + lMax) || tHours;
+          attMark = getAttendanceMark(cumAttd, cumMax);
+        } else {
+          attMark = getAttendanceMark(rawHours + labHrs, tHours);
+        }
+
         await conn.execute(
-          `INSERT INTO session_attendance (session_id, student_id, hours_attended, internal_exam_mark, lab_attendance, lab_mark)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE hours_attended = VALUES(hours_attended), internal_exam_mark = VALUES(internal_exam_mark), lab_attendance = VALUES(lab_attendance), lab_mark = VALUES(lab_mark)`,
+          `INSERT INTO session_attendance (session_id, student_id, hours_attended, actual_taken_hours, attendance_mark, internal_exam_mark, lab_attendance, lab_mark)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+             hours_attended = VALUES(hours_attended), 
+             actual_taken_hours = VALUES(actual_taken_hours),
+             attendance_mark = VALUES(attendance_mark),
+             internal_exam_mark = VALUES(internal_exam_mark), 
+             lab_attendance = VALUES(lab_attendance), 
+             lab_mark = VALUES(lab_mark)`,
           [
             sessionId, 
             a.studentId, 
-            parseInt(a.hoursAttended || 0), 
+            rawHours,
+            rawHours,
+            attMark,
             a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' 
               ? parseFloat(a.internalExamMark) 
               : null,
-            parseInt(a.labAttendance || 0),
+            labHrs,
             a.labMark !== undefined && a.labMark !== null && a.labMark !== ''
               ? parseFloat(a.labMark)
               : null
@@ -278,13 +314,16 @@ router.get('/sessions/:id', async (req, res) => {
 
     // Attendance & Internal Exam
     const [attendanceRows] = await db.execute(
-      'SELECT student_id, hours_attended, internal_exam_mark, lab_attendance, lab_mark FROM session_attendance WHERE session_id = ?', [id]
+      'SELECT student_id, hours_attended, actual_taken_hours, attendance_mark, internal_exam_mark, lab_attendance, lab_mark FROM session_attendance WHERE session_id = ?', [id]
     );
     const attendance = {};
+    const attendanceMarks = {};
     const internalExam = {};
     const labData = {};
     attendanceRows.forEach(r => {
-      attendance[r.student_id] = r.hours_attended;
+      const rawHrs = r.actual_taken_hours !== null && r.actual_taken_hours !== undefined ? r.actual_taken_hours : r.hours_attended;
+      attendance[r.student_id] = rawHrs;
+      attendanceMarks[r.student_id] = r.attendance_mark !== null && r.attendance_mark !== undefined ? parseFloat(r.attendance_mark) : 0;
       internalExam[r.student_id] = r.internal_exam_mark;
       labData[r.student_id] = {
         labAttendance: r.lab_attendance,
@@ -292,7 +331,7 @@ router.get('/sessions/:id', async (req, res) => {
       };
     });
 
-    res.json({ session: sessions[0], components, marks, attendance, internalExam, labData });
+    res.json({ session: sessions[0], components, marks, attendance, attendanceMarks, internalExam, labData });
   } catch (err) {
     console.error('GET /marks/sessions/:id error:', err);
     res.status(500).json({ error: 'Failed to fetch session details.' });

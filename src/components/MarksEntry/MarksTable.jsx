@@ -1,12 +1,15 @@
 import MarksRow from './MarksRow';
+import { useAuth } from '../../context/AuthContext';
 import styles from './MarksTable.module.css';
 
 export default function MarksTable({ 
   students, components, marksData, onMarkChange,
-  attendanceData, int1AttendanceData = {}, internalExamData, totalHours, int1Hours, int2Hours, labHours,
+  attendanceData, attendanceMarks = {}, int1AttendanceData = {}, internalExamData, totalHours, int1Hours, int2Hours, labHours,
   onAttendanceChange, onInternalExamChange, onTotalHoursChange,
   labData, assessmentMode, selectedSubject, onLabDataChange, isLocked
 }) {
+  const { user } = useAuth();
+  const isElevated = user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'hod' || user?.role === 'admin';
   const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
 
   // Which hours to show based on mode
@@ -39,10 +42,12 @@ export default function MarksTable({
                 <th className={`${styles.th} ${styles.attendanceTh}`}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>📅</span>
-                    <span className={styles.thLabel}>Attendance</span>
+                    <span className={styles.thLabel}>
+                      {isElevated ? 'Actual Hrs & Mark' : 'Actual Taken Hrs'}
+                    </span>
                     <div className={styles.globalHoursWrap}>
                       <label>Total Classes:</label>
-                      <div className={styles.lockedHours} title="Locked by Admin LTPC">{int1Hours || '?'}</div>
+                      <div className={styles.lockedHours} title="Auto-assigned from LTPC">{int1Hours || '?'}</div>
                     </div>
                   </div>
                 </th>
@@ -61,7 +66,9 @@ export default function MarksTable({
                   <th className={`${styles.th} ${styles.attendanceTh}`}>
                     <div className={styles.thContent}>
                       <span className={styles.thIcon}>📅</span>
-                      <span className={styles.thLabel}>Int 2 Attd</span>
+                      <span className={styles.thLabel}>
+                        {isElevated ? 'Int 2 Hrs & Mark' : 'Int 2 Attd Hrs'}
+                      </span>
                       <div className={styles.thSub}>Max: {int2Hours || '?'}</div>
                     </div>
                   </th>
@@ -116,6 +123,8 @@ export default function MarksTable({
                 components={components}
                 marks={marksData[student.id] || {}}
                 attendanceHours={attendanceData[student.id] || ''}
+                savedAttendanceMark={attendanceMarks[student.id]}
+                isElevated={isElevated}
                 int1AttendanceHours={int1AttendanceData[student.id] || ''}
                 internalExamMark={internalExamData[student.id] || ''}
                 displayHours={displayHours}

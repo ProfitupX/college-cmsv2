@@ -8,6 +8,7 @@ const initialState = {
   selectedSubjectId: '',
   marksData:  {},   // { studentId: { componentUid: value } }
   attendanceData: {}, // { studentId: hoursAttended }
+  attendanceMarks: {}, // { studentId: convertedAttendanceMark }
   internalExamData: {}, // { studentId: internalExamMark }
   labData: {}, // { studentId: { labAttendance, labMark } }
   totalHours: 0,
@@ -92,6 +93,7 @@ function marksReducer(state, action) {
         ...state, 
         marksData: action.payload.marks, 
         attendanceData: action.payload.attendance || {},
+        attendanceMarks: action.payload.attendanceMarks || {},
         internalExamData: action.payload.internalExam || {},
         labData: action.payload.labData || {},
         totalHours: action.payload.totalHours || 0,

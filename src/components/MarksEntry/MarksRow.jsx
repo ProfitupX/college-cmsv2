@@ -2,7 +2,7 @@ import { computeGrade } from '../../data/assessmentTypes';
 import styles from './MarksRow.module.css';
 
 export default function MarksRow({ 
-  student, components, marks = {}, attendanceHours, int1AttendanceHours, internalExamMark, displayHours, int1Hours, int2Hours, labHours,
+  student, components, marks = {}, attendanceHours, savedAttendanceMark, isElevated, int1AttendanceHours, internalExamMark, displayHours, int1Hours, int2Hours, labHours,
   onMarkChange, onAttendanceChange, onInternalExamChange, index,
   assessmentMode, labData, selectedSubject, onLabDataChange, isLocked
 }) {
@@ -15,13 +15,15 @@ export default function MarksRow({
   });
   convertedTotal = Math.round(convertedTotal);
 
+  // Anna Univ 25th Regulation attendance rule:
+  // 95–100% → 5 marks, 90–95% → 3 marks, 85–90% → 2 marks, 80–85% → 1 mark, <80% → 0 marks
   const getAttendanceMark = (attended, maxHours) => {
     if (!maxHours || maxHours <= 0) return 0;
     const pct = (attended / maxHours) * 100;
-    if (pct >= 80 && pct <= 85) return 1;
-    if (pct > 85 && pct <= 90) return 2;
-    if (pct > 90 && pct <= 95) return 3;
-    if (pct > 95) return 5;
+    if (pct >= 95) return 5;
+    if (pct >= 90) return 3;
+    if (pct >= 85) return 2;
+    if (pct >= 80) return 1;
     return 0; // Below 80% is 0 mark
   };
 
@@ -38,6 +40,7 @@ export default function MarksRow({
   } else {
     // Internal 2 mode: Cumulative attendance (Int1 + Int2 [+ Lab if Lab-cum-Theory])
     const i1Attd = parseInt(int1AttendanceHours || 0);
+    const i2Attd = parseInt(attendanceHours || 0);
     const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
     const lAttd  = isLabCumTheory ? parseInt(labData?.labAttendance || 0) : 0;
     
@@ -54,7 +57,8 @@ export default function MarksRow({
     }
   }
 
-  const finalTotal100 = convertedTotal + attendanceMark;
+  const effectiveAttMark = savedAttendanceMark !== undefined && savedAttendanceMark !== null ? parseFloat(savedAttendanceMark) : attendanceMark;
+  const finalTotal100 = convertedTotal + effectiveAttMark;
   const initials = student.name.split(' ').map((n) => n[0]).join('').slice(0, 2);
 
   return (
@@ -121,10 +125,12 @@ export default function MarksRow({
               placeholder="—"
             />
             <span className={styles.inputMax}>/{int1Hours || displayHours || '?'}</span>
-            <div className={styles.convertedDisplay}>
-              <span className={styles.convertedLabel}>wt.</span> {attendanceMark} 
-              <span className={styles.convertedMax}>/5</span>
-            </div>
+            {isElevated && (
+              <div className={styles.convertedDisplay} title="Converted Attendance Mark for verification">
+                <span className={styles.convertedLabel}>Mark:</span> <strong>{effectiveAttMark}</strong> 
+                <span className={styles.convertedMax}>/5</span>
+              </div>
+            )}
           </div>
         </td>
       ) : (
@@ -158,13 +164,15 @@ export default function MarksRow({
                 placeholder="—"
               />
               <span className={styles.inputMax}>/{int2Hours || '?'}</span>
-              <div className={styles.convertedDisplay} title={`Cumulative Attended: ${cumulativeAttended}/${cumulativeMaxHours}`}>
-                {(cumulativeMaxHours > 0 && (cumulativeAttended / cumulativeMaxHours) < 0.8) && (
-                  <span title="< 80% Attendance" style={{color:'#ef4444', marginRight:'4px', fontSize:'12px'}}>⚠️</span>
-                )}
-                <span className={styles.convertedLabel}>wt.</span> {attendanceMark} 
-                <span className={styles.convertedMax}>/5</span>
-              </div>
+              {isElevated && (
+                <div className={styles.convertedDisplay} title={`Cumulative Attended: ${cumulativeAttended}/${cumulativeMaxHours}`}>
+                  {(cumulativeMaxHours > 0 && (cumulativeAttended / cumulativeMaxHours) < 0.8) && (
+                    <span title="< 80% Attendance" style={{color:'#ef4444', marginRight:'4px', fontSize:'12px'}}>⚠️</span>
+                  )}
+                  <span className={styles.convertedLabel}>Mark:</span> <strong>{effectiveAttMark}</strong> 
+                  <span className={styles.convertedMax}>/5</span>
+                </div>
+              )}
             </div>
           </td>
 
