@@ -92,9 +92,9 @@ export default function PrincipalDashboard() {
 
     caData.departments.forEach((dept) => {
       dept.years.forEach((yr, idx) => {
-        const deptLabel = idx === 0 ? `"${dept.department}"` : '';
-        const deptOverall = idx === 0 ? `"${dept.deptOverallPct}%"` : '';
-        csv += `${deptLabel},${yr.year},${yr.strength},${yr.passed},"${yr.percentage}%",${deptOverall}\n`;
+        const deptLabel = idx === 0 ? `"${dept.department}"` : '""';
+        const deptOverall = idx === 0 ? `"${dept.deptOverallPct}%"` : '""';
+        csv += `${deptLabel},"${yr.year}",${yr.strength},${yr.passed},"${yr.percentage}%",${deptOverall}\n`;
       });
     });
 
@@ -327,7 +327,13 @@ export default function PrincipalDashboard() {
                           {dept.department}
                         </td>
                       )}
-                      <td style={{ fontWeight: 600 }}>{yr.year}</td>
+                      <td style={{ 
+                        fontWeight: 600, 
+                        textAlign: yr.branch ? 'left' : 'center', 
+                        paddingLeft: yr.branch ? '16px' : '10px' 
+                      }}>
+                        {yr.year}
+                      </td>
                       <td>{yr.strength}</td>
                       <td>{yr.passed}</td>
                       <td style={{ fontWeight: 600, color: parseFloat(yr.percentage) >= 75 ? '#059669' : parseFloat(yr.percentage) >= 50 ? '#d97706' : '#dc2626' }}>

@@ -325,78 +325,146 @@ router.get('/continuous-assessment', async (req, res) => {
       let deptPassed = 0;
       const yearRows = [];
 
-      for (const y of d.years) {
-        let classes;
-        if (d.name === 'Science and Humanities') {
-          [classes] = await db.execute(
-            "SELECT id, name FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND year_label = ?",
-            [y]
+      if (d.name === 'Science and Humanities') {
+        const shBranches = [
+          { branch: 'B.E., (Civil)', year: 'I - B.E., (Civil)', pattern: 'Civil' },
+          { branch: 'B.E., (CSE)', year: 'I - B.E., (CSE)', pattern: 'CSE' },
+          { branch: 'B.E., (EEE)', year: 'I - B.E., (EEE)', pattern: 'EEE' },
+          { branch: 'B.E., (ECE)', year: 'I - B.E., (ECE)', pattern: 'ECE' },
+          { branch: 'B.E., (Mech)', year: 'I - B.E., (Mech)', pattern: 'Mech' },
+          { branch: 'B.Tech., (IT)', year: 'I - B.Tech., (IT)', pattern: 'IT' },
+          { branch: 'B.Tech., (AI&DS)', year: 'I - B.Tech., (AI&DS)', pattern: 'AI' }
+        ];
+
+        for (const b of shBranches) {
+          const [classes] = await db.execute(
+            "SELECT id, name FROM classes WHERE year_label = 'I' AND (name LIKE ? OR id LIKE ?)",
+            [`%${b.pattern}%`, `%${b.pattern}%`]
           );
-        } else {
-          [classes] = await db.execute(
+
+          let yearStrength = 0;
+          let yearPassed = 0;
+
+          if (classes.length > 0) {
+            const classIds = classes.map(c => c.id);
+            const placeholders = classIds.map(() => '?').join(',');
+
+            const [students] = await db.execute(
+              `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
+              classIds
+            );
+            yearStrength = students.length;
+
+            const [sessions] = await db.execute(
+              `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
+              [...classIds, sessionLabel]
+            );
+
+            if (sessions.length > 0 && students.length > 0) {
+              const sessionIds = sessions.map(s => s.id);
+              const sessPlaceholders = sessionIds.map(() => '?').join(',');
+              const [attRows] = await db.execute(
+                `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
+                sessionIds
+              );
+
+              const studentAttMap = {};
+              attRows.forEach(a => {
+                if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
+                studentAttMap[a.student_id].push(a);
+              });
+
+              students.forEach(st => {
+                const records = studentAttMap[st.id] || [];
+                if (records.length === sessions.length && records.length > 0) {
+                  const allPass = records.every(r => {
+                    const score = parseFloat(r.internal_exam_mark);
+                    return !isNaN(score) && score >= 50;
+                  });
+                  if (allPass) yearPassed++;
+                }
+              });
+            }
+          }
+
+          deptStrength += yearStrength;
+          deptPassed += yearPassed;
+
+          const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
+          yearRows.push({
+            year: b.year,
+            branch: b.branch,
+            strength: yearStrength,
+            passed: yearPassed,
+            percentage: passPct
+          });
+        }
+      } else {
+        for (const y of d.years) {
+          const [classes] = await db.execute(
             'SELECT id, name FROM classes WHERE department = ? AND year_label = ?',
             [d.name, y]
           );
-        }
 
-        let yearStrength = 0;
-        let yearPassed = 0;
+          let yearStrength = 0;
+          let yearPassed = 0;
 
-        if (classes.length > 0) {
-          const classIds = classes.map(c => c.id);
-          const placeholders = classIds.map(() => '?').join(',');
-          
-          const [students] = await db.execute(
-            `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
-            classIds
-          );
-          yearStrength = students.length;
+          if (classes.length > 0) {
+            const classIds = classes.map(c => c.id);
+            const placeholders = classIds.map(() => '?').join(',');
+            
+            const [students] = await db.execute(
+              `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
+              classIds
+            );
+            yearStrength = students.length;
 
-          // Sessions for these classes
-          const [sessions] = await db.execute(
-            `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
-            [...classIds, sessionLabel]
-          );
-
-          if (sessions.length > 0 && students.length > 0) {
-            const sessionIds = sessions.map(s => s.id);
-            const sessPlaceholders = sessionIds.map(() => '?').join(',');
-            const [attRows] = await db.execute(
-              `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
-              sessionIds
+            // Sessions for these classes
+            const [sessions] = await db.execute(
+              `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
+              [...classIds, sessionLabel]
             );
 
-            // Group attendance by student
-            const studentAttMap = {};
-            attRows.forEach(a => {
-              if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
-              studentAttMap[a.student_id].push(a);
-            });
+            if (sessions.length > 0 && students.length > 0) {
+              const sessionIds = sessions.map(s => s.id);
+              const sessPlaceholders = sessionIds.map(() => '?').join(',');
+              const [attRows] = await db.execute(
+                `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
+                sessionIds
+              );
 
-            // A student is passed if they passed all conducted sessions with >= 50
-            students.forEach(st => {
-              const records = studentAttMap[st.id] || [];
-              if (records.length === sessions.length && records.length > 0) {
-                const allPass = records.every(r => {
-                  const score = parseFloat(r.internal_exam_mark);
-                  return !isNaN(score) && score >= 50;
-                });
-                if (allPass) yearPassed++;
-              }
-            });
+              // Group attendance by student
+              const studentAttMap = {};
+              attRows.forEach(a => {
+                if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
+                studentAttMap[a.student_id].push(a);
+              });
+
+              // A student is passed if they passed all conducted sessions with >= 50
+              students.forEach(st => {
+                const records = studentAttMap[st.id] || [];
+                if (records.length === sessions.length && records.length > 0) {
+                  const allPass = records.every(r => {
+                    const score = parseFloat(r.internal_exam_mark);
+                    return !isNaN(score) && score >= 50;
+                  });
+                  if (allPass) yearPassed++;
+                }
+              });
+            }
           }
+
+          deptStrength += yearStrength;
+          deptPassed += yearPassed;
+
+          const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
+          yearRows.push({
+            year: y,
+            strength: yearStrength,
+            passed: yearPassed,
+            percentage: passPct
+          });
         }
-
-        deptStrength += yearStrength;
-        deptPassed += yearPassed;
-
-        const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
-        yearRows.push({
-          year: y,
-          strength: yearStrength,
-          passed: yearPassed,
-          percentage: passPct
-        });
       }
 
       if (d.name === 'Science and Humanities') {

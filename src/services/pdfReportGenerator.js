@@ -1238,11 +1238,11 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
     },
     columnStyles: {
       0: { cellWidth: 38, halign: 'left' },
-      1: { cellWidth: 16 },
-      2: { cellWidth: 24 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 34 },
-      5: { cellWidth: 44 }
+      1: { cellWidth: 34, halign: 'center' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 32, halign: 'center' },
+      5: { cellWidth: 38, halign: 'center' }
     }
   });
 
