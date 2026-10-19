@@ -1177,10 +1177,19 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
   const bodyRows = [];
 
   caData.departments.forEach((dept) => {
+    const isSH = dept.department.toLowerCase().includes('science');
     dept.years.forEach((yr, idx) => {
       if (idx === 0) {
         bodyRows.push([
-          { content: dept.department, rowSpan: dept.years.length, styles: { valign: 'middle', fontStyle: 'bold' } },
+          { 
+            content: dept.department, 
+            rowSpan: dept.years.length, 
+            styles: { 
+              valign: 'middle', 
+              fontStyle: 'bold', 
+              halign: isSH ? 'center' : 'left' 
+            } 
+          },
           yr.year,
           yr.strength,
           yr.passed,

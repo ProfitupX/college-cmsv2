@@ -336,6 +336,13 @@
   padding-left: 16px !important;
 }
 
+.caDeptCellCenter {
+  text-align: center !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  vertical-align: middle !important;
+}
+
 .caDeptOverallCell {
   font-weight: 700;
   color: #800000;

@@ -322,15 +322,14 @@ export default function PrincipalDashboard() {
                       {yIdx === 0 && (
                         <td 
                           rowSpan={dept.years.length} 
-                          className={styles.caDeptCell}
+                          className={`${styles.caDeptCell} ${dept.department.toLowerCase().includes('science') ? styles.caDeptCellCenter : ''}`}
                         >
                           {dept.department}
                         </td>
                       )}
                       <td style={{ 
                         fontWeight: 600, 
-                        textAlign: yr.branch ? 'left' : 'center', 
-                        paddingLeft: yr.branch ? '16px' : '10px' 
+                        textAlign: 'center' 
                       }}>
                         {yr.year}
                       </td>
