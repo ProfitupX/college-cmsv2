@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import styles from './ClassSubjectSelector.module.css';
 
@@ -8,13 +9,20 @@ export default function ClassSubjectSelector({
   selectedSubject,
   onClassChange,
   onSubjectChange,
-  regulation,
+  regulation = '2025',
   onRegulationChange,
 }) {
-  // Sort classes alphabetically
-  const sortedClasses = [...classes].sort((a, b) => 
-    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
-  );
+  const sortedClasses = useMemo(() => {
+    return [...(classes || [])].sort((a, b) => 
+      (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [classes]);
+
+  const sortedSubjects = useMemo(() => {
+    return [...(subjects || [])].sort((a, b) => 
+      (a.code || a.name || '').localeCompare(b.code || b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [subjects]);
 
   return (
     <div className={styles.wrapper}>
@@ -74,16 +82,16 @@ export default function ClassSubjectSelector({
               className={styles.select}
               value={selectedSubject}
               onChange={(e) => onSubjectChange(e.target.value)}
-              disabled={!selectedClass || subjects.length === 0}
+              disabled={!selectedClass || sortedSubjects.length === 0}
             >
               <option value="">
                 {!selectedClass
                   ? '— Select a class first —'
-                  : subjects.length === 0
+                  : sortedSubjects.length === 0
                   ? '— No subjects available —'
                   : '— Choose a Subject —'}
               </option>
-              {subjects.map((s) => (
+              {sortedSubjects.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} — {s.name}
                 </option>

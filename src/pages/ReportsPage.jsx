@@ -98,8 +98,6 @@ export default function ReportsPage() {
           allowed = allClasses.filter(c => teachIds.includes(c.id));
         }
 
-        allowed.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
-
         setClasses(allowed);
 
         // Pick initial class: prioritized to coordinated class, or first allowed class

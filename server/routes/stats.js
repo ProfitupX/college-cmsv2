@@ -302,18 +302,14 @@ router.get('/continuous-assessment', async (req, res) => {
     const { sessionLabel = 'internal1' } = req.query;
 
     const depts = [
-      { label: 'B.E., (Civil)', name: 'Civil Engineering', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.E., (CSE)', name: 'Computer Science and Engineering', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.E., (EEE)', name: 'Electrical and Electronics Engineering', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.E., (ECE)', name: 'Electronics and Communication Engineering', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.E., (Mech)', name: 'Mechanical Engineering', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.Tech., (IT)', name: 'Information Technology', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { label: 'B.Tech., (AI&DS)', name: 'Artificial Intelligence and Data Science', years: ['I (S&H)', 'II', 'III', 'IV'] },
-      { 
-        label: 'Science & Humanities', 
-        name: 'Science and Humanities', 
-        years: ['I (AI & DS)', 'I (Civil)', 'I (CSE)', 'I (ECE)', 'I (EEE)', 'I (IT)', 'I (Mech)'] 
-      },
+      { label: 'B.E., (Civil)', name: 'Civil Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (CSE)', name: 'Computer Science and Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (EEE)', name: 'Electrical and Electronics Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (ECE)', name: 'Electronics and Communication Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.E., (Mech)', name: 'Mechanical Engineering', years: ['II', 'III', 'IV'] },
+      { label: 'B.Tech., (IT)', name: 'Information Technology', years: ['II', 'III', 'IV'] },
+      { label: 'B.Tech., (AI&DS)', name: 'Artificial Intelligence and Data Science', years: ['II', 'III', 'IV'] },
+      { label: 'Science & Humanities', name: 'Science and Humanities', years: ['I'] },
     ];
 
     const results = [];
@@ -330,35 +326,11 @@ router.get('/continuous-assessment', async (req, res) => {
       const yearRows = [];
 
       for (const y of d.years) {
-        let classes = [];
-
+        let classes;
         if (d.name === 'Science and Humanities') {
-          let matchStr = '%';
-          if (y.includes('AI')) matchStr = '%AI%';
-          else if (y.includes('Civil')) matchStr = '%Civil%';
-          else if (y.includes('CSE')) matchStr = '%CSE%';
-          else if (y.includes('ECE')) matchStr = '%ECE%';
-          else if (y.includes('EEE')) matchStr = '%EEE%';
-          else if (y.includes('IT')) matchStr = '%IT%';
-          else if (y.includes('Mech')) matchStr = '%Mech%';
-
           [classes] = await db.execute(
-            "SELECT id, name FROM classes WHERE (department = 'Science and Humanities' OR year_label = 'I') AND name LIKE ?",
-            [matchStr]
-          );
-        } else if (y.includes('S&H') || y === 'I') {
-          let matchStr = '%';
-          if (d.name.includes('Civil')) matchStr = '%Civil%';
-          else if (d.name.includes('Computer Science')) matchStr = '%CSE%';
-          else if (d.name.includes('Electrical and Electronics')) matchStr = '%EEE%';
-          else if (d.name.includes('Electronics and Communication')) matchStr = '%ECE%';
-          else if (d.name.includes('Mechanical')) matchStr = '%Mech%';
-          else if (d.name.includes('Information Technology')) matchStr = '%IT%';
-          else if (d.name.includes('Artificial Intelligence')) matchStr = '%AI%';
-
-          [classes] = await db.execute(
-            "SELECT id, name FROM classes WHERE (department = 'Science and Humanities' OR year_label = 'I') AND name LIKE ?",
-            [matchStr]
+            "SELECT id, name FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND year_label = ?",
+            [y]
           );
         } else {
           [classes] = await db.execute(
@@ -418,14 +390,6 @@ router.get('/continuous-assessment', async (req, res) => {
         deptStrength += yearStrength;
         deptPassed += yearPassed;
 
-        if (d.name !== 'Science and Humanities' && !y.includes('S&H') && y !== 'I') {
-          totalUgStrengthWithoutFirstYear += yearStrength;
-          totalUgPassedWithoutFirstYear += yearPassed;
-        } else if (d.name === 'Science and Humanities') {
-          totalFirstYearStrength += yearStrength;
-          totalFirstYearPassed += yearPassed;
-        }
-
         const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
         yearRows.push({
           year: y,
@@ -433,6 +397,14 @@ router.get('/continuous-assessment', async (req, res) => {
           passed: yearPassed,
           percentage: passPct
         });
+      }
+
+      if (d.name === 'Science and Humanities') {
+        totalFirstYearStrength += deptStrength;
+        totalFirstYearPassed += deptPassed;
+      } else {
+        totalUgStrengthWithoutFirstYear += deptStrength;
+        totalUgPassedWithoutFirstYear += deptPassed;
       }
 
       const deptOverallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';

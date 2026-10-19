@@ -31,13 +31,28 @@ export default function MarksEntryPage() {
     const targetSubjectId = location.state?.subjectId || location.state?.subject_id;
     const targetSession = location.state?.sessionLabel || location.state?.session_label;
 
-    if (targetClassId && targetSubjectId) {
-      setClassAndSubject(targetClassId, targetSubjectId);
-    } else if (targetClassId) {
-      setClass(targetClassId);
-    }
-    if (targetSession) {
-      setAssessmentMode(targetSession);
+    if (targetClassId) {
+      classesAPI.getAll().then((allClasses) => {
+        const targetCls = allClasses.find(c => c.id === targetClassId);
+        const is2025 = targetCls && (
+          targetCls.year_label === 'I' || targetCls.year_label === 'II' ||
+          targetCls.year_label === '1' || targetCls.year_label === '2' ||
+          parseInt(targetCls.semester) <= 4
+        );
+        if (is2025) {
+          if (targetSubjectId) {
+            setClassAndSubject(targetClassId, targetSubjectId);
+          } else {
+            setClass(targetClassId);
+          }
+          if (targetSession) {
+            setAssessmentMode(targetSession);
+          }
+        } else {
+          clearSelection();
+          clearMarks();
+        }
+      });
     }
   }, [location.state]);
 
@@ -102,11 +117,16 @@ export default function MarksEntryPage() {
           filtered = filtered.filter(c => teachIds.includes(c.id));
         }
 
-        // Guarantee target class from redirect is available in classes list for HoD/Staff
+        // Guarantee target class from redirect is available in classes list for HoD/Staff ONLY IF it is 2025
         const targetClassId = location.state?.classId || location.state?.class_id;
         if (targetClassId) {
           const matchedTarget = allClasses.find(c => c.id === targetClassId);
-          if (matchedTarget && !filtered.some(c => c.id === targetClassId)) {
+          const is2025 = matchedTarget && (
+            matchedTarget.year_label === 'I' || matchedTarget.year_label === 'II' ||
+            matchedTarget.year_label === '1' || matchedTarget.year_label === '2' ||
+            parseInt(matchedTarget.semester) <= 4
+          );
+          if (matchedTarget && is2025 && !filtered.some(c => c.id === targetClassId)) {
             filtered.push(matchedTarget);
           }
         }
@@ -121,9 +141,11 @@ export default function MarksEntryPage() {
   useEffect(() => {
     if (classes.length > 0 && selectedClassId) {
       const isValid = classes.some(c => c.id === selectedClassId);
-      const targetClassId = location.state?.classId || location.state?.class_id;
-      if (!isValid && !targetClassId) {
+      if (!isValid) {
         clearSelection();
+        clearMarks();
+        setAssessmentComponents([]);
+        setCurrentSession(null);
       }
     }
   }, [classes, selectedClassId]);
@@ -470,6 +492,18 @@ export default function MarksEntryPage() {
     }
   };
 
+  const handleRegulationChange = (newReg) => {
+    if (newReg === '2021') {
+      clearSelection();
+      clearMarks();
+      setAssessmentComponents([]);
+      setCurrentSession(null);
+      setSessionStatus('draft');
+      setSaved(false);
+      navigate('/marks-entry-2021', { replace: true, state: null });
+    }
+  };
+
   const handleClassChange = (val) => {
     setClass(val); setAssessmentComponents([]); setSaved(false); setSaveErr('');
   };
@@ -518,12 +552,7 @@ export default function MarksEntryPage() {
         onClassChange={handleClassChange}
         onSubjectChange={handleSubjectChange}
         regulation="2025"
-        onRegulationChange={(newReg) => {
-          if (newReg === '2021') {
-            clearSelection();
-            navigate('/marks-entry-2021');
-          }
-        }}
+        onRegulationChange={handleRegulationChange}
       />
 
       {selectedSubject && (

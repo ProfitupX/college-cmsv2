@@ -16,10 +16,12 @@ import {
   Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useMarks } from '../../context/MarksContext';
 import styles from './Sidebar.module.css';
 
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose }) {
   const { user, logout } = useAuth();
+  const { clearSelection, clearMarks } = useMarks();
   const navigate = useNavigate();
 
   const isAdmin = user?.role === 'admin';
@@ -88,7 +90,13 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose
 
             <NavLink
               to={to}
-              onClick={onMobileClose}
+              onClick={() => {
+                onMobileClose?.();
+                if (to === '/marks-entry' || to === '/marks-entry-2021') {
+                  clearSelection();
+                  clearMarks();
+                }
+              }}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.active : ''}`
               }
