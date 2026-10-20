@@ -350,7 +350,8 @@ export default function MarksEntryPage2021() {
   const handleDownloadPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
 
-    if (reportType === 'subject_marks_list_2021') {
+    if (reportType === 'subject_marks_list_2021' || reportType === 'subject_marks_with_internal_2021' || reportType === 'subject_marks_without_internal_2021') {
+      const withInternal = reportType !== 'subject_marks_without_internal_2021';
       await generateSubjectMarksListPDF2021({
         subject: selectedSubject,
         classObj: selectedClass,
@@ -364,6 +365,7 @@ export default function MarksEntryPage2021() {
         labData,
         assessmentMode,
         components: assessmentComponents,
+        withInternal
       });
     } else if (reportType === 'subject_analysis') {
       setPdfPayload({
@@ -725,7 +727,8 @@ export default function MarksEntryPage2021() {
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
               <select className={styles.downloadSelect} value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                <option value="subject_marks_list_2021">Subject Marks List (2021 Reg)</option>
+                <option value="subject_marks_with_internal_2021">Subject Marks List (With Internal Marks - 2021 Reg)</option>
+                <option value="subject_marks_without_internal_2021">Subject Marks List (Without Internal Marks - 2021 Reg)</option>
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
               </select>
               <button className={styles.downloadBtn} onClick={handleDownloadPDF}>

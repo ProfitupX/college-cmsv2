@@ -442,7 +442,8 @@ export default function MarksEntryPage() {
         assessmentMode
       });
       setDeclarationModalOpen(true);
-    } else if (reportType === 'subject_marks_list') {
+    } else if (reportType === 'subject_marks_list' || reportType === 'subject_marks_with_internal' || reportType === 'subject_marks_without_internal') {
+      const withInternal = reportType !== 'subject_marks_without_internal';
       const { generateSubjectMarksListPDF } = await import('../services/pdfReportGenerator');
       await generateSubjectMarksListPDF({
         subject: selectedSubject,
@@ -461,7 +462,23 @@ export default function MarksEntryPage() {
         int1Hours,
         int2Hours,
         labHours,
-        int1AttendanceData
+        int1AttendanceData,
+        withInternal
+      });
+    } else if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+      const withInternal = reportType === 'examcell_legal_with_internal';
+      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+      const { generateOverallMarksAndAttendancePDF } = await import('../services/pdfReportGenerator');
+      await generateOverallMarksAndAttendancePDF({
+        classObj: selectedClass,
+        sessionLabel: assessmentMode,
+        subjects: summary.subjects || subjects,
+        students,
+        allSessions: summary.sessions || [],
+        allAttendance: summary.allAttendance || [],
+        allMarks: summary.allMarks || [],
+        allComponents: summary.allComponents || [],
+        withInternal
       });
     } else if (reportType === 'class_analysis') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -779,12 +796,15 @@ export default function MarksEntryPage() {
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
               >
+                <option value="subject_marks_with_internal">Subject Marks List (With Internal Marks)</option>
+                <option value="subject_marks_without_internal">Subject Marks List (Without Internal Marks)</option>
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
                 {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
                   <>
-                    <option value="subject_marks_list">Subject Marks List</option>
                     <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
                     <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
+                    <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Internal Marks)</option>
+                    <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Internal Marks)</option>
                   </>
                 )}
               </select>
