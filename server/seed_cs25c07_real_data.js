@@ -73,20 +73,27 @@ async function seedRealData() {
       const activitiesTotal = testScore + assignScore + seminarScore + quizScore;
       totalScoreSum += activitiesTotal;
 
-      // Attendance: out of 30 hours
-      // Majority have 28-30 hrs (>=93%), some 26-27 (86-90%), a few 24-25 (80-83%), rare 22
-      let actualTakenHours = 30;
-      if (i % 7 === 0) actualTakenHours = 29;
-      else if (i % 5 === 0) actualTakenHours = 28;
-      else if (i % 11 === 0) actualTakenHours = 27;
-      else if (i % 13 === 0) actualTakenHours = 26;
-      else if (i % 19 === 0) actualTakenHours = 25;
-      else if (i === 58) actualTakenHours = 22; // low attendance example
+      // Attendance: Conducted hours is 45 hours (above prescribed total of 30 hours)
+      // Conversion formula:
+      // conductedBase = max(30, 45) = 45
+      // pct = (actualTakenHours / 45) * 100
+      // convertedHours = Math.round((actualTakenHours / 45) * 30)
+      // attMark = Anna Univ rule based on pct
+      const totalConducted = 45;
+      let actualTakenHours = 45; // Default full attendance
 
-      // Special first student Abarna M
-      if (st.id === 'ST001') actualTakenHours = 30;
+      if (i === 0) actualTakenHours = 45; // Abarna M: 45 / 45 -> 100% -> 30/30 -> 5 marks
+      else if (i % 8 === 0) actualTakenHours = 43; // 43 / 45 -> 96% -> 29/30 -> 5 marks
+      else if (i % 6 === 0) actualTakenHours = 42; // 42 / 45 -> 93% -> 28/30 -> 3 marks
+      else if (i % 5 === 0) actualTakenHours = 41; // 41 / 45 -> 91% -> 27/30 -> 3 marks
+      else if (i % 7 === 0) actualTakenHours = 39; // 39 / 45 -> 87% -> 26/30 -> 2 marks
+      else if (i % 9 === 0) actualTakenHours = 37; // 37 / 45 -> 82% -> 25/30 -> 1 mark
+      else if (i % 11 === 0) actualTakenHours = 36; // 36 / 45 -> 80% -> 24/30 -> 1 mark
+      else if (i === 58) actualTakenHours = 33;     // 33 / 45 -> 73% -> 22/30 -> 0 marks
+      else actualTakenHours = 45 - (i % 4);        // 42-45 hrs
 
-      const pct = Math.min(100, Math.round((actualTakenHours / tHours) * 100));
+      const pct = Math.min(100, Math.round((actualTakenHours / totalConducted) * 100));
+      const convertedHours = Math.min(tHours, Math.round((actualTakenHours / totalConducted) * tHours));
       const attMark = getAttendanceMark(pct);
 
       // Exam mark out of 100:
@@ -95,7 +102,7 @@ async function seedRealData() {
       await conn.execute(
         `INSERT INTO session_attendance (session_id, student_id, hours_attended, actual_taken_hours, attendance_mark, internal_exam_mark, lab_attendance, lab_mark)
          VALUES (?, ?, ?, ?, ?, ?, 0, null)`,
-        [sessionId, st.id, actualTakenHours, actualTakenHours, attMark, examMark]
+        [sessionId, st.id, convertedHours, actualTakenHours, attMark, examMark]
       );
     }
 
