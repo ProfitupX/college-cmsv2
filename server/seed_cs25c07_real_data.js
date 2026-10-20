@@ -32,6 +32,14 @@ async function seedRealData() {
 
     console.log(`Populating realistic data for Session ID ${sessionId} (CS25C07 - OOP)...`);
 
+    // Ensure actual_taken_hours column exists in session_attendance
+    try {
+      await conn.query('ALTER TABLE session_attendance ADD COLUMN actual_taken_hours INT DEFAULT NULL AFTER hours_attended');
+      console.log('✅ Added actual_taken_hours column to session_attendance.');
+    } catch (colErr) {
+      // Column already exists or handled
+    }
+
     // 1. Delete old components & marks for this session
     await conn.execute('DELETE FROM marks WHERE session_id = ?', [sessionId]);
     await conn.execute('DELETE FROM assessment_components WHERE session_id = ?', [sessionId]);
