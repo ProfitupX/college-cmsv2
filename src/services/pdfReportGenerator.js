@@ -387,9 +387,10 @@ export const generateSubjectMarksListPDF = async ({
       const conductedBase = Math.max(tHours, maxActual);
       pct = conductedBase > 0 ? Math.min(100, Math.round((rawHours / conductedBase) * 100)) : 0;
       convertedHours = conductedBase > 0 ? Math.min(tHours, Math.round((rawHours / conductedBase) * tHours)) : 0;
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
+      const computedMark = getAttendanceMark(pct);
+      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pct);
+        : computedMark;
     } else {
       const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
       const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
@@ -406,22 +407,25 @@ export const generateSubjectMarksListPDF = async ({
       const cumConductedBase = Math.max(tHours, maxCumActual);
       pct = cumConductedBase > 0 ? Math.min(100, Math.round((rawHours / cumConductedBase) * 100)) : 0;
       convertedHours = cumConductedBase > 0 ? Math.min(tHours, Math.round((rawHours / cumConductedBase) * tHours)) : 0;
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
+      const computedMark = getAttendanceMark(pct);
+      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pct);
+        : computedMark;
     }
 
-    const internalExamMark = internalExamData[student.id];
-    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') 
-      ? Math.round(parseFloat(internalExamMark)) 
+    const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
+    const numExam = parseFloat(internalExamMark);
+    const internalExamMarkStr = (!isNaN(numExam) && internalExamMark !== null && internalExamMark !== undefined && internalExamMark !== '') 
+      ? Math.round(numExam) 
       : '-';
 
     const totalInternal = Math.min(100, convertedTotal + attendanceMark);
+    const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     return [
       idx + 1,
       student.roll_no || student.rollNo || '-',
-      student.name,
+      cleanStudentName,
       rawHours,
       `${convertedHours} / ${tHours > 0 ? tHours : '—'}`,
       `${pct}%`,
