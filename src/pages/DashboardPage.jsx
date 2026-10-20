@@ -46,9 +46,13 @@ export default function DashboardPage() {
       user?.role === 'admin' 
         ? statsAPI.getCollegeStats()
         : statsAPI.get('', user?.id, user?.role, user?.department),
-      marksAPI.getSessions({ 
-        department: (user?.role === 'hod' || user?.role === 'faculty') ? user?.department : undefined
-      }),
+      marksAPI.getSessions(
+        user?.role === 'hod' 
+          ? { department: user?.department } 
+          : (user?.role === 'staff' || user?.role === 'faculty')
+            ? { staffId: user?.id }
+            : {}
+      ),
       settingsAPI.getDeadline()
     ];
 

@@ -67,8 +67,18 @@ router.get('/', async (req, res) => {
       }
 
       // 3. If HOD is also teaching subjects, count HOD's own subjects
+      // 3. If HOD is also teaching subjects, count HOD's own subjects
       if (staffId) {
-        const hStaffIds = (staffId === 'S_CHITRA' || staffId === 'FAC002') ? ['S_CHITRA', 'FAC002'] : [staffId];
+        const [aliasRows] = await db.query(
+          `SELECT id FROM staffs WHERE id = ? OR email = (SELECT email FROM staffs WHERE id = ? LIMIT 1)`,
+          [staffId, staffId]
+        );
+        const hStaffIds = Array.from(new Set([staffId, ...aliasRows.map(r => r.id)]));
+        if (staffId === 'S_CHITRA' || staffId === 'FAC002') hStaffIds.push('S_CHITRA', 'FAC002');
+        if (staffId === 'S_NAVEENKARTHICK' || staffId === 'FAC_IT_103') hStaffIds.push('S_NAVEENKARTHICK', 'FAC_IT_103');
+        if (staffId === 'S_MAREESWARI' || staffId === 'FAC006') hStaffIds.push('S_MAREESWARI', 'FAC006');
+        if (staffId === 'S_KARUNYA' || staffId === 'FAC010' || staffId === 'FAC026') hStaffIds.push('S_KARUNYA', 'FAC010', 'FAC026');
+        
         const hPlaceholders = hStaffIds.map(() => '?').join(',');
         const [[{ hodSubCount }]] = await db.query(
           `SELECT COUNT(*) AS hodSubCount FROM subjects WHERE faculty_id IN (${hPlaceholders})`,
@@ -78,12 +88,22 @@ router.get('/', async (req, res) => {
       }
     } else if (staffId) {
       // Regular Faculty or Class In-charge
-      const [classRows] = await db.execute(
+      const [aliasRows] = await db.query(
+        `SELECT id FROM staffs WHERE id = ? OR email = (SELECT email FROM staffs WHERE id = ? LIMIT 1)`,
+        [staffId, staffId]
+      );
+      const fStaffIds = Array.from(new Set([staffId, ...aliasRows.map(r => r.id)]));
+      if (staffId === 'S_NAVEENKARTHICK' || staffId === 'FAC_IT_103') fStaffIds.push('S_NAVEENKARTHICK', 'FAC_IT_103');
+      if (staffId === 'S_MAREESWARI' || staffId === 'FAC006') fStaffIds.push('S_MAREESWARI', 'FAC006');
+      if (staffId === 'S_KARUNYA' || staffId === 'FAC010' || staffId === 'FAC026') fStaffIds.push('S_KARUNYA', 'FAC010', 'FAC026');
+
+      const fPlaceholders = fStaffIds.map(() => '?').join(',');
+      const [classRows] = await db.query(
         `SELECT DISTINCT c.id, c.name 
          FROM subjects s 
          JOIN classes c ON c.id = s.class_id 
-         WHERE s.faculty_id = ?`,
-        [staffId]
+         WHERE s.faculty_id IN (${fPlaceholders})`,
+        fStaffIds
       );
       assignedClasses = classRows.map(c => c.name);
 
@@ -97,9 +117,9 @@ router.get('/', async (req, res) => {
         totalStudents = count;
       }
 
-      const [[{ subCount }]] = await db.execute(
-        'SELECT COUNT(*) AS subCount FROM subjects WHERE faculty_id = ?',
-        [staffId]
+      const [[{ subCount }]] = await db.query(
+        `SELECT COUNT(*) AS subCount FROM subjects WHERE faculty_id IN (${fPlaceholders})`,
+        fStaffIds
       );
       totalSubjects = subCount;
       myTeachingSubjects = subCount;

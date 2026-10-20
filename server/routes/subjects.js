@@ -11,7 +11,8 @@ router.get('/', async (req, res) => {
     let sql = `
       SELECT s.id, s.code, s.name, s.acronym, s.type, s.department,
              s.semester, s.ltpc, s.total_hours, s.faculty_id, s.class_id,
-             f.name AS faculty_name, f.designation AS faculty_designation
+             f.name AS faculty_name, f.designation AS faculty_designation,
+             f.department AS faculty_department
       FROM subjects s
       LEFT JOIN staffs f ON f.id = s.faculty_id
     `;

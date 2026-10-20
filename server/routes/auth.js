@@ -51,28 +51,99 @@ router.post('/login', async (req, res) => {
     }
 
     const staff = rows[0];
-    const isDrChithra = staff.id === 'S_CHITRA' || staff.id === 'FAC002' || cleanEmail.includes('chithra');
 
-    // Fetch detailed assigned subjects for this staff member (including aliases if applicable)
+    // Resolve all faculty ID aliases (handles cross-department seeding and legacy IDs)
+    const [aliasRows] = await db.query(
+      `SELECT id FROM staffs WHERE id = ? OR email = ? OR (name = ? AND name != '')`,
+      [staff.id, staff.email, staff.name]
+    );
+    const facultyIdList = Array.from(new Set([staff.id, ...aliasRows.map(r => r.id)]));
+
+    // Handle historical seed pairings so teachers never lose class access
+    if (staff.id === 'S_CHITRA' || staff.id === 'FAC002' || cleanEmail.includes('chithra')) {
+      facultyIdList.push('S_CHITRA', 'FAC002');
+    }
+    if (staff.id === 'S_NAVEENKARTHICK' || staff.id === 'FAC_IT_103' || cleanEmail.includes('naveenkarthick')) {
+      facultyIdList.push('S_NAVEENKARTHICK', 'FAC_IT_103');
+    }
+    if (staff.id === 'S_MAREESWARI' || staff.id === 'FAC006' || cleanEmail.includes('mareeswari')) {
+      facultyIdList.push('S_MAREESWARI', 'FAC006');
+    }
+    if (staff.id === 'S_KARUNYA' || staff.id === 'FAC010' || staff.id === 'FAC026' || cleanEmail.includes('karunya')) {
+      facultyIdList.push('S_KARUNYA', 'FAC010', 'FAC026');
+    }
+    if (staff.id === 'S_RICHARD' || staff.id === 'FAC017' || cleanEmail.includes('richard')) {
+      facultyIdList.push('S_RICHARD', 'FAC017');
+    }
+    if (staff.id === 'S_KESAVA' || staff.id === 'FAC005' || cleanEmail.includes('kesavamoorthy')) {
+      facultyIdList.push('S_KESAVA', 'FAC005');
+    }
+    if (staff.id === 'S_UDHAYA' || staff.id === 'FAC004' || cleanEmail.includes('udhayakumar')) {
+      facultyIdList.push('S_UDHAYA', 'FAC004');
+    }
+    if (staff.id === 'S_BHAVANI' || staff.id === 'FAC_IT_101' || cleanEmail.includes('bhavani')) {
+      facultyIdList.push('S_BHAVANI', 'FAC_IT_101');
+    }
+    if (staff.id === 'S_VENNIMALAI' || staff.id === 'FAC052' || cleanEmail.includes('vennimalai')) {
+      facultyIdList.push('S_VENNIMALAI', 'FAC052');
+    }
+    if (staff.id === 'S_RATHIMALA' || staff.id === 'FAC016' || cleanEmail.includes('rathimala')) {
+      facultyIdList.push('S_RATHIMALA', 'FAC016');
+    }
+    if (staff.id === 'S_JENIFER' || staff.id === 'FAC021' || cleanEmail.includes('jenifer')) {
+      facultyIdList.push('S_JENIFER', 'FAC021');
+    }
+    if (staff.id === 'S_NAGARAJAN' || staff.id === 'FAC053' || cleanEmail.includes('nagarajan')) {
+      facultyIdList.push('S_NAGARAJAN', 'FAC053');
+    }
+    if (staff.id === 'S_HARIKISHORE' || staff.id === 'FAC054' || cleanEmail.includes('harikishore')) {
+      facultyIdList.push('S_HARIKISHORE', 'FAC054');
+    }
+    if (staff.id === 'S_NAGARAJA' || staff.id === 'FAC055' || cleanEmail.includes('nagaraja')) {
+      facultyIdList.push('S_NAGARAJA', 'FAC055');
+    }
+    if (staff.id === 'S_SURULIMANI' || staff.id === 'FAC_MECH_101' || cleanEmail.includes('surulimani')) {
+      facultyIdList.push('S_SURULIMANI', 'FAC_MECH_101');
+    }
+    if (staff.id === 'S_CHAKRAVARTHY' || staff.id === 'FAC_MECH_102' || cleanEmail.includes('chakravarthy')) {
+      facultyIdList.push('S_CHAKRAVARTHY', 'FAC_MECH_102');
+    }
+    if (staff.id === 'S_ARUN' || staff.id === 'FAC_MECH_103' || cleanEmail.includes('arunkumar')) {
+      facultyIdList.push('S_ARUN', 'FAC_MECH_103');
+    }
+    if (staff.id === 'S_SIVAGANESAN' || staff.id === 'FAC_MECH_104' || cleanEmail.includes('sivaganesan')) {
+      facultyIdList.push('S_SIVAGANESAN', 'FAC_MECH_104');
+    }
+    if (staff.id === 'S_RAJAKARTHICK' || staff.id === 'FAC_EEE_103' || cleanEmail.includes('rajakarthick')) {
+      facultyIdList.push('S_RAJAKARTHICK', 'FAC_EEE_103');
+    }
+    if (staff.id === 'S_MALAR' || staff.id === 'FAC038' || cleanEmail.includes('malarvizhi')) {
+      facultyIdList.push('S_MALAR', 'FAC038');
+    }
+
+    const uniqueFacultyIds = Array.from(new Set(facultyIdList));
+    const placeholders = uniqueFacultyIds.map(() => '?').join(',');
+
+    // Fetch detailed assigned subjects for this staff member (including aliases)
     const assignedSubsQuery = `
       SELECT s.id, s.code, s.name, s.type, s.class_id, s.ltpc, s.total_hours,
              c.name as class_name, c.department as class_department, c.year_label, c.semester
       FROM subjects s
       LEFT JOIN classes c ON c.id = s.class_id
-      WHERE ${isDrChithra ? "s.faculty_id IN ('S_CHITRA', 'FAC002')" : "s.faculty_id = ?"}
+      WHERE s.faculty_id IN (${placeholders})
       ORDER BY c.year_label, s.code
     `;
-    const [assignedSubs] = await db.query(assignedSubsQuery, isDrChithra ? [] : [staff.id]);
+    const [assignedSubs] = await db.query(assignedSubsQuery, uniqueFacultyIds);
 
     // Fetch distinct classes taught by this staff member
     const teachingClassesQuery = `
       SELECT DISTINCT c.id, c.name, c.department, c.year_label, c.semester, c.batch, c.academic_year
       FROM subjects s
       JOIN classes c ON c.id = s.class_id
-      WHERE ${isDrChithra ? "s.faculty_id IN ('S_CHITRA', 'FAC002')" : "s.faculty_id = ?"}
+      WHERE s.faculty_id IN (${placeholders})
       ORDER BY c.year_label, c.name
     `;
-    const [teachingClasses] = await db.query(teachingClassesQuery, isDrChithra ? [] : [staff.id]);
+    const [teachingClasses] = await db.query(teachingClassesQuery, uniqueFacultyIds);
 
     // Fetch all classes to perform normalized coordinator matching
     const [allClasses] = await db.execute('SELECT id, name, department, year_label, semester, batch, academic_year, class_coordinator, asst_coordinator FROM classes');

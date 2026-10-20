@@ -206,7 +206,11 @@ export default function ManageSubjects() {
 
             <select required value={formData.faculty_id} onChange={e => setFormData({...formData, faculty_id: e.target.value})}>
               <option value="">-- Assign Staff --</option>
-              {staffsList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+              {staffsList.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.name} - {s.department || s.designation || 'Faculty'} ({s.id})
+                </option>
+              ))}
             </select>
           </div>
           <div className={styles.formActions}>
@@ -236,7 +240,14 @@ export default function ManageSubjects() {
               <td>{s.type}</td>
               <td>{s.ltpc ? `${s.ltpc} (${s.total_hours}h)` : '-'}</td>
               <td>{s.class_id}</td>
-              <td>{s.faculty_id}</td>
+              <td>
+                <div style={{ fontWeight: 600 }}>{s.faculty_name || s.faculty_id}</div>
+                {(s.faculty_department || s.faculty_designation) && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {s.faculty_department || ''} {s.faculty_designation ? `• ${s.faculty_designation}` : ''}
+                  </div>
+                )}
+              </td>
               <td>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className={styles.editIcon} onClick={() => openEdit(s)}><Edit2 size={16} /></button>

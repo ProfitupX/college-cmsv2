@@ -310,12 +310,37 @@ router.get('/sessions', async (req, res) => {
     const params = [];
     const where = [];
     if (classId)      { where.push('ms.class_id = ?');   params.push(classId); }
-    if (staffId)      { where.push('ms.staff_id = ?');   params.push(staffId); }
+    if (staffId) {
+      const [aliasRows] = await db.query(
+        `SELECT id FROM staffs WHERE id = ? OR email = (SELECT email FROM staffs WHERE id = ? LIMIT 1)`,
+        [staffId, staffId]
+      );
+      const fStaffIds = Array.from(new Set([staffId, ...aliasRows.map(r => r.id)]));
+      if (staffId === 'S_CHITRA' || staffId === 'FAC002') fStaffIds.push('S_CHITRA', 'FAC002');
+      if (staffId === 'S_NAVEENKARTHICK' || staffId === 'FAC_IT_103') fStaffIds.push('S_NAVEENKARTHICK', 'FAC_IT_103');
+      if (staffId === 'S_MAREESWARI' || staffId === 'FAC006') fStaffIds.push('S_MAREESWARI', 'FAC006');
+      if (staffId === 'S_KARUNYA' || staffId === 'FAC010' || staffId === 'FAC026') fStaffIds.push('S_KARUNYA', 'FAC010', 'FAC026');
+      if (staffId === 'S_RICHARD' || staffId === 'FAC017') fStaffIds.push('S_RICHARD', 'FAC017');
+      if (staffId === 'S_KESAVA' || staffId === 'FAC005') fStaffIds.push('S_KESAVA', 'FAC005');
+      if (staffId === 'S_UDHAYA' || staffId === 'FAC004') fStaffIds.push('S_UDHAYA', 'FAC004');
+      if (staffId === 'S_BHAVANI' || staffId === 'FAC_IT_101') fStaffIds.push('S_BHAVANI', 'FAC_IT_101');
+      if (staffId === 'S_VENNIMALAI' || staffId === 'FAC052') fStaffIds.push('S_VENNIMALAI', 'FAC052');
+      if (staffId === 'S_RATHIMALA' || staffId === 'FAC016') fStaffIds.push('S_RATHIMALA', 'FAC016');
+      if (staffId === 'S_JENIFER' || staffId === 'FAC021') fStaffIds.push('S_JENIFER', 'FAC021');
+      
+      const sPlaceholders = fStaffIds.map(() => '?').join(',');
+      where.push(`ms.staff_id IN (${sPlaceholders})`);
+      params.push(...fStaffIds);
+    }
     if (subjectId)    { where.push('ms.subject_id = ?'); params.push(subjectId); }
     if (sessionLabel) { where.push('ms.session_label = ?'); params.push(sessionLabel); }
-    if (department)   { 
-      where.push('(cl.department = ? OR sub.department = ?)'); 
-      params.push(department, department);
+    if (department) {
+      if (department === 'Science and Humanities' || department === 'First Year' || department.toLowerCase().includes('science')) {
+        where.push(`(cl.department = 'Science and Humanities' OR cl.department = 'First Year' OR cl.year_label = 'I' OR sub.department = 'Science and Humanities')`);
+      } else {
+        where.push(`(cl.department LIKE ? OR sub.department LIKE ?)`);
+        params.push(`%${department}%`, `%${department}%`);
+      }
     }
     if (where.length) sql += ' WHERE ' + where.join(' AND ');
     sql += ' ORDER BY ms.created_at DESC';
