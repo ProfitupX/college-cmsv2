@@ -97,7 +97,8 @@ export default function MarksEntryPage2021() {
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
           // All 3rd/4th year classes
         } else if (user?.role === 'hod') {
-          filtered = filtered.filter(c => c.department === user.department);
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          filtered = filtered.filter(c => c.department === user.department || teachIds.includes(c.id));
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c.id);
           const teachIds = (user.teachingClasses || []).map(c => c.id);

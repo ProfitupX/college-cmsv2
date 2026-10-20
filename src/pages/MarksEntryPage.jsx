@@ -91,9 +91,11 @@ export default function MarksEntryPage() {
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
           // All 1st & 2nd year classes
         } else if (user?.role === 'hod') {
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
           filtered = filtered.filter(c => 
             c.department === user.department || 
-            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0]))
+            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0])) ||
+            teachIds.includes(c.id)
           );
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c.id);
