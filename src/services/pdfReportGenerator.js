@@ -1921,19 +1921,9 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
     margin: { left: 10, right: 10 }
   });
 
-  // Official Signature Block
-  const sigY = Math.max(doc.lastAutoTable.finalY + 35, 170);
+  // Official Signature Block (HOD only - for HOD's internal reference)
+  const sigY = Math.max(doc.lastAutoTable.finalY + 32, 160);
   
-  // Left: Exam Cell Coordinator
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 41, 59);
-  doc.text('PREPARED BY', 40, sigY, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Department Exam Cell Incharge', 40, sigY + 5.5, { align: 'center' });
-
   // Right: HOD Signature with Full Name
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
@@ -1944,9 +1934,9 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
   doc.setTextColor(15, 23, 42);
   doc.text(hodName ? `${hodName}` : 'H.O.D', 165, sigY + 6, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Department of ${department}`, 165, sigY + 11, { align: 'center' });
+  doc.text(`Department of ${department}`, 165, sigY + 11.5, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${(department || 'Department').replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
