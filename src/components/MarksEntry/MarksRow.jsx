@@ -57,7 +57,9 @@ export default function MarksRow({
     }
   }
 
-  const effectiveAttMark = savedAttendanceMark !== undefined && savedAttendanceMark !== null ? parseFloat(savedAttendanceMark) : attendanceMark;
+  const effectiveAttMark = (savedAttendanceMark !== undefined && savedAttendanceMark !== null && parseFloat(savedAttendanceMark) > 0)
+    ? parseFloat(savedAttendanceMark)
+    : attendanceMark;
   const finalTotal100 = convertedTotal + effectiveAttMark;
   const initials = student.name.split(' ').map((n) => n[0]).join('').slice(0, 2);
 
