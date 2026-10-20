@@ -106,7 +106,7 @@ export default function DashboardPage() {
     setGenLoading(true);
     try {
       const d = hodMarksData || await statsAPI.getHodMarks(user.department, hodSession);
-      await generateHodMarksPDF(user.department, hodSession, d);
+      await generateHodMarksPDF(user.department, hodSession, d, user?.name || d?.hodName);
     } catch (err) {
       alert('Failed to generate HOD Marks PDF: ' + err.message);
     } finally {

@@ -317,7 +317,7 @@ export default function ReportsPage() {
     setGenLoading(true);
     try {
       const data = hodMarksData || await statsAPI.getHodMarks(user.department, sessionLabel);
-      await generateHodMarksPDF(user.department, sessionLabel, data);
+      await generateHodMarksPDF(user.department, sessionLabel, data, user?.name || data?.hodName);
     } catch (err) {
       alert('Failed to generate HOD Marks Report: ' + err.message);
     } finally {

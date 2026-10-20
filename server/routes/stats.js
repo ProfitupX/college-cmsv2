@@ -650,9 +650,24 @@ router.get('/hod-marks', async (req, res) => {
 
     const overallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';
 
+    // Fetch HOD full name for this department
+    let hodName = '';
+    try {
+      const [hodRows] = await db.query(
+        "SELECT name FROM staffs WHERE (department = ? OR department LIKE ?) AND role = 'hod' LIMIT 1",
+        [department, `%${department}%`]
+      );
+      if (hodRows && hodRows.length > 0) {
+        hodName = hodRows[0].name;
+      }
+    } catch (hodErr) {
+      console.warn('Could not query HOD name:', hodErr.message);
+    }
+
     res.json({
       success: true,
       department,
+      hodName,
       years: results,
       overall: {
         strength: deptStrength,

@@ -1681,28 +1681,102 @@ export const generateOverallMarksAndAttendancePDF = async ({
   doc.save(`${classObj?.name}_Overall_Mark_Statement.pdf`);
 };
 
-export const generateHodMarksPDF = async (department, sessionLabel, data) => {
+const getDepartmentHodFallback = (dept) => {
+  if (!dept) return 'Head of Department';
+  const d = String(dept).toLowerCase();
+  if (d.includes('information') || d === 'it') return 'Mr. C. Prathap';
+  if (d.includes('science') || d.includes('humanities') || d.includes('first year') || d === 's&h') return 'Dr. C. Chithra';
+  if (d.includes('artificial') || d.includes('data science') || d.includes('ai') || d === 'aids') return 'Mrs. K. Jenifer';
+  if (d.includes('electrical') || d === 'eee') return 'Dr. R. Athilingam';
+  if (d.includes('electronics') || d === 'ece') return 'Dr. T. Venish Kumar';
+  if (d.includes('mechanical') || d === 'mech') return 'Dr. B. Ratha Krishnan';
+  if (d.includes('civil')) return 'Mr. N. Nagarathinam';
+  if (d.includes('computer') || d === 'cse') return 'Dr. J. Mathalai Raj';
+  return 'Head of Department';
+};
+
+export const generateHodMarksPDF = async (department, sessionLabel, data, hodNameParam = '') => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB');
+  const pageWidth = doc.internal.pageSize.getWidth();
   
   await drawCollegeHeader(doc, 'DEPARTMENT CONTINUOUS ASSESSMENT REPORT', 'NAC/TLP-XX', '01', dateStr, '01');
 
-  let y = 45;
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Department: ${department}`, 14, y);
-  
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'normal');
-  const sessionName = sessionLabel === 'internal1' ? 'Internal Test 1 (CA-1)' : sessionLabel === 'internal2' ? 'Internal Test 2 (CA-2)' : 'Model Exam';
-  doc.text(`Assessment Mode: ${sessionName}`, 120, y);
-  y += 5;
-  doc.text(`Academic Year: 2026 - 2027`, 14, y);
-  y += 6;
+  const sessionName = sessionLabel === 'internal1' 
+    ? 'Internal Test 1 (CA-1)' 
+    : sessionLabel === 'internal2' 
+      ? 'Internal Test 2 (CA-2)' 
+      : 'Model Examination';
 
-  const tableBody = data.years.map(yData => [
+  const hodName = hodNameParam || data?.hodName || getDepartmentHodFallback(department);
+
+  // Structured Metadata Box spanning the full 190mm width (matching header box)
+  const boxX = 10;
+  const boxY = 44;
+  const boxW = pageWidth - 20; // 190 mm
+  const boxH = 22;
+
+  // Background and border
+  doc.setDrawColor(203, 213, 225); // Slate-300 border
+  doc.setFillColor(248, 250, 252); // Slate-50 background
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD');
+
+  // Vertical Divider line at x = 105
+  doc.setDrawColor(226, 232, 240);
+  doc.line(105, boxY, 105, boxY + boxH);
+
+  // Left Column: Department & Head of Department
+  // Row 1: Department
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Department', boxX + 4, boxY + 7.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(':', boxX + 38, boxY + 7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(department || 'Engineering', boxX + 42, boxY + 7.5);
+
+  // Row 2: Head of Department (HOD Full Name)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Head of Dept (HOD)', boxX + 4, boxY + 16);
+  doc.setTextColor(30, 41, 59);
+  doc.text(':', boxX + 38, boxY + 16);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 58, 138); // Professional deep blue accent
+  doc.text(hodName, boxX + 42, boxY + 16);
+
+  // Right Column: Assessment Mode & Academic Year
+  // Row 1: Assessment Mode
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Assessment Mode', 109, boxY + 7.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(':', 142, boxY + 7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(sessionName, 146, boxY + 7.5);
+
+  // Row 2: Academic Year
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Academic Year', 109, boxY + 16);
+  doc.setTextColor(30, 41, 59);
+  doc.text(':', 142, boxY + 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('2026 - 2027', 146, boxY + 16);
+
+  const tableBody = (data?.years || []).map(yData => [
     `${yData.year} Year (Sem ${yData.semester})`,
     yData.strength,
     yData.passed,
@@ -1710,31 +1784,67 @@ export const generateHodMarksPDF = async (department, sessionLabel, data) => {
     `${yData.passPct}%`
   ]);
 
-  tableBody.push([
-    { content: 'OVERALL DEPARTMENT TOTAL', styles: { fontStyle: 'bold' } },
-    { content: data.overall.strength, styles: { fontStyle: 'bold' } },
-    { content: data.overall.passed, styles: { fontStyle: 'bold' } },
-    { content: data.overall.failed !== undefined ? data.overall.failed : Math.max(0, data.overall.strength - data.overall.passed), styles: { fontStyle: 'bold' } },
-    { content: `${data.overall.passPct}%`, styles: { fontStyle: 'bold' } }
-  ]);
+  if (data?.overall) {
+    tableBody.push([
+      { content: 'OVERALL DEPARTMENT TOTAL', styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+      { content: data.overall.strength, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+      { content: data.overall.passed, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+      { content: data.overall.failed !== undefined ? data.overall.failed : Math.max(0, data.overall.strength - data.overall.passed), styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+      { content: `${data.overall.passPct}%`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } }
+    ]);
+  }
 
+  // AutoTable starts cleanly at y = 72mm
   autoTable(doc, {
-    startY: y + 10,
+    startY: boxY + boxH + 6,
     head: [['Year / Semester', 'Total Students', 'Passed Students', 'Failed Students', 'Pass Percentage']],
     body: tableBody,
     theme: 'grid',
-    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: 'center', fontSize: 11, cellPadding: 8 },
-    bodyStyles: { halign: 'center', fontSize: 11, cellPadding: 8 },
-    alternateRowStyles: { fillColor: [245, 245, 245] },
-    margin: { left: 14, right: 14 }
+    headStyles: { 
+      fillColor: [30, 41, 59], 
+      textColor: [255, 255, 255], 
+      halign: 'center', 
+      fontSize: 10, 
+      fontStyle: 'bold',
+      cellPadding: 6 
+    },
+    bodyStyles: { 
+      halign: 'center', 
+      fontSize: 10, 
+      cellPadding: 6,
+      textColor: [30, 41, 59]
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left: 10, right: 10 }
   });
 
-  y = doc.lastAutoTable.finalY + 40;
+  // Official Signature Block
+  const sigY = Math.max(doc.lastAutoTable.finalY + 35, 170);
   
+  // Left: Exam Cell Coordinator
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('H.O.D Signature', 160, y, { align: 'center' });
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text('PREPARED BY', 40, sigY, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Department Exam Cell Incharge', 40, sigY + 5.5, { align: 'center' });
+
+  // Right: HOD Signature with Full Name
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text('HEAD OF THE DEPARTMENT', 165, sigY, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(hodName ? `${hodName}` : 'H.O.D', 165, sigY + 6, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Department of ${department}`, 165, sigY + 11, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
-  doc.save(`${department.replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
+  doc.save(`${(department || 'Department').replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
 };
