@@ -25,7 +25,7 @@ router.post('/submit', async (req, res) => {
     // 1.5 Delete any existing session for this subject/class/label so it acts as an UPDATE or CLEAR
     await conn.execute(
       `DELETE FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ?`,
-      [subjectId, classId, sessionLabel]
+      [String(subjectId), String(classId), String(sessionLabel)]
     );
 
     // If no components, it means the user deleted all components and wants to clear the marksheet
@@ -35,7 +35,7 @@ router.post('/submit', async (req, res) => {
     }
 
     // 1. Calculate total max and avg score
-    const totalMax = components.reduce((s, c) => s + parseFloat(c.maxMarks || 0), 0);
+    const totalMax = components.reduce((s, c) => s + (parseFloat(c.maxMarks) || 0), 0);
 
     // avg = (sum of converted marks) / studentCount
     const studentIds = [...new Set(marks.map((m) => m.studentId))];
@@ -45,7 +45,9 @@ router.post('/submit', async (req, res) => {
     // 95–100% → 5 marks, 90–95% → 3 marks, 85–90% → 2 marks, 80–85% → 1 mark, <80% → 0 marks
     const getAttendanceMark = (attended, maxHours) => {
       if (!maxHours || maxHours <= 0) return 0;
-      const pct = (attended / maxHours) * 100;
+      // Clamp attended hours between 0 and maxHours so percentage never exceeds 100%
+      const effectiveAttended = Math.min(Math.max(0, attended), maxHours);
+      const pct = (effectiveAttended / maxHours) * 100;
       if (pct >= 95) return 5;
       if (pct >= 90) return 3;
       if (pct >= 85) return 2;
@@ -60,28 +62,28 @@ router.post('/submit', async (req, res) => {
       
       const comp = components[m.componentIndex];
       if (comp) {
-        const conductedMax = parseFloat(comp.conductedMax || 100);
-        const weight = parseFloat(comp.maxMarks || 0);
-        const val = parseFloat(m.marksObtained || 0);
-        const converted = (Math.min(val, conductedMax) / conductedMax) * weight;
+        const conductedMax = parseFloat(comp.conductedMax) || 100;
+        const weight = parseFloat(comp.maxMarks) || 0;
+        const val = parseFloat(m.marksObtained) || 0;
+        const converted = conductedMax > 0 ? (Math.min(val, conductedMax) / conductedMax) * weight : 0;
         studentTotals[m.studentId] += converted;
       }
     }
 
     if (attendance && Array.isArray(attendance)) {
-      const tHours = parseInt(totalHours || 0);
+      const tHours = parseInt(totalHours, 10) || 0;
       for (const a of attendance) {
         if (!studentTotals[a.studentId]) studentTotals[a.studentId] = 0;
-        const rawHours = parseInt(a.actualTakenHours !== undefined ? a.actualTakenHours : (a.hoursAttended || 0));
-        const labHrs = parseInt(a.labAttendance || 0);
+        const rawHours = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
+        const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
         if (sessionLabel === 'internal2') {
-          const i1Attd = parseInt(a.int1AttendanceHours || 0);
+          const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const cumAttd = i1Attd + rawHours + labHrs;
-          const i1Max = parseInt(req.body.int1Hours || Math.ceil(tHours) || 0);
-          const i2Max = parseInt(req.body.int2Hours || Math.floor(tHours) || 0);
-          const lMax = parseInt(req.body.labHours || 0);
-          const cumMax = (i1Max + i2Max + lMax) || tHours;
+          const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
+          const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
+          const lMax = parseInt(req.body.labHours, 10) || 0;
+          const cumMax = (i1Max + i2Max + lMax) || tHours || 0;
           attMark = getAttendanceMark(cumAttd, cumMax);
         } else {
           attMark = getAttendanceMark(rawHours + labHrs, tHours);
@@ -90,7 +92,7 @@ router.post('/submit', async (req, res) => {
       }
     }
 
-    const avgScore = Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1);
+    const avgScore = (Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1)) || 0;
 
     // 2. Insert marks_session
     const statusVal = actionType === 'frozen' ? 'locked' : 'draft';
@@ -98,7 +100,19 @@ router.post('/submit', async (req, res) => {
       `INSERT INTO marks_sessions
          (subject_id, class_id, staff_id, session_label, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [subjectId, classId, staffId, sessionLabel || 'Internal Assessment', totalMax, parseInt(totalHours || 0), parseInt(internal2TotalHours || 0), statusVal, avgScore, studentCount, remedialAction || '']
+      [
+        String(subjectId), 
+        String(classId), 
+        String(staffId), 
+        sessionLabel || 'Internal Assessment', 
+        totalMax, 
+        parseInt(totalHours, 10) || 0, 
+        parseInt(internal2TotalHours, 10) || 0, 
+        statusVal, 
+        avgScore, 
+        studentCount, 
+        remedialAction || ''
+      ]
     );
     const sessionId = sessionResult.insertId;
 
@@ -110,7 +124,7 @@ router.post('/submit', async (req, res) => {
         `INSERT INTO assessment_components
            (session_id, type_id, label, conducted_max, max_marks, icon, color, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [sessionId, c.typeId, c.label, c.conductedMax || 100, c.maxMarks, c.icon || '', c.color || '', i]
+        [sessionId, c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i]
       );
       componentIdMap[i] = compResult.insertId;
     }
@@ -123,25 +137,25 @@ router.post('/submit', async (req, res) => {
         `INSERT INTO marks (session_id, component_id, student_id, marks_obtained)
          VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE marks_obtained = VALUES(marks_obtained)`,
-        [sessionId, compDbId, m.studentId, parseFloat(m.marksObtained || 0)]
+        [sessionId, compDbId, String(m.studentId), parseFloat(m.marksObtained) || 0]
       );
     }
 
     // 5. Insert Attendance & Internal Exam
     if (attendance && Array.isArray(attendance)) {
-      const tHours = parseInt(totalHours || 0);
+      const tHours = parseInt(totalHours, 10) || 0;
       for (const a of attendance) {
-        const rawHours = parseInt(a.actualTakenHours !== undefined ? a.actualTakenHours : (a.hoursAttended || 0));
-        const labHrs = parseInt(a.labAttendance || 0);
+        const rawHours = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
+        const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
         
         if (sessionLabel === 'internal2') {
-          const i1Attd = parseInt(a.int1AttendanceHours || 0);
+          const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const cumAttd = i1Attd + rawHours + labHrs;
-          const i1Max = parseInt(req.body.int1Hours || Math.ceil(tHours) || 0);
-          const i2Max = parseInt(req.body.int2Hours || Math.floor(tHours) || 0);
-          const lMax = parseInt(req.body.labHours || 0);
-          const cumMax = (i1Max + i2Max + lMax) || tHours;
+          const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
+          const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
+          const lMax = parseInt(req.body.labHours, 10) || 0;
+          const cumMax = (i1Max + i2Max + lMax) || tHours || 0;
           attMark = getAttendanceMark(cumAttd, cumMax);
         } else {
           attMark = getAttendanceMark(rawHours + labHrs, tHours);
@@ -159,15 +173,15 @@ router.post('/submit', async (req, res) => {
              lab_mark = VALUES(lab_mark)`,
           [
             sessionId, 
-            a.studentId, 
+            String(a.studentId), 
             rawHours,
             rawHours,
             attMark,
-            a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' 
+            a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark))
               ? parseFloat(a.internalExamMark) 
               : null,
             labHrs,
-            a.labMark !== undefined && a.labMark !== null && a.labMark !== ''
+            a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark))
               ? parseFloat(a.labMark)
               : null
           ]

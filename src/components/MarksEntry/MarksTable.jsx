@@ -43,7 +43,7 @@ export default function MarksTable({
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>📅</span>
                     <span className={styles.thLabel}>
-                      {isElevated ? 'Actual Hrs & Mark' : 'Actual Taken Hrs'}
+                      Actual Taken Hrs
                     </span>
                     <div className={styles.globalHoursWrap}>
                       <label>Total Classes:</label>
@@ -67,7 +67,7 @@ export default function MarksTable({
                     <div className={styles.thContent}>
                       <span className={styles.thIcon}>📅</span>
                       <span className={styles.thLabel}>
-                        {isElevated ? 'Int 2 Hrs & Mark' : 'Int 2 Attd Hrs'}
+                        Int 2 Attd Hrs
                       </span>
                       <div className={styles.thSub}>Max: {int2Hours || '?'}</div>
                     </div>
@@ -86,10 +86,10 @@ export default function MarksTable({
                 </>
               )}
 
-              {/* Final Score - ALWAYS visible */}
+              {/* Activities Total - ALWAYS visible */}
               <th className={`${styles.th} ${styles.computedTh}`}>
-                Final Score
-                <div className={styles.thSub}>/ 100</div>
+                Activities Total
+                <div className={styles.thSub}>/ {totalMax || 95}</div>
               </th>
 
               {/* Internal Exam - mode specific name */}

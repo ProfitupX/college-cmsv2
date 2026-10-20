@@ -307,8 +307,8 @@ export const generateSubjectAnalysisPDF = async ({
 // REPORT: Subject Marks List (Standard format, non-analytical)
 // ─────────────────────────────────────────────────────────────
 export const generateSubjectMarksListPDF = async ({
-  subject, classObj, staff, session, students, marksData, attendanceData, internalExamData, labData, assessmentMode, components,
-  int1Hours, int2Hours, labHours, int1AttendanceData
+  subject, classObj, staff, session, students, marksData, attendanceData, attendanceMarks = {}, internalExamData, labData, assessmentMode, components,
+  totalHours, int1Hours, int2Hours, labHours, int1AttendanceData
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   
@@ -331,12 +331,34 @@ export const generateSubjectMarksListPDF = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
-  // Prepare Table Headers - Showing only converted attendance mark (hiding actual taken hours)
-  const headRow = ['S.No', 'Roll No', 'Name', 'Attd Mark\n(Max: 5)', '100 marks internal', 'Activities mark'];
+  // Anna Univ 25th Regulation attendance rule:
+  const getAttendanceMark = (attended, maxHours) => {
+    if (!maxHours || maxHours <= 0) return 0;
+    const effectiveAttended = Math.min(Math.max(0, attended), maxHours);
+    const pct = (effectiveAttended / maxHours) * 100;
+    if (pct >= 95) return 5;
+    if (pct >= 90) return 3;
+    if (pct >= 85) return 2;
+    if (pct >= 80) return 1;
+    return 0; // Below 80% is 0 mark
+  };
+
+  // Prepare Table Headers - Revealing real attendance mark, converted hours & % during PDF generation
+  const headRow = [
+    'S.No',
+    'Roll No',
+    'Student Name',
+    'Attended\n(P.Hrs / T.Hrs)',
+    'Attd\n%',
+    'Attd Mark\n(Max: 5)',
+    'Activities Mark\n(Max: 95)',
+    'Total Internal\n(Act + Attd)\n(Max: 100)',
+    '100 Marks Internal\n(Exam)'
+  ];
 
   // Prepare Table Body
   const bodyRows = students.map((student, idx) => {
-    // 1. Calculate Internal Marks
+    // 1. Calculate Activities Marks
     let convertedTotal = 0;
     components.forEach(c => {
       const val = parseFloat(marksData[student.id]?.[c.uid]) || 0;
@@ -345,61 +367,67 @@ export const generateSubjectMarksListPDF = async ({
     });
     convertedTotal = Math.round(convertedTotal);
 
-    // 2. Calculate Attendance Mark (Anna Univ 25th Regulation)
-    const getAttendanceMark = (attended, maxHours) => {
-      if (!maxHours || maxHours <= 0) return 0;
-      const pct = (attended / maxHours) * 100;
-      if (pct >= 95) return 5;
-      if (pct >= 90) return 3;
-      if (pct >= 85) return 2;
-      if (pct >= 80) return 1;
-      return 0; // Below 80% is 0 mark
-    };
-
+    // 2. Attendance & Converted Mark
     let attendanceMark = 0;
+    let pHrs = 0;
+    let tHours = 0;
+    let pct = 0;
 
     if (!isInternal2) {
-      const tHours = parseInt(int1Hours || 0);
-      const aHours = parseInt(attendanceData[student.id] || 0);
-      if (tHours > 0 && !isNaN(aHours)) {
-        attendanceMark = getAttendanceMark(aHours, tHours);
-      }
+      tHours = parseInt(int1Hours || totalHours || 0, 10);
+      pHrs = parseInt(attendanceData[student.id] || 0, 10);
+      pct = tHours > 0 ? Math.min(100, Math.round((Math.min(pHrs, tHours) / tHours) * 100)) : 0;
+      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
+        ? parseFloat(attendanceMarks[student.id])
+        : getAttendanceMark(pHrs, tHours);
     } else {
-      const i1Attd = parseInt(int1AttendanceData[student.id] || 0);
-      const i2Attd = parseInt(attendanceData[student.id] || 0);
-      const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0) : 0;
-      const cumulativeAttended = i1Attd + i2Attd + lAttd;
+      const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
+      const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
+      const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
+      pHrs = i1Attd + i2Attd + lAttd;
 
-      const i1Max = parseInt(int1Hours || 0);
-      const i2Max = parseInt(int2Hours || 0);
-      const lMax  = hasLab ? parseInt(labHours || 0) : 0;
-      const cumulativeMaxHours = i1Max + i2Max + lMax;
+      const i1Max = parseInt(int1Hours || 0, 10);
+      const i2Max = parseInt(int2Hours || 0, 10);
+      const lMax  = hasLab ? parseInt(labHours || 0, 10) : 0;
+      tHours = (i1Max + i2Max + lMax) || parseInt(totalHours || 0, 10);
 
-      if (cumulativeMaxHours > 0) {
-        attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
-      }
+      pct = tHours > 0 ? Math.min(100, Math.round((Math.min(pHrs, tHours) / tHours) * 100)) : 0;
+      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
+        ? parseFloat(attendanceMarks[student.id])
+        : getAttendanceMark(pHrs, tHours);
     }
 
     const internalExamMark = internalExamData[student.id];
-    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') ? Math.round(parseFloat(internalExamMark)) : '-';
+    const internalExamMarkStr = (internalExamMark !== undefined && internalExamMark !== '') 
+      ? Math.round(parseFloat(internalExamMark)) 
+      : '-';
 
-    const row = [
+    const totalInternal = Math.min(100, convertedTotal + attendanceMark);
+
+    return [
       idx + 1,
-      student.roll_no,
+      student.roll_no || student.rollNo || '-',
       student.name,
-      attendanceMark,             // Only converted attendance mark (hiding actual_taken_hours from student view)
-      internalExamMarkStr,        // 100 marks internal
-      convertedTotal              // Activities mark
+      `${pHrs} / ${tHours > 0 ? tHours : '—'}`,
+      `${pct}%`,
+      attendanceMark,
+      convertedTotal,
+      totalInternal,
+      internalExamMarkStr
     ];
-
-    return row;
   });
 
-  const footRow = Array(headRow.length).fill('');
-  const attdColIdx = headRow.indexOf('Attd Mark\n(Max: 5)');
-  if (attdColIdx !== -1) {
-    footRow[attdColIdx] = `Max: 5`;
-  }
+  const footRow = [
+    '',
+    '',
+    'MAX MARKS',
+    totHoursDisplay > 0 ? `${totHoursDisplay} Hrs` : '-',
+    '100%',
+    '5',
+    '95',
+    '100',
+    '100'
+  ];
 
   autoTable(doc, {
     startY: y,
@@ -410,7 +438,17 @@ export const generateSubjectMarksListPDF = async ({
     styles: { fontSize: 8, halign: 'center' },
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
     footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
-    columnStyles: { 2: { halign: 'left' } }
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 42, halign: 'left' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 14, halign: 'center' },
+      5: { cellWidth: 16, halign: 'center' },
+      6: { cellWidth: 18, halign: 'center' },
+      7: { cellWidth: 20, halign: 'center' },
+      8: { cellWidth: 18, halign: 'center' }
+    }
   });
 
   // Footer Signatures
@@ -1488,13 +1526,26 @@ export const generateOverallMarksAndAttendancePDF = async ({
         if (att && att.attendance_mark !== undefined && att.attendance_mark !== null) {
           attMark = Math.round(parseFloat(att.attendance_mark));
         } else if (wHrs > 0 && pHrs > 0) {
-          const pct = (pHrs / wHrs) * 100;
+          const effectiveP = Math.min(pHrs, wHrs);
+          const pct = (effectiveP / wHrs) * 100;
           if (pct >= 95) attMark = 5;
           else if (pct >= 90) attMark = 3;
           else if (pct >= 85) attMark = 2;
           else if (pct >= 80) attMark = 1;
         }
-        row.push(attMark, markStr, '');
+
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        const actMark = Math.round(rawCIA);
+
+        row.push(attMark, markStr, actMark > 0 ? actMark : '-');
       } else {
         row.push(wHrs, pHrs, markStr);
       }

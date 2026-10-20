@@ -117,20 +117,13 @@ export default function MarksRow({
             <input
               type="number"
               min="0"
-              max={int1Hours || displayHours || 100}
-              className={`${styles.input} ${parseInt(attendanceHours) > (int1Hours || displayHours || 0) ? styles.inputError : ''}`}
+              className={styles.input}
               value={attendanceHours}
               onChange={(e) => onAttendanceChange(e.target.value)}
               disabled={isLocked}
               placeholder="—"
             />
             <span className={styles.inputMax}>/{int1Hours || displayHours || '?'}</span>
-            {isElevated && (
-              <div className={styles.convertedDisplay} title="Converted Attendance Mark for verification">
-                <span className={styles.convertedLabel}>Mark:</span> <strong>{effectiveAttMark}</strong> 
-                <span className={styles.convertedMax}>/5</span>
-              </div>
-            )}
           </div>
         </td>
       ) : (
@@ -156,23 +149,13 @@ export default function MarksRow({
               <input
                 type="number"
                 min="0"
-                max={int2Hours || 100}
-                className={`${styles.input} ${parseInt(attendanceHours) > (int2Hours || 0) && (int2Hours || 0) > 0 ? styles.inputError : ''}`}
+                className={styles.input}
                 value={attendanceHours}
                 onChange={(e) => onAttendanceChange(e.target.value)}
                 disabled={isLocked}
                 placeholder="—"
               />
               <span className={styles.inputMax}>/{int2Hours || '?'}</span>
-              {isElevated && (
-                <div className={styles.convertedDisplay} title={`Cumulative Attended: ${cumulativeAttended}/${cumulativeMaxHours}`}>
-                  {(cumulativeMaxHours > 0 && (cumulativeAttended / cumulativeMaxHours) < 0.8) && (
-                    <span title="< 80% Attendance" style={{color:'#ef4444', marginRight:'4px', fontSize:'12px'}}>⚠️</span>
-                  )}
-                  <span className={styles.convertedLabel}>Mark:</span> <strong>{effectiveAttMark}</strong> 
-                  <span className={styles.convertedMax}>/5</span>
-                </div>
-              )}
             </div>
           </td>
 
@@ -183,24 +166,20 @@ export default function MarksRow({
                 <input
                   type="number"
                   min="0"
-                  max={labHours || 100}
-                  className={`${styles.input} ${parseFloat(labData?.labAttendance) > (labHours || 100) ? styles.inputError : ''}`}
+                  className={styles.input}
                   value={labData?.labAttendance || ''}
                   onChange={(e) => onLabDataChange('labAttendance', e.target.value)}
                   disabled={isLocked}
                   placeholder="—"
                 />
                 <span className={styles.inputMax}>/{labHours || '?'}</span>
-                {parseFloat(labData?.labAttendance) > (labHours || 100) && (
-                  <span className={styles.errorTip}>Max: {labHours || '?'}</span>
-                )}
               </div>
             </td>
           )}
         </>
       )}
 
-      {/* Final Score */}
+      {/* Activities / Component Total */}
       <td className={styles.totalCell}>
         <div className={styles.finalTotalBadge}
           style={{
@@ -208,7 +187,7 @@ export default function MarksRow({
             color: `var(--surface)`,
           }}
         >
-          <span className={styles.total}>{finalTotal100}</span>
+          <span className={styles.total}>{convertedTotal}</span>
         </div>
       </td>
 

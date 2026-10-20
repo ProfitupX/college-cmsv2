@@ -182,20 +182,14 @@ export default function MarksRow2021({
           <input
             type="number"
             min="0"
-            max={totalHours || 200}
-            className={`${styles.input} ${attdOver ? styles.inputError : ''}`}
+            className={styles.input}
             value={attendanceHours}
             onChange={(e) => onAttendanceChange(e.target.value)}
             disabled={isLocked}
             placeholder="—"
-            title="Attended classes / hours (record only)"
+            title="Attended classes / hours"
           />
           <span className={styles.inputMax}>/{totalHours || '—'}</span>
-          {attdPercent !== null && (
-            <div className={styles.convertedDisplay} style={{ color: attdPercent < 75 ? 'var(--danger)' : 'inherit' }}>
-              <span className={styles.convertedLabel}>%</span> {attdPercent}%
-            </div>
-          )}
         </div>
       </td>
 

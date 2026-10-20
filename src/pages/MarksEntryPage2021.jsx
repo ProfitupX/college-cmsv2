@@ -263,7 +263,8 @@ export default function MarksEntryPage2021() {
       // For 2021 reg — attendance recorded for tracking (0 marks weight), along with internalExam and labData
       const attendancePayload = students.map(st => ({
         studentId: st.id,
-        hoursAttended: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id]) : 0,
+        hoursAttended: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
+        actualTakenHours: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
         internalExamMark: internalExamData[st.id] || '',
         labAttendance: 0,
         labMark: (labData[st.id] && labData[st.id].labMark) || ''
@@ -274,7 +275,7 @@ export default function MarksEntryPage2021() {
         classId:      effectiveClassId,
         staffId:      user.id,
         sessionLabel: assessmentMode,
-        totalHours:   parseInt(totalHours || 0),
+        totalHours:   parseInt(totalHours, 10) || 0,
         remedialAction,
         components: assessmentComponents.map((c) => ({
           typeId:   c.typeId,
