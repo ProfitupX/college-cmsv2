@@ -384,9 +384,8 @@ export const generateSubjectMarksListPDF = async ({
 
     if (!isInternal2) {
       rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      const conductedBase = Math.max(tHours, maxActual);
-      pct = conductedBase > 0 ? Math.min(100, Math.round((rawHours / conductedBase) * 100)) : 0;
-      convertedHours = conductedBase > 0 ? Math.min(tHours, Math.round((rawHours / conductedBase) * tHours)) : 0;
+      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+      convertedHours = Math.min(tHours, rawHours);
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
@@ -397,16 +396,8 @@ export const generateSubjectMarksListPDF = async ({
       const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
       rawHours = i1Attd + i2Attd + lAttd;
 
-      let maxCumActual = 0;
-      students.forEach(st => {
-        const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
-        const i2 = parseInt(attendanceData[st.id] || 0, 10);
-        const l = hasLab ? parseInt(labData[st.id]?.labAttendance || 0, 10) : 0;
-        if ((i1 + i2 + l) > maxCumActual) maxCumActual = i1 + i2 + l;
-      });
-      const cumConductedBase = Math.max(tHours, maxCumActual);
-      pct = cumConductedBase > 0 ? Math.min(100, Math.round((rawHours / cumConductedBase) * 100)) : 0;
-      convertedHours = cumConductedBase > 0 ? Math.min(tHours, Math.round((rawHours / cumConductedBase) * tHours)) : 0;
+      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+      convertedHours = Math.min(tHours, rawHours);
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
@@ -440,7 +431,7 @@ export const generateSubjectMarksListPDF = async ({
     '',
     '',
     'MAX MARKS',
-    maxActual > tHours ? `${maxActual} Hrs` : `${tHours} Hrs`,
+    tHours > 0 ? `${tHours} Hrs` : '-',
     `${tHours > 0 ? tHours : '-'} Hrs`,
     '100%',
     '5',

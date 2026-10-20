@@ -176,21 +176,16 @@ router.post('/submit', async (req, res) => {
           const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
           const lMax = parseInt(req.body.labHours, 10) || 0;
           const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 0;
-          const cumConductedBase = Math.max(cumPrescribedMax, maxActualHours > 0 ? maxActualHours + i1Max + lMax : cumPrescribedMax);
 
-          const pct = cumConductedBase > 0 ? (cumAttd / cumConductedBase) * 100 : 0;
+          const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          convertedHours = cumConductedBase > 0 
-            ? Math.min(cumPrescribedMax, Math.round((cumAttd / cumConductedBase) * cumPrescribedMax)) 
-            : 0;
+          convertedHours = Math.min(cumPrescribedMax, cumAttd);
         } else {
-          const conductedBase = Math.max(tHours, maxActualHours);
-          const pct = conductedBase > 0 ? (rawHours / conductedBase) * 100 : 0;
+          // Direct LTPC conversion: Percentage is calculated against LTPC totalHours (e.g. 30 hrs)
+          // Converted hours is capped at tHours, so entering above 30 (e.g. 48) converts to 30 / 30 (100% -> 5 marks)
+          const pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          // Convert the hours for tHours (e.g. 30 hrs scale)
-          convertedHours = conductedBase > 0 
-            ? Math.min(tHours, Math.round((rawHours / conductedBase) * tHours)) 
-            : 0;
+          convertedHours = Math.min(tHours, rawHours);
         }
 
         await conn.execute(
