@@ -73,27 +73,24 @@ async function seedRealData() {
       const activitiesTotal = testScore + assignScore + seminarScore + quizScore;
       totalScoreSum += activitiesTotal;
 
-      // Attendance: Conducted hours is 45 hours (above prescribed total of 30 hours)
-      // Conversion formula:
-      // conductedBase = max(30, 45) = 45
-      // pct = (actualTakenHours / 45) * 100
-      // convertedHours = Math.round((actualTakenHours / 45) * 30)
-      // attMark = Anna Univ rule based on pct
-      const totalConducted = 45;
-      let actualTakenHours = 45; // Default full attendance
+      // Attendance: Real-world data centered around the true 30-hour syllabus target
+      // Prescribed total is 30 hours for Internal 1
+      let actualTakenHours = 30; // Default full attendance
 
-      if (i === 0) actualTakenHours = 45; // Abarna M: 45 / 45 -> 100% -> 30/30 -> 5 marks
-      else if (i % 8 === 0) actualTakenHours = 43; // 43 / 45 -> 96% -> 29/30 -> 5 marks
-      else if (i % 6 === 0) actualTakenHours = 42; // 42 / 45 -> 93% -> 28/30 -> 3 marks
-      else if (i % 5 === 0) actualTakenHours = 41; // 41 / 45 -> 91% -> 27/30 -> 3 marks
-      else if (i % 7 === 0) actualTakenHours = 39; // 39 / 45 -> 87% -> 26/30 -> 2 marks
-      else if (i % 9 === 0) actualTakenHours = 37; // 37 / 45 -> 82% -> 25/30 -> 1 mark
-      else if (i % 11 === 0) actualTakenHours = 36; // 36 / 45 -> 80% -> 24/30 -> 1 mark
-      else if (i === 58) actualTakenHours = 33;     // 33 / 45 -> 73% -> 22/30 -> 0 marks
-      else actualTakenHours = 45 - (i % 4);        // 42-45 hrs
+      if (i === 0) actualTakenHours = 30; // Abarna M: 30 / 30 -> 100% -> 30/30 -> 5 marks
+      else if (i % 8 === 0) actualTakenHours = 29; // 29 / 30 -> 97% -> 29/30 -> 5 marks
+      else if (i % 6 === 0) actualTakenHours = 28; // 28 / 30 -> 93% -> 28/30 -> 3 marks
+      else if (i % 5 === 0) actualTakenHours = 27; // 27 / 30 -> 90% -> 27/30 -> 3 marks
+      else if (i % 7 === 0) actualTakenHours = 26; // 26 / 30 -> 87% -> 26/30 -> 2 marks
+      else if (i % 9 === 0) actualTakenHours = 25; // 25 / 30 -> 83% -> 25/30 -> 1 mark
+      else if (i % 11 === 0) actualTakenHours = 24; // 24 / 30 -> 80% -> 24/30 -> 1 mark
+      else if (i === 58) actualTakenHours = 22;     // 22 / 30 -> 73% -> 22/30 -> 0 marks
+      else actualTakenHours = Math.max(26, 30 - (i % 4)); // 27-30 hrs
 
-      const pct = Math.min(100, Math.round((actualTakenHours / totalConducted) * 100));
-      const convertedHours = Math.min(tHours, Math.round((actualTakenHours / totalConducted) * tHours));
+      // If staff took a couple extra periods (e.g. student attended 31 or 32 hours),
+      // the formula converts it proportionally to the 30-hour scale
+      const pct = Math.min(100, Math.round((actualTakenHours / tHours) * 100));
+      const convertedHours = Math.min(tHours, Math.round((actualTakenHours / tHours) * tHours));
       const attMark = getAttendanceMark(pct);
 
       // Exam mark out of 100:
