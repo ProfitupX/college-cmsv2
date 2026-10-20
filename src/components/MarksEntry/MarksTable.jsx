@@ -14,6 +14,20 @@ export default function MarksTable({
 
   // Which hours to show based on mode
   const displayHours = assessmentMode === 'internal1' ? int1Hours : int2Hours;
+  const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+
+  // Calculate maximum actual attended hours across students to represent conducted classes
+  let maxActualHours = 0;
+  let maxCumActualHours = 0;
+  students.forEach((st) => {
+    const raw = parseInt(attendanceData[st.id] || 0, 10);
+    if (raw > maxActualHours) maxActualHours = raw;
+
+    const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
+    const l = isLabCumTheory ? parseInt(labData?.[st.id]?.labAttendance || 0, 10) : 0;
+    const cum = i1 + raw + l;
+    if (cum > maxCumActualHours) maxCumActualHours = cum;
+  });
 
   return (
     <div className={styles.wrapper}>
@@ -128,6 +142,8 @@ export default function MarksTable({
                 int1AttendanceHours={int1AttendanceData[student.id] || ''}
                 internalExamMark={internalExamData[student.id] || ''}
                 displayHours={displayHours}
+                conductedHours={maxActualHours > 0 ? maxActualHours : displayHours}
+                conductedCumHours={maxCumActualHours}
                 int1Hours={int1Hours}
                 int2Hours={int2Hours}
                 labHours={labHours}

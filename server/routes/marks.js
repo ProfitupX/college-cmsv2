@@ -158,9 +158,15 @@ router.post('/submit', async (req, res) => {
       const tHours = parseInt(totalHours, 10) || 0;
 
       let maxActualHours = 0;
+      let maxCumActual = 0;
       for (const a of attendance) {
         const raw = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
         if (raw > maxActualHours) maxActualHours = raw;
+
+        const i1 = parseInt(a.int1AttendanceHours, 10) || 0;
+        const lab = parseInt(a.labAttendance, 10) || 0;
+        const cum = i1 + raw + lab;
+        if (cum > maxCumActual) maxCumActual = cum;
       }
 
       for (const a of attendance) {
@@ -177,15 +183,19 @@ router.post('/submit', async (req, res) => {
           const lMax = parseInt(req.body.labHours, 10) || 0;
           const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 0;
 
-          const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
+          // Benchmark against actual conducted cumulative classes (or LTPC prescribed if max is 0)
+          const conductedCum = maxCumActual > 0 ? maxCumActual : cumPrescribedMax;
+          const pct = conductedCum > 0 ? Math.min(100, Math.round((cumAttd / conductedCum) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          convertedHours = Math.min(cumPrescribedMax, cumAttd);
+          convertedHours = cumPrescribedMax > 0 ? Math.min(cumPrescribedMax, Math.round((cumAttd / conductedCum) * cumPrescribedMax)) : cumAttd;
         } else {
-          // Direct LTPC conversion: Percentage is calculated against LTPC totalHours (e.g. 30 hrs)
-          // Converted hours is capped at tHours, so entering above 30 (e.g. 48) converts to 30 / 30 (100% -> 5 marks)
-          const pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+          // Internal 1:
+          // Benchmark against actual conducted classes by staff (maxActualHours) so students are never
+          // penalized if staff took fewer classes than LTPC total, and extra classes scale proportionally
+          const conductedHours = maxActualHours > 0 ? maxActualHours : tHours;
+          const pct = conductedHours > 0 ? Math.min(100, Math.round((rawHours / conductedHours) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          convertedHours = Math.min(tHours, rawHours);
+          convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conductedHours) * tHours)) : rawHours;
         }
 
         await conn.execute(

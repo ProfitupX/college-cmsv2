@@ -1,12 +1,36 @@
 import db from './db.js';
 
 async function seedRealData() {
-  const sessionId = 4;
-  console.log(`Populating realistic data for Session ID ${sessionId} (CS25C07 - OOP)...`);
-
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+
+    // 0. Find or create session for CS25C07 in CL001
+    const [subRows] = await conn.execute("SELECT id, faculty_id FROM subjects WHERE code = 'CS25C07' LIMIT 1");
+    if (!subRows.length) {
+      console.log('CS25C07 subject not found.');
+      return;
+    }
+    const subjectId = subRows[0].id;
+    const staffId = subRows[0].faculty_id || 'FAC001';
+
+    let [sessRows] = await conn.execute(
+      "SELECT id FROM marks_sessions WHERE subject_id = ? AND class_id = 'CL001' AND session_label = 'internal1' LIMIT 1",
+      [subjectId]
+    );
+
+    let sessionId;
+    if (sessRows.length > 0) {
+      sessionId = sessRows[0].id;
+    } else {
+      const [insRes] = await conn.execute(
+        "INSERT INTO marks_sessions (subject_id, class_id, staff_id, session_label, status, total_hours, int1_hours, int2_hours) VALUES (?, 'CL001', ?, 'internal1', 'draft', 30, 30, 30)",
+        [subjectId, staffId]
+      );
+      sessionId = insRes.insertId;
+    }
+
+    console.log(`Populating realistic data for Session ID ${sessionId} (CS25C07 - OOP)...`);
 
     // 1. Delete old components & marks for this session
     await conn.execute('DELETE FROM marks WHERE session_id = ?', [sessionId]);

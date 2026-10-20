@@ -333,9 +333,15 @@ export const generateSubjectMarksListPDF = async ({
   
   // Find max actual attended hours across students
   let maxActual = 0;
+  let maxCumActual = 0;
   students.forEach(st => {
     const a = parseInt(attendanceData[st.id] || 0, 10);
     if (a > maxActual) maxActual = a;
+
+    const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
+    const l = hasLab ? parseInt(labData[st.id]?.labAttendance || 0, 10) : 0;
+    const cum = i1 + a + l;
+    if (cum > maxCumActual) maxCumActual = cum;
   });
 
   const tHours = !isInternal2 
@@ -384,8 +390,9 @@ export const generateSubjectMarksListPDF = async ({
 
     if (!isInternal2) {
       rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      convertedHours = Math.min(tHours, rawHours);
+      const conducted = maxActual > 0 ? maxActual : tHours;
+      pct = conducted > 0 ? Math.min(100, Math.round((rawHours / conducted) * 100)) : 0;
+      convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conducted) * tHours)) : rawHours;
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
@@ -396,8 +403,9 @@ export const generateSubjectMarksListPDF = async ({
       const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
       rawHours = i1Attd + i2Attd + lAttd;
 
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      convertedHours = Math.min(tHours, rawHours);
+      const conductedCum = maxCumActual > 0 ? maxCumActual : tHours;
+      pct = conductedCum > 0 ? Math.min(100, Math.round((rawHours / conductedCum) * 100)) : 0;
+      convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conductedCum) * tHours)) : rawHours;
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])

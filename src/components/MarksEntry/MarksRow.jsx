@@ -2,7 +2,7 @@ import { computeGrade } from '../../data/assessmentTypes';
 import styles from './MarksRow.module.css';
 
 export default function MarksRow({ 
-  student, components, marks = {}, attendanceHours, savedAttendanceMark, isElevated, int1AttendanceHours, internalExamMark, displayHours, int1Hours, int2Hours, labHours,
+  student, components, marks = {}, attendanceHours, savedAttendanceMark, isElevated, int1AttendanceHours, internalExamMark, displayHours, conductedHours, conductedCumHours, int1Hours, int2Hours, labHours,
   onMarkChange, onAttendanceChange, onInternalExamChange, index,
   assessmentMode, labData, selectedSubject, onLabDataChange, isLocked
 }) {
@@ -32,10 +32,10 @@ export default function MarksRow({
   let cumulativeMaxHours = 0;
 
   if (assessmentMode === 'internal1') {
-    const tHours = parseInt(int1Hours || displayHours || 0);
+    const baseHours = parseInt(conductedHours || int1Hours || displayHours || 0);
     const aHours = parseInt(attendanceHours || 0);
-    if (tHours > 0 && !isNaN(aHours)) {
-      attendanceMark = getAttendanceMark(aHours, tHours);
+    if (baseHours > 0 && !isNaN(aHours)) {
+      attendanceMark = getAttendanceMark(aHours, baseHours);
     }
   } else {
     // Internal 2 mode: Cumulative attendance (Int1 + Int2 [+ Lab if Lab-cum-Theory])
@@ -49,8 +49,9 @@ export default function MarksRow({
     const i1Max = parseInt(int1Hours || 0);
     const i2Max = parseInt(int2Hours || 0);
     const lMax  = isLabCumTheory ? parseInt(labHours || 0) : 0;
+    const cumPrescribed = i1Max + i2Max + lMax;
     
-    cumulativeMaxHours = i1Max + i2Max + lMax;
+    cumulativeMaxHours = conductedCumHours > 0 ? conductedCumHours : cumPrescribed;
 
     if (cumulativeMaxHours > 0) {
       attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
