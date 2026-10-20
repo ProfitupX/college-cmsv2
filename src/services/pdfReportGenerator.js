@@ -331,11 +331,19 @@ export const generateSubjectMarksListPDF = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   
+  // Find max actual attended hours across students
+  let maxActual = 0;
+  students.forEach(st => {
+    const a = parseInt(attendanceData[st.id] || 0, 10);
+    if (a > maxActual) maxActual = a;
+  });
+
+  const tHours = !isInternal2 
+    ? parseInt(int1Hours || totalHours || 0, 10) 
+    : (parseInt(int1Hours || 0, 10) + parseInt(int2Hours || 0, 10) + (hasLab ? parseInt(labHours || 0, 10) : 0) || parseInt(totalHours || 0, 10));
+
   // Anna Univ 25th Regulation attendance rule:
-  const getAttendanceMark = (attended, maxHours) => {
-    if (!maxHours || maxHours <= 0) return 0;
-    const effectiveAttended = Math.min(Math.max(0, attended), maxHours);
-    const pct = (effectiveAttended / maxHours) * 100;
+  const getAttendanceMark = (pct) => {
     if (pct >= 95) return 5;
     if (pct >= 90) return 3;
     if (pct >= 85) return 2;
@@ -343,15 +351,16 @@ export const generateSubjectMarksListPDF = async ({
     return 0; // Below 80% is 0 mark
   };
 
-  // Prepare Table Headers - Revealing real attendance mark, converted hours & % during PDF generation
+  // Prepare Table Headers - Showing Actual Attended, Converted Hours (/30), %, and Converted Attendance Mark
   const headRow = [
     'S.No',
     'Roll No',
     'Student Name',
-    'Attended\n(P.Hrs / T.Hrs)',
+    'Actual Attd\n(Hrs)',
+    `Conv Attd\n(/ ${tHours > 0 ? tHours : 30})`,
     'Attd\n%',
     'Attd Mark\n(Max: 5)',
-    'Activities Mark\n(Max: 95)',
+    'Activities\n(Max: 95)',
     'Total Internal\n(Act + Attd)\n(Max: 100)',
     '100 Marks Internal\n(Exam)'
   ];
@@ -368,33 +377,38 @@ export const generateSubjectMarksListPDF = async ({
     convertedTotal = Math.round(convertedTotal);
 
     // 2. Attendance & Converted Mark
-    let attendanceMark = 0;
-    let pHrs = 0;
-    let tHours = 0;
+    let rawHours = 0;
+    let convertedHours = 0;
     let pct = 0;
+    let attendanceMark = 0;
 
     if (!isInternal2) {
-      tHours = parseInt(int1Hours || totalHours || 0, 10);
-      pHrs = parseInt(attendanceData[student.id] || 0, 10);
-      pct = tHours > 0 ? Math.min(100, Math.round((Math.min(pHrs, tHours) / tHours) * 100)) : 0;
+      rawHours = parseInt(attendanceData[student.id] || 0, 10);
+      const conductedBase = Math.max(tHours, maxActual);
+      pct = conductedBase > 0 ? Math.min(100, Math.round((rawHours / conductedBase) * 100)) : 0;
+      convertedHours = conductedBase > 0 ? Math.min(tHours, Math.round((rawHours / conductedBase) * tHours)) : 0;
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
         ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pHrs, tHours);
+        : getAttendanceMark(pct);
     } else {
       const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
       const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
       const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
-      pHrs = i1Attd + i2Attd + lAttd;
+      rawHours = i1Attd + i2Attd + lAttd;
 
-      const i1Max = parseInt(int1Hours || 0, 10);
-      const i2Max = parseInt(int2Hours || 0, 10);
-      const lMax  = hasLab ? parseInt(labHours || 0, 10) : 0;
-      tHours = (i1Max + i2Max + lMax) || parseInt(totalHours || 0, 10);
-
-      pct = tHours > 0 ? Math.min(100, Math.round((Math.min(pHrs, tHours) / tHours) * 100)) : 0;
+      let maxCumActual = 0;
+      students.forEach(st => {
+        const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
+        const i2 = parseInt(attendanceData[st.id] || 0, 10);
+        const l = hasLab ? parseInt(labData[st.id]?.labAttendance || 0, 10) : 0;
+        if ((i1 + i2 + l) > maxCumActual) maxCumActual = i1 + i2 + l;
+      });
+      const cumConductedBase = Math.max(tHours, maxCumActual);
+      pct = cumConductedBase > 0 ? Math.min(100, Math.round((rawHours / cumConductedBase) * 100)) : 0;
+      convertedHours = cumConductedBase > 0 ? Math.min(tHours, Math.round((rawHours / cumConductedBase) * tHours)) : 0;
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined)
         ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pHrs, tHours);
+        : getAttendanceMark(pct);
     }
 
     const internalExamMark = internalExamData[student.id];
@@ -408,7 +422,8 @@ export const generateSubjectMarksListPDF = async ({
       idx + 1,
       student.roll_no || student.rollNo || '-',
       student.name,
-      `${pHrs} / ${tHours > 0 ? tHours : '—'}`,
+      rawHours,
+      `${convertedHours} / ${tHours > 0 ? tHours : '—'}`,
       `${pct}%`,
       attendanceMark,
       convertedTotal,
@@ -421,7 +436,8 @@ export const generateSubjectMarksListPDF = async ({
     '',
     '',
     'MAX MARKS',
-    totHoursDisplay > 0 ? `${totHoursDisplay} Hrs` : '-',
+    maxActual > tHours ? `${maxActual} Hrs` : `${tHours} Hrs`,
+    `${tHours > 0 ? tHours : '-'} Hrs`,
     '100%',
     '5',
     '95',
@@ -439,15 +455,16 @@ export const generateSubjectMarksListPDF = async ({
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
     footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 24, halign: 'center' },
-      2: { cellWidth: 42, halign: 'left' },
-      3: { cellWidth: 22, halign: 'center' },
-      4: { cellWidth: 14, halign: 'center' },
-      5: { cellWidth: 16, halign: 'center' },
-      6: { cellWidth: 18, halign: 'center' },
-      7: { cellWidth: 20, halign: 'center' },
-      8: { cellWidth: 18, halign: 'center' }
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 22, halign: 'center' },
+      2: { cellWidth: 38, halign: 'left' },
+      3: { cellWidth: 15, halign: 'center' },
+      4: { cellWidth: 16, halign: 'center' },
+      5: { cellWidth: 13, halign: 'center' },
+      6: { cellWidth: 14, halign: 'center' },
+      7: { cellWidth: 16, halign: 'center' },
+      8: { cellWidth: 18, halign: 'center' },
+      9: { cellWidth: 16, halign: 'center' }
     }
   });
 

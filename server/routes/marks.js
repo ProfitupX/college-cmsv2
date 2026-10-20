@@ -43,11 +43,7 @@ router.post('/submit', async (req, res) => {
 
     // Anna Univ 25th Regulation attendance rule:
     // 95–100% → 5 marks, 90–95% → 3 marks, 85–90% → 2 marks, 80–85% → 1 mark, <80% → 0 marks
-    const getAttendanceMark = (attended, maxHours) => {
-      if (!maxHours || maxHours <= 0) return 0;
-      // Clamp attended hours between 0 and maxHours so percentage never exceeds 100%
-      const effectiveAttended = Math.min(Math.max(0, attended), maxHours);
-      const pct = (effectiveAttended / maxHours) * 100;
+    const getAttendanceMark = (pct) => {
       if (pct >= 95) return 5;
       if (pct >= 90) return 3;
       if (pct >= 85) return 2;
@@ -72,21 +68,37 @@ router.post('/submit', async (req, res) => {
 
     if (attendance && Array.isArray(attendance)) {
       const tHours = parseInt(totalHours, 10) || 0;
+
+      // Find max actual hours entered across the class
+      let maxActualHours = 0;
+      for (const a of attendance) {
+        const raw = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
+        if (raw > maxActualHours) maxActualHours = raw;
+      }
+
       for (const a of attendance) {
         if (!studentTotals[a.studentId]) studentTotals[a.studentId] = 0;
         const rawHours = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
         const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
+
         if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const cumAttd = i1Attd + rawHours + labHrs;
           const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
           const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
           const lMax = parseInt(req.body.labHours, 10) || 0;
-          const cumMax = (i1Max + i2Max + lMax) || tHours || 0;
-          attMark = getAttendanceMark(cumAttd, cumMax);
+          const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 0;
+          const cumConductedBase = Math.max(cumPrescribedMax, maxActualHours > 0 ? maxActualHours + i1Max + lMax : cumPrescribedMax);
+
+          const pct = cumConductedBase > 0 ? (cumAttd / cumConductedBase) * 100 : 0;
+          attMark = getAttendanceMark(pct);
         } else {
-          attMark = getAttendanceMark(rawHours + labHrs, tHours);
+          // If actual attended hours (e.g. 45) exceeds total prescribed hours (e.g. 30),
+          // convert proportionally based on the conducted hours
+          const conductedBase = Math.max(tHours, maxActualHours);
+          const pct = conductedBase > 0 ? (rawHours / conductedBase) * 100 : 0;
+          attMark = getAttendanceMark(pct);
         }
         studentTotals[a.studentId] += attMark;
       }
@@ -144,10 +156,18 @@ router.post('/submit', async (req, res) => {
     // 5. Insert Attendance & Internal Exam
     if (attendance && Array.isArray(attendance)) {
       const tHours = parseInt(totalHours, 10) || 0;
+
+      let maxActualHours = 0;
+      for (const a of attendance) {
+        const raw = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
+        if (raw > maxActualHours) maxActualHours = raw;
+      }
+
       for (const a of attendance) {
         const rawHours = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
         const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
+        let convertedHours = rawHours;
         
         if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
@@ -155,10 +175,22 @@ router.post('/submit', async (req, res) => {
           const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
           const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
           const lMax = parseInt(req.body.labHours, 10) || 0;
-          const cumMax = (i1Max + i2Max + lMax) || tHours || 0;
-          attMark = getAttendanceMark(cumAttd, cumMax);
+          const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 0;
+          const cumConductedBase = Math.max(cumPrescribedMax, maxActualHours > 0 ? maxActualHours + i1Max + lMax : cumPrescribedMax);
+
+          const pct = cumConductedBase > 0 ? (cumAttd / cumConductedBase) * 100 : 0;
+          attMark = getAttendanceMark(pct);
+          convertedHours = cumConductedBase > 0 
+            ? Math.min(cumPrescribedMax, Math.round((cumAttd / cumConductedBase) * cumPrescribedMax)) 
+            : 0;
         } else {
-          attMark = getAttendanceMark(rawHours + labHrs, tHours);
+          const conductedBase = Math.max(tHours, maxActualHours);
+          const pct = conductedBase > 0 ? (rawHours / conductedBase) * 100 : 0;
+          attMark = getAttendanceMark(pct);
+          // Convert the hours for tHours (e.g. 30 hrs scale)
+          convertedHours = conductedBase > 0 
+            ? Math.min(tHours, Math.round((rawHours / conductedBase) * tHours)) 
+            : 0;
         }
 
         await conn.execute(
@@ -174,7 +206,7 @@ router.post('/submit', async (req, res) => {
           [
             sessionId, 
             String(a.studentId), 
-            rawHours,
+            convertedHours,
             rawHours,
             attMark,
             a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark))
