@@ -6,7 +6,13 @@ import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api'
 import ComponentBuilder2021 from '../components/MarksEntry/ComponentBuilder2021';
 import MarksTable2021 from '../components/MarksEntry/MarksTable2021';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
-import { generateSubjectMarksListPDF2021, generateSubjectAnalysisPDF } from '../services/pdfReportGenerator';
+import { 
+  generateSubjectMarksListPDF2021, 
+  generateSubjectAnalysisPDF,
+  generateClassAnalysisPDF,
+  generateConsolidatedMarksPDF,
+  generateOverallMarksAndAttendancePDF
+} from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, FileText, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
@@ -383,6 +389,46 @@ export default function MarksEntryPage2021() {
         assessmentMode
       });
       setDeclarationModalOpen(true);
+    } else if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+      const withInternal = reportType === 'examcell_legal_with_internal';
+      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+      await generateOverallMarksAndAttendancePDF({
+        classObj: selectedClass,
+        sessionLabel: assessmentMode,
+        subjects: summary.subjects || subjects,
+        students,
+        allSessions: summary.sessions || [],
+        allAttendance: summary.allAttendance || [],
+        allMarks: summary.allMarks || [],
+        allComponents: summary.allComponents || [],
+        withInternal,
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+      });
+    } else if (reportType === 'class_analysis') {
+      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+      await generateClassAnalysisPDF({
+        classObj: selectedClass,
+        sessionLabel: assessmentMode,
+        subjects: summary.subjects || subjects,
+        students,
+        allSessions: summary.sessions || [],
+        allMarks: summary.allMarks || [],
+        allAttendance: summary.allAttendance || [],
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+      });
+    } else if (reportType === 'consolidated_statement') {
+      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+      await generateConsolidatedMarksPDF({
+        classObj: selectedClass,
+        sessionLabel: assessmentMode,
+        subjects: summary.subjects || subjects,
+        students,
+        allSessions: summary.sessions || [],
+        allAttendance: summary.allAttendance || [],
+        allMarks: summary.allMarks || [],
+        allComponents: summary.allComponents || [],
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+      });
     }
   };
 
@@ -727,12 +773,20 @@ export default function MarksEntryPage2021() {
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
               <select className={styles.downloadSelect} value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                <option value="subject_marks_with_internal_2021">Subject Marks List (With Internal Marks - 2021 Reg)</option>
-                <option value="subject_marks_without_internal_2021">Subject Marks List (Without Internal Marks - 2021 Reg)</option>
+                <option value="subject_marks_with_internal_2021">Subject Marks List (With Internal Marks)</option>
+                <option value="subject_marks_without_internal_2021">Subject Marks List (Without Internal Marks)</option>
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
+                {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
+                  <>
+                    <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
+                    <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
+                    <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Internal Marks)</option>
+                    <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Internal Marks)</option>
+                  </>
+                )}
               </select>
               <button className={styles.downloadBtn} onClick={handleDownloadPDF}>
-                <Download size={15} /> Download PDF
+                <Download size={15} /> Download PDF Statement
               </button>
             </div>
             {!isPrincipal && (

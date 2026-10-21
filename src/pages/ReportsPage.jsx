@@ -363,6 +363,11 @@ export default function ReportsPage() {
     setSubjectModalOpen(false);
     const pdfType = subjectModalPdfType;
     const cls = classes.find(c => c.id === selectedClassId) || { id: selectedClassId, name: 'Target Class', department: user?.department, semester: 4, year_label: 'II', academic_year: '2025-26' };
+    const isCoordOfThis = user?.isClassCoordinator && (
+      user.coordinatedClassId === selectedClassId || 
+      (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+    );
+    const inchargeNameParam = isCoordOfThis ? user?.name : '';
 
     setGenLoading(true);
     try {
@@ -378,7 +383,8 @@ export default function ReportsPage() {
           allAttendance: summary.allAttendance || [],
           remarks: classRemarks,
           remedialAction: improvementPlan,
-          selectedSubjectIds
+          selectedSubjectIds,
+          inchargeNameParam
         });
       } else if (pdfType === 'overall_statement' || pdfType === 'examcell_legal') {
         await generateOverallMarksAndAttendancePDF({
@@ -393,7 +399,8 @@ export default function ReportsPage() {
           fromDate: overallFromDate,
           toDate: overallToDate,
           selectedSubjectIds,
-          withInternal: legalMarksMode === 'with_internal'
+          withInternal: legalMarksMode === 'with_internal',
+          inchargeNameParam
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -405,7 +412,8 @@ export default function ReportsPage() {
           allAttendance: summary.allAttendance || [],
           allMarks: summary.allMarks || [],
           allComponents: summary.allComponents || [],
-          selectedSubjectIds
+          selectedSubjectIds,
+          inchargeNameParam
         });
       }
     } catch (err) {

@@ -32,6 +32,44 @@ const addFooterToAllPages = (doc, dateStr, timeStr) => {
   }
 };
 
+export const PRINCIPAL_NAME = 'Dr. S. Karthikeyan';
+
+export const getDepartmentHodFallback = (dept) => {
+  if (!dept) return 'Head of Department';
+  const d = String(dept).toLowerCase().trim();
+  if (d.includes('information') || d === 'it') return 'Mr. C. Prathap';
+  if (d.includes('science') || d.includes('humanities') || d.includes('first year') || d.includes('s&h') || d.includes('s & h')) return 'Dr. C. Chithra';
+  if (d.includes('artificial') || d.includes('data science') || d.includes('ai') || d === 'aids') return 'Mrs. K. Jenifer';
+  if (d.includes('electrical') || d === 'eee') return 'Dr. R. Athilingam';
+  if (d.includes('electronics') || d === 'ece') return 'Dr. T. Venish Kumar';
+  if (d.includes('mechanical') || d === 'mech') return 'Dr. B. Ratha Krishnan';
+  if (d.includes('civil')) return 'Mr. N. Nagarathinam';
+  if (d.includes('computer') || d === 'cse') return 'Dr. J. Mathalai Raj';
+  return 'Head of Department';
+};
+
+export const getClassInchargeName = (classObj) => {
+  if (!classObj) return 'Class In-charge';
+  if (classObj.class_coordinator) {
+    let name = classObj.class_coordinator.trim();
+    if (name.includes(',')) {
+      name = name.split(',')[0].trim();
+    } else if (name.includes(' AP/')) {
+      name = name.split(' AP/')[0].trim();
+    } else if (name.includes(' TF/')) {
+      name = name.split(' TF/')[0].trim();
+    } else if (name.includes(' ASP/')) {
+      name = name.split(' ASP/')[0].trim();
+    } else if (name.includes(' Prof/')) {
+      name = name.split(' Prof/')[0].trim();
+    }
+    return name;
+  }
+  if (classObj.incharge) return classObj.incharge;
+  if (classObj.faculty_advisor) return classObj.faculty_advisor;
+  return 'Class In-charge';
+};
+
 // Helper for Header Box matching College Format
 const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) => {
   const logoBase64 = await getImageDataUrl(logoImg);
@@ -291,10 +329,18 @@ export const generateSubjectAnalysisPDF = async ({
   // Signature Block: Subject Faculty & HOD
   y = doc.internal.pageSize.getHeight() - 30; // 30mm from the bottom of the page
   
+  const facultyName = staff?.name || 'Subject Faculty';
+  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('STAFF INCHARGE', 25, y);
+  doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${facultyName})`, 25, y + 4.5);
+  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -517,16 +563,24 @@ export const generateSubjectMarksListPDF = async ({
     columnStyles: colStyles
   });
 
-  // Footer Signatures: Staff Incharge & HOD
-  y = doc.lastAutoTable.finalY + 20;
-  if (y > 270) {
+  // Footer Signatures: Subject Faculty & HOD
+  y = doc.lastAutoTable.finalY + 18;
+  if (y > 265) {
     doc.addPage();
     y = 30;
   }
+  const facultyName = staff?.name || 'Subject Faculty';
+  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('STAFF INCHARGE', 25, y);
+  doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${facultyName})`, 25, y + 4.5);
+  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -537,7 +591,8 @@ export const generateSubjectMarksListPDF = async ({
 // REPORT 2: Consolidated Test Analysis Report (Class Wise) - Format NAC/TLP-20
 // ─────────────────────────────────────────────────────────────
 export const generateClassAnalysisPDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allMarks, allAttendance, remarks, remedialAction, selectedSubjectIds
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allMarks, allAttendance, remarks, remedialAction, selectedSubjectIds,
+  inchargeNameParam = ''
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -705,10 +760,18 @@ export const generateClassAnalysisPDF = async ({
   }
 
   // Signatures (Class Incharge & HOD)
+  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
+  const hodName = getDepartmentHodFallback(classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', 25, y);
   doc.text('HOD', 165, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${inchargeName})`, 25, y + 4.5);
+  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -787,7 +850,8 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
 // REPORT 3: Consolidated Unit / Internal Test Mark Statement - Format NAC/TLP-07a.20
 // ─────────────────────────────────────────────────────────────
 export const generateConsolidatedMarksPDF = async ({
-  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds
+  classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds,
+  inchargeNameParam = ''
 }) => {
   // Standard A4 paper in landscape mode (297 x 210 mm)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -1069,11 +1133,20 @@ export const generateConsolidatedMarksPDF = async ({
     sigY = finalY + 14;
   }
 
+  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
+  const hodName = getDepartmentHodFallback(classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${inchargeName})`, marginLeft + 25, sigY + 4.5);
+  doc.text(`(${hodName})`, pageWidth / 2, sigY + 4.5, { align: 'center' });
+  doc.text(`(${PRINCIPAL_NAME})`, pageWidth - marginLeft - 25, sigY + 4.5, { align: 'right' });
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1276,17 +1349,25 @@ export const generateSubjectMarksListPDF2021 = async ({
     columnStyles: colStyles,
   });
 
-  // Signatures: Staff Incharge & HOD
+  // Signatures: Subject Faculty & HOD
   y = doc.lastAutoTable.finalY + 18;
-  if (y > 270) {
+  if (y > 265) {
     doc.addPage();
     y = 30;
   }
 
+  const facultyName = staff?.name || 'Subject Faculty';
+  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('STAFF INCHARGE', 25, y);
+  doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${facultyName})`, 25, y + 4.5);
+  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1452,7 +1533,7 @@ const getHourSplits = (ltpc, type, total) => {
 
 export const generateOverallMarksAndAttendancePDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], fromDate, toDate, selectedSubjectIds,
-  withInternal = true
+  withInternal = true, inchargeNameParam = ''
 }) => {
   // Explicit Legal paper landscape format (355.6 x 215.9 mm)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
@@ -1774,28 +1855,23 @@ export const generateOverallMarksAndAttendancePDF = async ({
   
   // Signatures: Class Incharge, HOD, Principal
   sigY += 16;
+  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
+  const hodName = getDepartmentHodFallback(classObj?.department);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
 
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`(${inchargeName})`, marginLeft + 25, sigY + 4.5);
+  doc.text(`(${hodName})`, pageWidth / 2, sigY + 4.5, { align: 'center' });
+  doc.text(`(${PRINCIPAL_NAME})`, pageWidth - marginLeft - 25, sigY + 4.5, { align: 'right' });
+
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_ExamCell_Legal_Statement_${withInternal ? 'With_Internal' : 'Without_Internal'}.pdf`);
-};
-
-const getDepartmentHodFallback = (dept) => {
-  if (!dept) return 'Head of Department';
-  const d = String(dept).toLowerCase();
-  if (d.includes('information') || d === 'it') return 'Mr. C. Prathap';
-  if (d.includes('science') || d.includes('humanities') || d.includes('first year') || d === 's&h') return 'Dr. C. Chithra';
-  if (d.includes('artificial') || d.includes('data science') || d.includes('ai') || d === 'aids') return 'Mrs. K. Jenifer';
-  if (d.includes('electrical') || d === 'eee') return 'Dr. R. Athilingam';
-  if (d.includes('electronics') || d === 'ece') return 'Dr. T. Venish Kumar';
-  if (d.includes('mechanical') || d === 'mech') return 'Dr. B. Ratha Krishnan';
-  if (d.includes('civil')) return 'Mr. N. Nagarathinam';
-  if (d.includes('computer') || d === 'cse') return 'Dr. J. Mathalai Raj';
-  return 'Head of Department';
 };
 
 export const generateHodMarksPDF = async (department, sessionLabel, data, hodNameParam = '') => {

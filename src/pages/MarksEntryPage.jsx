@@ -478,7 +478,8 @@ export default function MarksEntryPage() {
         allAttendance: summary.allAttendance || [],
         allMarks: summary.allMarks || [],
         allComponents: summary.allComponents || [],
-        withInternal
+        withInternal,
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
       });
     } else if (reportType === 'class_analysis') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -489,7 +490,8 @@ export default function MarksEntryPage() {
         students,
         allSessions: summary.sessions || [],
         allMarks: summary.allMarks || [],
-        allAttendance: summary.allAttendance || []
+        allAttendance: summary.allAttendance || [],
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
       });
     } else if (reportType === 'consolidated_statement') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -501,7 +503,8 @@ export default function MarksEntryPage() {
         allSessions: summary.sessions || [],
         allAttendance: summary.allAttendance || [],
         allMarks: summary.allMarks || [],
-        allComponents: summary.allComponents || []
+        allComponents: summary.allComponents || [],
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
       });
     }
   };

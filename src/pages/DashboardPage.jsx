@@ -165,7 +165,8 @@ export default function DashboardPage() {
           students: summary.students,
           allSessions: summary.sessions,
           allAttendance: summary.allAttendance,
-          selectedSubjectIds
+          selectedSubjectIds,
+          inchargeNameParam: user?.name || ''
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -177,7 +178,8 @@ export default function DashboardPage() {
           allAttendance: summary.allAttendance,
           allMarks: summary.allMarks,
           allComponents: summary.allComponents,
-          selectedSubjectIds
+          selectedSubjectIds,
+          inchargeNameParam: user?.name || ''
         });
       }
     } catch (err) {
