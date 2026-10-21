@@ -361,7 +361,7 @@ export default function MarksEntryPage2021() {
       await generateSubjectMarksListPDF2021({
         subject: selectedSubject,
         classObj: selectedClass,
-        staff: user,
+        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
         students,
         marksData,
@@ -371,13 +371,14 @@ export default function MarksEntryPage2021() {
         labData,
         assessmentMode,
         components: assessmentComponents,
-        withInternal
+        withInternal,
+        user
       });
     } else if (reportType === 'subject_analysis') {
       setPdfPayload({
         subject: selectedSubject,
         classObj: selectedClass,
-        staff: user,
+        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
         remedialAction, // Pass state
         students,
@@ -402,7 +403,8 @@ export default function MarksEntryPage2021() {
         allMarks: summary.allMarks || [],
         allComponents: summary.allComponents || [],
         withInternal,
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     } else if (reportType === 'class_analysis') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -414,7 +416,8 @@ export default function MarksEntryPage2021() {
         allSessions: summary.sessions || [],
         allMarks: summary.allMarks || [],
         allAttendance: summary.allAttendance || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     } else if (reportType === 'consolidated_statement') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -427,7 +430,8 @@ export default function MarksEntryPage2021() {
         allAttendance: summary.allAttendance || [],
         allMarks: summary.allMarks || [],
         allComponents: summary.allComponents || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     }
   };
@@ -438,7 +442,8 @@ export default function MarksEntryPage2021() {
       await generateSubjectAnalysisPDF({
         ...pdfPayload,
         marksData: pdfPayload.allMarks, // Map allMarks to marksData for pdfReportGenerator
-        declarationData
+        declarationData,
+        user
       });
     } catch (err) {
       alert('Failed to generate Subject Analysis PDF: ' + err.message);
@@ -452,7 +457,7 @@ export default function MarksEntryPage2021() {
     setPdfPayload({
       subject: selectedSubject,
       classObj: selectedClass,
-      staff: user,
+      staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
       session: currentSession,
       students,
       allMarks: marksData,

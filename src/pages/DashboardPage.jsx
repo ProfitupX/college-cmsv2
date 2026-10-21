@@ -195,7 +195,7 @@ export default function DashboardPage() {
     setGenLoading(true);
     try {
       const d = hodMarksData || await statsAPI.getHodMarks(user.department, hodSession);
-      await generateHodMarksPDF(user.department, hodSession, d, user?.name || d?.hodName);
+      await generateHodMarksPDF(user.department, hodSession, d, user?.name || d?.hodName, user);
     } catch (err) {
       alert('Failed to generate HOD Marks PDF: ' + err.message);
     } finally {
@@ -251,6 +251,16 @@ export default function DashboardPage() {
       );
       const inchargeNameParam = isCoordOfThis ? user?.name : '';
 
+      if (type === 'subject_marks_statement') {
+        for (const subId of selectedSubjectIds) {
+          await handleDownloadSubjectMarksPDF(subId, classId, period, subjectMarksMode);
+          if (selectedSubjectIds.length > 1) {
+            await new Promise(r => setTimeout(r, 350));
+          }
+        }
+        return;
+      }
+
       if (type === 'class_analysis') {
         await generateClassAnalysisPDF({
           classObj: summary.classObj,
@@ -260,7 +270,8 @@ export default function DashboardPage() {
           allSessions: summary.sessions,
           allAttendance: summary.allAttendance,
           selectedSubjectIds,
-          inchargeNameParam
+          inchargeNameParam,
+          user
         });
       } else if (type === 'examcell_legal' || type === 'overall_statement') {
         await generateOverallMarksAndAttendancePDF({
@@ -276,7 +287,8 @@ export default function DashboardPage() {
           toDate: overallToDate,
           selectedSubjectIds,
           withInternal: legalMarksMode === 'with_internal',
-          inchargeNameParam
+          inchargeNameParam,
+          user
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -289,7 +301,8 @@ export default function DashboardPage() {
           allMarks: summary.allMarks,
           allComponents: summary.allComponents,
           selectedSubjectIds,
-          inchargeNameParam
+          inchargeNameParam,
+          user
         });
       }
     } catch (err) {
@@ -329,7 +342,7 @@ export default function DashboardPage() {
 
       const is2021 = cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5;
       const staffObj = {
-        name: detail?.session?.faculty_name || sub?.staff_name || user?.name || 'Faculty Staff'
+        name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff'
       };
 
       const marksObj = {};
@@ -363,7 +376,8 @@ export default function DashboardPage() {
           labData: detail?.labData || {},
           assessmentMode: period,
           components: componentsList,
-          withInternal
+          withInternal,
+          user
         });
       } else {
         let int1Attd = {};
@@ -397,7 +411,8 @@ export default function DashboardPage() {
           int2Hours: currentSession?.int2_hours || 0,
           labHours: currentSession?.lab_hours || 0,
           int1AttendanceData: int1Attd,
-          withInternal
+          withInternal,
+          user
         });
       }
     } catch (err) {
@@ -440,7 +455,7 @@ export default function DashboardPage() {
       setPdfPayload({
         subject: { code: sub.code, name: sub.name, department: sub.class_department || user?.department },
         classObj: cls,
-        staff: user,
+        staff: { name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || user?.name || 'Faculty Staff' },
         session: detail?.session,
         students,
         allMarks: detail?.marks || [],
@@ -464,7 +479,8 @@ export default function DashboardPage() {
     try {
       await generateSubjectAnalysisPDF({
         ...pdfPayload,
-        declarationData
+        declarationData,
+        user
       });
     } catch (err) {
       alert('Failed to generate Subject Analysis PDF: ' + err.message);
@@ -570,16 +586,6 @@ export default function DashboardPage() {
         value: data?.overview?.totalDepartments ?? 0,
         sub: 'Active departments', color: '#22D3EE',
       },
-      {
-        icon: Users, label: 'Total Faculty',
-        value: data?.overview?.totalFaculty ?? 0,
-        sub: 'Registered staff', color: '#F59E0B',
-      },
-      {
-        icon: TrendingUp, label: 'College Avg Score',
-        value: `${data?.overview?.collegeAvg ?? (data?.averageScore ?? 0)}`,
-        sub: 'Across all sessions', color: '#10B981',
-      },
     ];
   } else {
     stats = [
@@ -598,11 +604,11 @@ export default function DashboardPage() {
         value: data?.pendingSubmissions ?? 0,
         sub: 'Awaiting submission', color: '#F59E0B',
       },
-      {
+      ...(user?.role !== 'hod' && user?.role !== 'principal' && user?.role !== 'vice_principal' && user?.role !== 'admin' ? [{
         icon: TrendingUp, label: 'Average Score /40',
         value: `${data?.averageScore ?? 0}`,
         sub: 'Across all sessions', trend: 'up', trendVal: '+2.1', color: '#10B981',
-      },
+      }] : []),
     ];
   }
 
@@ -1140,6 +1146,18 @@ export default function DashboardPage() {
                   disabled={genLoading || !selectedSubjectId}
                 >
                   <Download size={14} /> Download Statement
+                </button>
+                <button
+                  style={{
+                    background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
+                    padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                  onClick={() => openSubjectSelectionModal('subject_marks_statement', selectedClassId, quickSession)}
+                  disabled={genLoading || classSubjects.length === 0}
+                  title="Select multiple subjects or Select All to download"
+                >
+                  <FileText size={14} color="var(--primary)" /> Select All / Multiple Subjects
                 </button>
               </div>
             </div>

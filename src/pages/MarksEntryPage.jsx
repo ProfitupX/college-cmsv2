@@ -430,7 +430,7 @@ export default function MarksEntryPage() {
       setPdfPayload({
         subject: selectedSubject,
         classObj: selectedClass,
-        staff: user,
+        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
         remedialAction, // Pass state
         students,
@@ -448,7 +448,7 @@ export default function MarksEntryPage() {
       await generateSubjectMarksListPDF({
         subject: selectedSubject,
         classObj: selectedClass,
-        staff: user,
+        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
         students,
         marksData,
@@ -463,7 +463,8 @@ export default function MarksEntryPage() {
         int2Hours,
         labHours,
         int1AttendanceData,
-        withInternal
+        withInternal,
+        user
       });
     } else if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
       const withInternal = reportType === 'examcell_legal_with_internal';
@@ -479,7 +480,8 @@ export default function MarksEntryPage() {
         allMarks: summary.allMarks || [],
         allComponents: summary.allComponents || [],
         withInternal,
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     } else if (reportType === 'class_analysis') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -491,7 +493,8 @@ export default function MarksEntryPage() {
         allSessions: summary.sessions || [],
         allMarks: summary.allMarks || [],
         allAttendance: summary.allAttendance || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     } else if (reportType === 'consolidated_statement') {
       const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -504,7 +507,8 @@ export default function MarksEntryPage() {
         allAttendance: summary.allAttendance || [],
         allMarks: summary.allMarks || [],
         allComponents: summary.allComponents || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : ''
+        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+        user
       });
     }
   };
@@ -515,7 +519,8 @@ export default function MarksEntryPage() {
       await generateSubjectAnalysisPDF({
         ...pdfPayload,
         marksData: pdfPayload.allMarks, // Because pdfReportGenerator uses marksData (although we'll also pass allMarks)
-        declarationData
+        declarationData,
+        user
       });
     } catch (err) {
       alert('Failed to generate Subject Analysis PDF: ' + err.message);

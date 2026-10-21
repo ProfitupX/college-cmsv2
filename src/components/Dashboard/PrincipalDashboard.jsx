@@ -222,26 +222,6 @@ export default function PrincipalDashboard() {
             <h2>{overview.totalDepartments}</h2>
           </div>
         </div>
-
-        <div className={styles.statCard}>
-          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }}>
-            <UserCheck size={24} />
-          </div>
-          <div className={styles.statInfo}>
-            <h3>Faculty Members</h3>
-            <h2>{overview.totalFaculty}</h2>
-          </div>
-        </div>
-
-        <div className={styles.statCard}>
-          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B' }}>
-            <Award size={24} />
-          </div>
-          <div className={styles.statInfo}>
-            <h3>College Average</h3>
-            <h2>{overview.collegeAvg} <span className={styles.statUnit}>/ 100</span></h2>
-          </div>
-        </div>
       </div>
 
       {/* Official Continuous Assessment Analysis Card */}
