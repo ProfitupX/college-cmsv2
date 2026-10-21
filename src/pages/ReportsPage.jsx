@@ -14,7 +14,9 @@ import {
   generateClassAnalysisPDF, 
   generateConsolidatedMarksPDF,
   generateOverallMarksAndAttendancePDF,
-  generateHodMarksPDF
+  generateHodMarksPDF,
+  generateCollegeOverviewPDF,
+  generateContinuousAssessmentAnalysisPDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
@@ -67,6 +69,7 @@ export default function ReportsPage() {
   const [overallToDate, setOverallToDate] = useState('');
   const [subjectMarksMode, setSubjectMarksMode] = useState('with_internal');
   const [legalMarksMode, setLegalMarksMode] = useState('with_internal');
+  const [selectedDept, setSelectedDept] = useState(user?.department || 'Information Technology');
   const [hodMarksData, setHodMarksData] = useState(null);
   const [hodMarksLoading, setHodMarksLoading] = useState(false);
 
@@ -179,11 +182,12 @@ export default function ReportsPage() {
       .catch(err => console.error(err));
   }, [selectedClassId, sessionLabel]);
 
-  // 4. Load HOD Marks if user is HOD
+  // 4. Load HOD Marks if user is HOD or Principal/VP/Admin
   useEffect(() => {
-    if (user?.role === 'hod' && user?.department) {
+    const deptToFetch = user?.role === 'hod' ? user?.department : selectedDept;
+    if (deptToFetch && (user?.role === 'hod' || isElevated)) {
       setHodMarksLoading(true);
-      statsAPI.getHodMarks(user.department, sessionLabel)
+      statsAPI.getHodMarks(deptToFetch, sessionLabel)
         .then(data => setHodMarksData(data))
         .catch(err => {
           console.error('Failed to load HOD marks:', err);
@@ -191,7 +195,73 @@ export default function ReportsPage() {
         })
         .finally(() => setHodMarksLoading(false));
     }
-  }, [user, sessionLabel]);
+  }, [user, sessionLabel, selectedDept, isElevated]);
+
+  const handleDownloadCollegeOverview = async () => {
+    setGenLoading(true);
+    try {
+      const collegeStats = await statsAPI.getCollegeStats();
+      await generateCollegeOverviewPDF({
+        overview: collegeStats.overview,
+        departmentStats: collegeStats.departmentStats,
+        user
+      });
+    } catch (err) {
+      alert('Failed to generate College Overview PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleDownloadContinuousAssessmentPDF = async () => {
+    setGenLoading(true);
+    try {
+      const caData = await statsAPI.getContinuousAssessment(sessionLabel);
+      await generateContinuousAssessmentAnalysisPDF({
+        caData,
+        sessionLabel,
+        user
+      });
+    } catch (err) {
+      alert('Failed to generate Continuous Assessment PDF: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleExportContinuousAssessmentCSV = async () => {
+    try {
+      const caData = await statsAPI.getContinuousAssessment(sessionLabel);
+      const isCA2 = sessionLabel === 'internal2';
+      let csv = `NADAR SARASWATHI COLLEGE OF ENGINEERING AND TECHNOLOGY\n`;
+      csv += `VADAPUDUPATTI, THENI - 625 531\n`;
+      csv += `CONTINUOUS ASSESSMENT - ${isCA2 ? '2' : '1'} ANALYSIS\n\n`;
+      csv += `Department,Year,Strength,Passed,Percentage,Percentage (Over all)\n`;
+
+      caData.departments.forEach((dept) => {
+        dept.years.forEach((yr, idx) => {
+          const deptLabel = idx === 0 ? `"${dept.department}"` : '""';
+          const deptOverall = idx === 0 ? `"${dept.deptOverallPct}%"` : '""';
+          csv += `${deptLabel},"${yr.year}",${yr.strength},${yr.passed},"${yr.percentage}%",${deptOverall}\n`;
+        });
+      });
+
+      csv += `"Pass Percentage Without First Year (Years II, III, IV)",,${caData.summary.withoutFirstYear.strength},${caData.summary.withoutFirstYear.passed},"${caData.summary.withoutFirstYear.percentage}%",\n`;
+      if (caData.summary.firstYear) {
+        csv += `"Pass Percentage of First Year (Science & Humanities)",,${caData.summary.firstYear.strength},${caData.summary.firstYear.passed},"${caData.summary.firstYear.percentage}%",\n`;
+      }
+      csv += `"College Overall Pass Percentage (Total including First Year)",,${caData.summary.collegeOverall.strength},${caData.summary.collegeOverall.passed},"${caData.summary.collegeOverall.percentage}%",\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `NSCET_Continuous_Assessment_${isCA2 ? '2' : '1'}_Analysis.csv`;
+      link.click();
+    } catch (err) {
+      alert('Failed to export CSV: ' + err.message);
+    }
+  };
 
   const handleSaveRemarks = async () => {
     setSavingRemarks(true);
@@ -421,10 +491,12 @@ export default function ReportsPage() {
   };
 
   const handleDownloadHodPDF = async () => {
+    const dept = user?.role === 'hod' ? user.department : selectedDept;
+    if (!dept) return;
     setGenLoading(true);
     try {
-      const data = hodMarksData || await statsAPI.getHodMarks(user.department, sessionLabel);
-      await generateHodMarksPDF(user.department, sessionLabel, data, user?.name || data?.hodName);
+      const data = hodMarksData || await statsAPI.getHodMarks(dept, sessionLabel);
+      await generateHodMarksPDF(dept, sessionLabel, data, user?.name || data?.hodName);
     } catch (err) {
       alert('Failed to generate HOD Marks Report: ' + err.message);
     } finally {
@@ -539,11 +611,18 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* 1. Subject Mark & Analysis Statements */}
-        <div style={{ marginBottom: '22px' }}>
-          <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            1. Subject Mark Statements &amp; Analysis
-          </h4>
+        {/* 1. Category 1: Subject Mark & Analysis Statements */}
+        <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-solid)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#3B82F6', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 1</span>
+              Subject Mark Statements &amp; Analysis
+            </h4>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Access: Assigned Faculty, HOD &amp; Leadership
+            </span>
+          </div>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
             {/* Subject Marks Statement Card with 2 Options */}
             <div style={{
@@ -553,7 +632,7 @@ export default function ReportsPage() {
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
                 Subject Marks Statement:
               </span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <select
                   value={subjectMarksMode}
                   onChange={(e) => setSubjectMarksMode(e.target.value)}
@@ -602,11 +681,18 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* 2. Class & ExamCell Legal Statements */}
-        <div>
-          <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            2. Class Reports &amp; ExamCell Statements
-          </h4>
+        {/* 2. Category 2: Class Reports & ExamCell Statements */}
+        <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-solid)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#059669', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 2</span>
+              Class Reports &amp; ExamCell Statements
+            </h4>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Access: Class In-charge, HOD &amp; Leadership
+            </span>
+          </div>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
             {canDownloadClassReports ? (
               <>
@@ -690,15 +776,46 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* 3. HOD Marks (Continuous Assessment) */}
-        {user?.role === 'hod' && (
-          <div style={{ marginTop: '22px' }}>
-            <h4 style={{ margin: '0 0 10px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>3. HOD Marks (Continuous Assessment)</h4>
+        {/* 3. Category 3: Department Continuous Assessment (HOD Marks) */}
+        {(user?.role === 'hod' || isElevated) && (
+          <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-solid)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+              <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: '#EC4899', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 3</span>
+                Department Continuous Assessment (HOD Marks)
+              </h4>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Access: Head of Department &amp; College Leadership
+              </span>
+            </div>
+
             <div style={{ padding: '15px', background: 'var(--bg)', borderRadius: '12px', border: '1px solid var(--border-solid)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Overall Continuous Assessment Pass % for <strong>{user.department}</strong>
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {user?.role !== 'hod' && (
+                    <select
+                      value={selectedDept}
+                      onChange={(e) => setSelectedDept(e.target.value)}
+                      style={{
+                        padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-solid)',
+                        fontSize: '0.82rem', fontWeight: 700, background: 'var(--surface-hover)', color: 'var(--text-primary)'
+                      }}
+                    >
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Computer Science and Engineering">Computer Science and Engineering</option>
+                      <option value="Artificial Intelligence and Data Science">Artificial Intelligence and Data Science</option>
+                      <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
+                      <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                      <option value="Science and Humanities">Science and Humanities</option>
+                    </select>
+                  )}
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Continuous Assessment Pass % for <strong>{user?.role === 'hod' ? user.department : selectedDept}</strong>
+                  </span>
+                </div>
+
                 <button 
                   style={{
                     background: 'linear-gradient(135deg, #EC4899 0%, #BE185D 100%)', color: '#fff', border: 'none',
@@ -754,6 +871,59 @@ export default function ReportsPage() {
                   No continuous assessment marks recorded yet for this session.
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 4. Category 4: College Executive Reports (Principal & Leadership) */}
+        {(user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') && (
+          <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-solid)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+              <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: '#800000', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 4</span>
+                College Executive Reports
+              </h4>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Access: Principal, Vice Principal &amp; Admin
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #800000 0%, #5B0000 100%)', color: '#fff', border: 'none',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={handleDownloadCollegeOverview}
+                disabled={genLoading}
+              >
+                <Download size={15} /> Download College Overview (PDF)
+              </button>
+
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)', color: '#fff', border: 'none',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={handleDownloadContinuousAssessmentPDF}
+                disabled={genLoading}
+              >
+                <FileText size={15} /> Continuous Assessment Analysis (PDF)
+              </button>
+
+              <button 
+                style={{
+                  background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
+                  padding: '10px 18px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+                onClick={handleExportContinuousAssessmentCSV}
+                disabled={genLoading}
+              >
+                <Download size={15} color="#10B981" /> Export CA Analysis (CSV)
+              </button>
             </div>
           </div>
         )}

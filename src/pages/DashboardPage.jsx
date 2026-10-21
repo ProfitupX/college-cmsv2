@@ -9,9 +9,17 @@ import StatsGrid from '../components/Dashboard/StatsGrid';
 import YearPerformanceChart from '../components/Dashboard/YearPerformanceChart';
 import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
-import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI } from '../services/api';
+import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI, classesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { generateClassAnalysisPDF, generateConsolidatedMarksPDF, generateSubjectAnalysisPDF, generateHodMarksPDF } from '../services/pdfReportGenerator';
+import { 
+  generateClassAnalysisPDF, 
+  generateConsolidatedMarksPDF, 
+  generateSubjectAnalysisPDF, 
+  generateSubjectMarksListPDF,
+  generateSubjectMarksListPDF2021,
+  generateOverallMarksAndAttendancePDF,
+  generateHodMarksPDF 
+} from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import styles from './DashboardPage.module.css';
@@ -34,6 +42,20 @@ export default function DashboardPage() {
   const [subjectModalOpen, setSubjectModalOpen] = useState(false);
   const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState([]);
+
+  // Category-wise PDF Generation Station State
+  const [classes, setClasses] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [classSubjects, setClassSubjects] = useState([]);
+  const [classStudents, setClassStudents] = useState([]);
+  const [quickSession, setQuickSession] = useState('internal1');
+  const [subjectMarksMode, setSubjectMarksMode] = useState('with_internal');
+  const [legalMarksMode, setLegalMarksMode] = useState('with_internal');
+  const [overallFromDate, setOverallFromDate] = useState('');
+  const [overallToDate, setOverallToDate] = useState('');
+  const [modalTargetClassId, setModalTargetClassId] = useState('');
+  const [modalTargetSession, setModalTargetSession] = useState('internal1');
 
   // HOD Continuous Assessment state
   const [hodMarksData, setHodMarksData] = useState(null);
@@ -91,6 +113,69 @@ export default function DashboardPage() {
     loadData();
   }, [user]);
 
+  // Load allowed classes based on User Role
+  useEffect(() => {
+    classesAPI.getAll()
+      .then((allClasses) => {
+        let allowed = [];
+        if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
+          allowed = allClasses;
+        } else if (user?.role === 'hod') {
+          allowed = allClasses.filter(c => 
+            c.department === user.department || 
+            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0]))
+          );
+        } else if (user?.isClassCoordinator) {
+          const coordIds = (user.coordinatedClasses || []).map(c => c.id);
+          const teachIds = (user.teachingClasses || []).map(c => c.id);
+          allowed = allClasses.filter(c => 
+            coordIds.includes(c.id) || 
+            (user.coordinatedClassId && c.id === user.coordinatedClassId) ||
+            teachIds.includes(c.id)
+          );
+        } else {
+          // Pure Faculty
+          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          allowed = allClasses.filter(c => teachIds.includes(c.id));
+        }
+
+        setClasses(allowed);
+        const initialClsId = user?.coordinatedClassId || (allowed.length > 0 ? allowed[0].id : '');
+        setSelectedClassId(initialClsId);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  // Load subjects and students when selected class changes
+  useEffect(() => {
+    if (!selectedClassId) {
+      setClassSubjects([]);
+      setClassStudents([]);
+      return;
+    }
+
+    subjectsAPI.getByClass(selectedClassId)
+      .then((allSubs) => {
+        let visibleSubs = allSubs;
+        const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
+        const isCoordOfThis = user?.isClassCoordinator && (
+          user.coordinatedClassId === selectedClassId || 
+          (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+        );
+        if (!isElevated && !isCoordOfThis) {
+          visibleSubs = allSubs.filter(sub => user?.assignedSubjectIds?.includes(sub.id));
+        }
+        setClassSubjects(visibleSubs);
+        if (visibleSubs.length > 0) setSelectedSubjectId(visibleSubs[0].id);
+        else setSelectedSubjectId('');
+      })
+      .catch(() => setClassSubjects([]));
+
+    studentsAPI.getByClass(selectedClassId)
+      .then(setClassStudents)
+      .catch(() => setClassStudents([]));
+  }, [selectedClassId, user]);
+
   // Load HOD Marks if user is HOD
   useEffect(() => {
     if (user?.role === 'hod' && user?.department) {
@@ -132,13 +217,16 @@ export default function DashboardPage() {
     }
   };
 
-  const openSubjectSelectionModal = async (type) => {
-    const classId = user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+  const openSubjectSelectionModal = async (type, targetClassId, targetSession) => {
+    const classId = targetClassId || selectedClassId || user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+    const period = targetSession || inchargeSession || quickSession || 'internal1';
     setGenLoading(true);
     try {
-      const summary = await marksAPI.getClassSummary(classId, inchargeSession);
+      const summary = await marksAPI.getClassSummary(classId, period);
       setAvailableSubjects(summary.subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY'));
       setSubjectModalPdfType(type);
+      setModalTargetClassId(classId);
+      setModalTargetSession(period);
       setSubjectModalOpen(true);
     } catch (err) {
       alert('Failed to fetch subjects: ' + err.message);
@@ -149,14 +237,20 @@ export default function DashboardPage() {
 
   const handleDownloadClassPDF = async (selectedSubjectIds) => {
     const type = subjectModalPdfType;
-    const period = inchargeSession;
-    const classId = user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
+    const period = modalTargetSession || inchargeSession || quickSession || 'internal1';
+    const classId = modalTargetClassId || user?.coordinatedClassId || selectedClassId || 'CL001';
     
     setGenLoading(true);
     setSubjectModalOpen(false);
     
     try {
       const summary = await marksAPI.getClassSummary(classId, period);
+      const isCoordOfThis = user?.isClassCoordinator && (
+        user.coordinatedClassId === classId || 
+        (user.coordinatedClasses || []).some(c => c.id === classId)
+      );
+      const inchargeNameParam = isCoordOfThis ? user?.name : '';
+
       if (type === 'class_analysis') {
         await generateClassAnalysisPDF({
           classObj: summary.classObj,
@@ -166,7 +260,23 @@ export default function DashboardPage() {
           allSessions: summary.sessions,
           allAttendance: summary.allAttendance,
           selectedSubjectIds,
-          inchargeNameParam: user?.name || ''
+          inchargeNameParam
+        });
+      } else if (type === 'examcell_legal' || type === 'overall_statement') {
+        await generateOverallMarksAndAttendancePDF({
+          classObj: summary.classObj,
+          sessionLabel: period,
+          subjects: summary.subjects,
+          students: summary.students,
+          allSessions: summary.sessions,
+          allAttendance: summary.allAttendance,
+          allMarks: summary.allMarks,
+          allComponents: summary.allComponents,
+          fromDate: overallFromDate,
+          toDate: overallToDate,
+          selectedSubjectIds,
+          withInternal: legalMarksMode === 'with_internal',
+          inchargeNameParam
         });
       } else {
         await generateConsolidatedMarksPDF({
@@ -179,7 +289,7 @@ export default function DashboardPage() {
           allMarks: summary.allMarks,
           allComponents: summary.allComponents,
           selectedSubjectIds,
-          inchargeNameParam: user?.name || ''
+          inchargeNameParam
         });
       }
     } catch (err) {
@@ -189,19 +299,147 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDownloadSubjectPDF = async (subject, period = 'internal1') => {
+  const handleDownloadSubjectMarksPDF = async (targetSubId, targetClsId, targetPeriod, mode = subjectMarksMode) => {
+    const subId = targetSubId || selectedSubjectId;
+    const clsId = targetClsId || selectedClassId;
+    const period = targetPeriod || quickSession;
+    if (!subId || !clsId) {
+      alert('Please select both a class and a subject');
+      return;
+    }
+
     setGenLoading(true);
     try {
-      const students = await studentsAPI.getByClass(subject.class_id);
-      const sessDetail = await marksAPI.getSessions({ classId: subject.class_id, subjectId: subject.id, sessionLabel: period });
+      const allKnownSubs = [...classSubjects, ...(user?.assignedSubjects || [])];
+      const sub = allKnownSubs.find(s => s.id === subId) || { id: subId };
+      const cls = classes.find(c => c.id === clsId) || { id: clsId, name: 'Target Class', department: user?.department, semester: 4, year_label: 'II', academic_year: '2026-2027' };
+      const withInternal = mode === 'with_internal';
+
+      const stds = (classStudents && classStudents.length > 0 && selectedClassId === clsId)
+        ? classStudents 
+        : await studentsAPI.getByClass(clsId);
+
+      const sessDetail = await marksAPI.getSessions({ classId: clsId, subjectId: subId, sessionLabel: period });
+      let detail = null;
+      let currentSession = null;
+      if (sessDetail.length > 0) {
+        currentSession = sessDetail[0];
+        detail = await marksAPI.getSessionDetail(currentSession.id);
+      }
+
+      const is2021 = cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5;
+      const staffObj = {
+        name: detail?.session?.faculty_name || sub?.staff_name || user?.name || 'Faculty Staff'
+      };
+
+      const marksObj = {};
+      (detail?.marks || []).forEach(m => {
+        if (!marksObj[m.student_id]) marksObj[m.student_id] = {};
+        marksObj[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+      });
+
+      const componentsList = (detail?.components || []).map(c => ({
+        uid: c.id,
+        id: c.id,
+        typeId: c.type_id,
+        label: c.label,
+        conductedMax: parseFloat(c.conducted_max) || 100,
+        max: parseFloat(c.max_marks),
+        icon: c.icon,
+        color: c.color,
+      }));
+
+      if (is2021) {
+        await generateSubjectMarksListPDF2021({
+          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
+          classObj: cls,
+          staff: staffObj,
+          session: currentSession,
+          students: stds,
+          marksData: marksObj,
+          attendanceData: detail?.attendance || {},
+          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
+          internalExamData: detail?.internalExam || {},
+          labData: detail?.labData || {},
+          assessmentMode: period,
+          components: componentsList,
+          withInternal
+        });
+      } else {
+        let int1Attd = {};
+        if (period === 'internal2') {
+          try {
+            const int1Sess = await marksAPI.getSessions({ classId: clsId, subjectId: subId, sessionLabel: 'internal1' });
+            if (int1Sess.length > 0) {
+              const int1Det = await marksAPI.getSessionDetail(int1Sess[0].id);
+              int1Attd = int1Det?.attendance || {};
+            }
+          } catch (e) {
+            console.warn('Could not load IA1 attendance', e);
+          }
+        }
+
+        await generateSubjectMarksListPDF({
+          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
+          classObj: cls,
+          staff: staffObj,
+          session: currentSession,
+          students: stds,
+          marksData: marksObj,
+          attendanceData: detail?.attendance || {},
+          attendanceMarks: detail?.attendanceMarks || {},
+          internalExamData: detail?.internalExam || {},
+          labData: detail?.labData || {},
+          assessmentMode: period,
+          components: componentsList,
+          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
+          int1Hours: currentSession?.int1_hours || 0,
+          int2Hours: currentSession?.int2_hours || 0,
+          labHours: currentSession?.lab_hours || 0,
+          int1AttendanceData: int1Attd,
+          withInternal
+        });
+      }
+    } catch (err) {
+      alert('Failed to generate Subject Marks Statement: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const handleDownloadSubjectPDF = async (subjectOrId, period = 'internal1') => {
+    setGenLoading(true);
+    try {
+      let sub = null;
+      let clsId = null;
+      if (typeof subjectOrId === 'object' && subjectOrId !== null) {
+        sub = subjectOrId;
+        clsId = sub.class_id;
+      } else {
+        const subId = subjectOrId || selectedSubjectId;
+        clsId = selectedClassId;
+        sub = classSubjects.find(s => s.id === subId) || (user?.assignedSubjects || []).find(s => s.id === subId) || { id: subId, code: 'SUB', name: 'Subject' };
+      }
+      if (!clsId || !sub) {
+        alert('Please select a class and subject');
+        return;
+      }
+
+      const students = (classStudents && classStudents.length > 0 && selectedClassId === clsId)
+        ? classStudents 
+        : await studentsAPI.getByClass(clsId);
+
+      const sessDetail = await marksAPI.getSessions({ classId: clsId, subjectId: sub.id, sessionLabel: period });
       let detail = null;
       if (sessDetail.length > 0) {
         detail = await marksAPI.getSessionDetail(sessDetail[0].id);
       }
 
+      const cls = classes.find(c => c.id === clsId) || { id: clsId, name: sub.class_name || 'Class', department: sub.class_department || user?.department, semester: sub.semester, year_label: sub.year_label };
+
       setPdfPayload({
-        subject: { code: subject.code, name: subject.name, department: subject.class_department || user?.department },
-        classObj: { id: subject.class_id, name: subject.class_name || 'Class', department: subject.class_department || user?.department, semester: subject.semester, year_label: subject.year_label },
+        subject: { code: sub.code, name: sub.name, department: sub.class_department || user?.department },
+        classObj: cls,
         staff: user,
         session: detail?.session,
         students,
@@ -285,6 +523,12 @@ export default function DashboardPage() {
     : 'Faculty Staff Panel';
 
   const isHodOrAdmin = user?.role === 'hod' || user?.role === 'admin';
+  const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
+  const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
+    user.coordinatedClassId === selectedClassId || 
+    (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+  );
+  const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
   const assignedClassList = data?.assignedClasses || (user?.teachingClasses || []).map(c => c.name);
   
   let studentSubtext = `${user?.department || 'Information Technology'} Department (All Years)`;
@@ -591,14 +835,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className={styles.inchargeButtons}>
+          <div className={styles.inchargeButtons} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
             <button 
               style={{
                 background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
-              onClick={() => openSubjectSelectionModal('class_analysis')}
+              onClick={() => openSubjectSelectionModal('class_analysis', coordinatedClass.id, inchargeSession)}
               disabled={genLoading}
             >
               <FileText size={16} /> Download Class Performance Report (NAC/TLP-20)
@@ -610,11 +854,53 @@ export default function DashboardPage() {
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '8px'
               }}
-              onClick={() => openSubjectSelectionModal('consolidated_statement')}
+              onClick={() => openSubjectSelectionModal('consolidated_statement', coordinatedClass.id, inchargeSession)}
               disabled={genLoading}
             >
               <Download size={16} /> Download Consolidated Mark Statement (NAC/TLP-07a.20)
             </button>
+
+            {/* ExamCell Legal Statement Box */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg)',
+              padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', flexWrap: 'wrap'
+            }}>
+              <select
+                value={legalMarksMode}
+                onChange={(e) => setLegalMarksMode(e.target.value)}
+                style={{
+                  padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)',
+                  fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
+                }}
+              >
+                <option value="with_internal">With Internal</option>
+                <option value="without_internal">Without Internal (Real Exam)</option>
+              </select>
+              <input 
+                type="date" 
+                value={overallFromDate} 
+                onChange={e => setOverallFromDate(e.target.value)}
+                style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>to</span>
+              <input 
+                type="date" 
+                value={overallToDate} 
+                onChange={e => setOverallToDate(e.target.value)}
+                style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+              />
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
+                  padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+                onClick={() => openSubjectSelectionModal('examcell_legal', coordinatedClass.id, inchargeSession)}
+                disabled={genLoading}
+              >
+                <FileText size={14} /> ExamCell Legal PDF
+              </button>
+            </div>
 
             <button 
               style={{
@@ -668,7 +954,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className={styles.subjectActions}>
+                  <div className={styles.subjectActions} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     <button 
                       className={styles.enterMarksBtn}
                       onClick={() => navigate(targetRoute)}
@@ -678,10 +964,19 @@ export default function DashboardPage() {
                     <button 
                       className={styles.subReportBtn}
                       onClick={() => handleDownloadSubjectPDF(sub, 'internal1')}
-                      title="Download Subject Analysis PDF"
+                      title="Download Subject Test Analysis Report (NAC/TLP-07a.21)"
                       disabled={genLoading}
                     >
-                      <Download size={13} /> Report
+                      <FileText size={13} /> Analysis PDF
+                    </button>
+                    <button 
+                      className={styles.subReportBtn}
+                      onClick={() => handleDownloadSubjectMarksPDF(sub.id, sub.class_id, 'internal1', 'with_internal')}
+                      title="Download Subject Marks Statement (With Internal)"
+                      disabled={genLoading}
+                      style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#2563EB', borderColor: 'rgba(59, 130, 246, 0.3)' }}
+                    >
+                      <Download size={13} /> Marks PDF
                     </button>
                   </div>
                 </div>
@@ -696,67 +991,274 @@ export default function DashboardPage() {
         <YearPerformanceChart data={data?.yearPerformance || []} user={user} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: (user?.role === 'hod' || user?.role === 'admin') ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '12px' }}>
-        {/* HOD Deadline Engine */}
-        {(user?.role === 'hod' || user?.role === 'admin') && (
-          <div style={{
-            background: 'var(--surface)', border: '1px solid var(--border-solid)',
-            borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)'
-          }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Calendar size={22} color="var(--primary)" /> Set Marks Entry Deadline
-            </h3>
-            <p style={{ margin: '0 0 18px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Set a global deadline for all staff to complete their internal marks entry.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <input 
-                type="date" 
-                value={newDeadline}
-                onChange={e => setNewDeadline(e.target.value)}
-                style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '1rem', outline: 'none', width: '100%' }}
-              />
-              <button 
-                onClick={handleSetDeadline}
-                style={{
-                  background: 'var(--primary)', color: 'white', border: 'none',
-                  padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap'
-                }}
-              >
-                Update Deadline
-              </button>
-            </div>
-            {deadline && (
-              <div style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                Current Deadline: <strong>{new Date(deadline).toLocaleDateString('en-GB')}</strong>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Quick Report Portal Access */}
+      {/* HOD Deadline Engine */}
+      {(user?.role === 'hod' || user?.role === 'admin') && (
         <div style={{
           background: 'var(--surface)', border: '1px solid var(--border-solid)',
-          borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)',
-          display: 'flex', flexDirection: 'column', justifyContent: 'center'
+          borderRadius: '16px', padding: '20px 24px', boxShadow: 'var(--shadow-sm)', marginBottom: '20px'
         }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: '1.15rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <FileText size={22} color="var(--primary)" /> Official Reports Portal
+          <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Calendar size={20} color="var(--primary)" /> Set Marks Entry Deadline
           </h3>
-          <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            Access all Anna University compliant PDF assessment reports, Consolidated Mark Statements, and Class Performance Sheets.
+          <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Set a global deadline for all staff to complete their internal marks entry.
           </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input 
+              type="date" 
+              value={newDeadline}
+              onChange={e => setNewDeadline(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.9rem', outline: 'none', background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+            />
             <button 
+              onClick={handleSetDeadline}
               style={{
-                background: 'var(--primary)', color: '#fff', border: 'none',
-                padding: '11px 20px', borderRadius: '8px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '700'
+                background: 'var(--primary)', color: 'white', border: 'none',
+                padding: '9px 18px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: '0.82rem'
               }}
-              onClick={() => navigate('/reports')}
             >
-              <ExternalLink size={16} /> Open Reports Portal
+              Update Deadline
             </button>
+            {deadline && (
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Current Deadline: <strong>{new Date(deadline).toLocaleDateString('en-GB')}</strong>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Official Category-Wise PDF Report Generation Station */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border-solid)',
+        borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px', fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FileText size={22} color="#6C63FF" /> Official College PDF Statement &amp; Report Station
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Nadar Saraswathi College of Engineering &amp; Technology — Anna University Format NAC/TLP Statements
+            </p>
+          </div>
+
+          <button 
+            style={{
+              background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
+              padding: '7px 14px', borderRadius: '8px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600
+            }}
+            onClick={() => navigate('/reports')}
+          >
+            <ExternalLink size={14} /> Full Reports Portal &amp; History
+          </button>
+        </div>
+
+        {/* Quick Selectors Bar: Target Class, Assessment Period, Target Subject */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', margin: '18px 0' }}>
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {user?.isClassCoordinator ? 'My In-charge / Teaching Class:' : 'Select Target Class:'}
+            </label>
+            <select 
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+              value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
+            >
+              {[...classes].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {user?.coordinatedClassId === c.id ? '(In-charge)' : ''}
+                </option>
+              ))}
+              {classes.length === 0 && <option value="">No Assigned Classes</option>}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Assessment Period:</label>
+            <select 
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+              value={quickSession} onChange={(e) => setQuickSession(e.target.value)}
+            >
+              <option value="internal1">Internal Test 1 with Assignment (CA-1)</option>
+              <option value="internal2">Internal Test 2 with Assignment (CA-2)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject (For Subject Statements):</label>
+            <select 
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+              value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
+            >
+              {classSubjects.map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              {classSubjects.length === 0 && <option value="">No Subjects Available</option>}
+            </select>
+          </div>
+        </div>
+
+        {/* Category 1: Subject Mark Statements & Analysis */}
+        <div style={{ marginBottom: '22px', paddingBottom: '18px', borderBottom: '1px solid var(--border-solid)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#3B82F6', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 1</span>
+              Subject Mark Statements &amp; Analysis
+            </h4>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Access: Assigned Faculty, HOD &amp; Leadership
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
+            {/* Subject Marks Statement Card with 2 Options */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
+              padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)'
+            }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Subject Marks Statement:
+              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={subjectMarksMode}
+                  onChange={(e) => setSubjectMarksMode(e.target.value)}
+                  style={{
+                    padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-solid)',
+                    fontSize: '0.8rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
+                  }}
+                >
+                  <option value="with_internal">With Internal Marks (Full CIA + Exam)</option>
+                  <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                </select>
+                <button
+                  style={{
+                    background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
+                    padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                  onClick={() => handleDownloadSubjectMarksPDF(selectedSubjectId, selectedClassId, quickSession, subjectMarksMode)}
+                  disabled={genLoading || !selectedSubjectId}
+                >
+                  <Download size={14} /> Download Statement
+                </button>
+              </div>
+            </div>
+
+            {/* Subject Test Analysis Report */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
+              padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)', justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Subject Performance Analysis:
+              </span>
+              <button 
+                style={{
+                  background: 'linear-gradient(135deg, #6C63FF 0%, #4F46E5 100%)', color: '#fff', border: 'none',
+                  padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+                onClick={() => handleDownloadSubjectPDF(selectedSubjectId, quickSession)}
+                disabled={genLoading || !selectedSubjectId}
+              >
+                <Download size={14} /> Subject Test Analysis Report (NAC/TLP-07a.21)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Category 2: Class Reports & ExamCell Statements */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#059669', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 2</span>
+              Class Reports &amp; ExamCell Statements
+            </h4>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Access: Class In-charge, HOD &amp; Leadership
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
+            {canDownloadClassReports ? (
+              <>
+                <button 
+                  style={{
+                    background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)', color: '#fff', border: 'none',
+                    padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px', height: 'fit-content', marginTop: 'auto'
+                  }}
+                  onClick={() => openSubjectSelectionModal('consolidated_statement', selectedClassId, quickSession)}
+                  disabled={genLoading || !selectedClassId}
+                >
+                  <Download size={15} /> Consolidated Mark Statement (NAC/TLP-07a.20)
+                </button>
+
+                <button 
+                  style={{
+                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
+                    padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px', height: 'fit-content', marginTop: 'auto'
+                  }}
+                  onClick={() => openSubjectSelectionModal('class_analysis', selectedClassId, quickSession)}
+                  disabled={genLoading || !selectedClassId}
+                >
+                  <Download size={15} /> Class Performance Report (NAC/TLP-20)
+                </button>
+
+                {/* ExamCell Legal Statement Box */}
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
+                  padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)'
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    ExamCell Legal Statement (Official Legal Size):
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      value={legalMarksMode}
+                      onChange={(e) => setLegalMarksMode(e.target.value)}
+                      style={{
+                        padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)',
+                        fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
+                      }}
+                    >
+                      <option value="with_internal">With Internal Marks</option>
+                      <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                    </select>
+
+                    <input 
+                      type="date" 
+                      value={overallFromDate} 
+                      onChange={e => setOverallFromDate(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>to</span>
+                    <input 
+                      type="date" 
+                      value={overallToDate} 
+                      onChange={e => setOverallToDate(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+                    />
+                  </div>
+                  <button 
+                    style={{
+                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
+                      padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', justifyContent: 'center'
+                    }}
+                    onClick={() => openSubjectSelectionModal('examcell_legal', selectedClassId, quickSession)}
+                    disabled={genLoading || !selectedClassId}
+                  >
+                    <FileText size={14} /> Generate ExamCell Legal Statement
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+                🔒 Class Performance, Consolidated, &amp; ExamCell Legal Statements are generated by the Class In-charge &amp; HOD.
+              </div>
+            )}
           </div>
         </div>
       </div>
