@@ -32,8 +32,6 @@ const addFooterToAllPages = (doc, dateStr, timeStr) => {
   }
 };
 
-export const PRINCIPAL_NAME = 'Dr. S. Karthikeyan';
-
 export const getDepartmentHodFallback = (dept) => {
   if (!dept) return 'Head of Department';
   const d = String(dept).toLowerCase().trim();
