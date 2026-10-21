@@ -554,35 +554,61 @@ router.get('/hod-marks', async (req, res) => {
     const { department, sessionLabel = 'internal1' } = req.query;
     if (!department) return res.status(400).json({ error: 'Department is required.' });
 
-    const isSH = department === 'Science and Humanities' || department.toLowerCase().includes('science');
+    const dLower = String(department).toLowerCase().trim();
+    const isSH = dLower.includes('science') || dLower.includes('humanities') || dLower.includes('first year') || dLower.includes('s&h');
     
-    // Check which years exist for this department
-    let years = isSH ? ['I'] : ['II', 'III', 'IV'];
-    if (!isSH) {
-      const [firstYearCheck] = await db.query(
-        "SELECT id FROM classes WHERE department = ? AND year_label = 'I' LIMIT 1",
-        [department]
-      );
-      if (firstYearCheck && firstYearCheck.length > 0) {
-        years = ['I', 'II', 'III', 'IV'];
-      }
+    // Branch configuration
+    let branchKeyword = '%';
+    let deptAliases = [department];
+
+    if (dLower.includes('information') || dLower === 'it') {
+      branchKeyword = '%IT%';
+      deptAliases = ['Information Technology', 'IT'];
+    } else if (dLower.includes('computer') || dLower === 'cse') {
+      branchKeyword = '%CSE%';
+      deptAliases = ['Computer Science and Engineering', 'CSE'];
+    } else if (dLower.includes('artificial') || dLower.includes('data science') || dLower === 'aids' || dLower.includes('ai')) {
+      branchKeyword = '%AI%';
+      deptAliases = ['Artificial Intelligence and Data Science', 'AI&DS', 'AI & DS', 'AIDS'];
+    } else if (dLower.includes('electronic') || dLower === 'ece') {
+      branchKeyword = '%ECE%';
+      deptAliases = ['Electronics and Communication Engineering', 'ECE'];
+    } else if (dLower.includes('electrical') || dLower === 'eee') {
+      branchKeyword = '%EEE%';
+      deptAliases = ['Electrical and Electronics Engineering', 'EEE'];
+    } else if (dLower.includes('mech')) {
+      branchKeyword = '%Mech%';
+      deptAliases = ['Mechanical Engineering', 'Mech', 'Mechanical'];
+    } else if (dLower.includes('civil')) {
+      branchKeyword = '%Civil%';
+      deptAliases = ['Civil Engineering', 'Civil'];
     }
 
+    const years = isSH ? ['I'] : ['I', 'II', 'III', 'IV'];
     const results = [];
     let deptStrength = 0;
     let deptPassed = 0;
 
     for (const year of years) {
-      let classes;
+      let classes = [];
       if (isSH) {
-        [classes] = await db.execute(
+        [classes] = await db.query(
           "SELECT id, name, semester FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND year_label = ?",
           [year]
         );
+      } else if (year === 'I') {
+        const aliasPlaceholders = deptAliases.map(() => '?').join(',');
+        [classes] = await db.query(
+          `SELECT id, name, semester FROM classes 
+           WHERE year_label = 'I' AND (department IN (${aliasPlaceholders}) OR name LIKE ?)`,
+          [...deptAliases, branchKeyword]
+        );
       } else {
-        [classes] = await db.execute(
-          'SELECT id, name, semester FROM classes WHERE department = ? AND year_label = ?',
-          [department, year]
+        const aliasPlaceholders = deptAliases.map(() => '?').join(',');
+        [classes] = await db.query(
+          `SELECT id, name, semester FROM classes 
+           WHERE year_label = ? AND (department IN (${aliasPlaceholders}) OR name LIKE ?)`,
+          [year, ...deptAliases, branchKeyword]
         );
       }
 
@@ -594,16 +620,16 @@ router.get('/hod-marks', async (req, res) => {
         const classIds = classes.map(c => c.id);
         const placeholders = classIds.map(() => '?').join(',');
 
-        const [students] = await db.execute(
+        const [students] = await db.query(
           `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
           classIds
         );
         yearStrength = students.length;
 
         // Sessions for these classes
-        const [sessions] = await db.execute(
-          `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
-          [...classIds, sessionLabel]
+        const [sessions] = await db.query(
+          `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND (session_label = ? OR session_label LIKE ?)`,
+          [...classIds, sessionLabel, `%${sessionLabel}%`]
         );
 
         if (sessions && sessions.length > 0 && students.length > 0) {
@@ -611,45 +637,44 @@ router.get('/hod-marks', async (req, res) => {
           const sessPlaceholders = sessionIds.map(() => '?').join(',');
           
           // Check session_attendance for internal exam marks
-          const [attRows] = await db.execute(
+          const [attRows] = await db.query(
             `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
             sessionIds
           );
 
-          if (attRows && attRows.length > 0) {
-            const studentAttMap = {};
-            attRows.forEach(a => {
-              if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
-              studentAttMap[a.student_id].push(a);
-            });
+          // Check marks table for component marks
+          const [markRows] = await db.query(
+            `SELECT student_id, session_id, AVG(marks_obtained) as avg_score
+             FROM marks
+             WHERE session_id IN (${sessPlaceholders})
+             GROUP BY student_id, session_id`,
+            sessionIds
+          );
 
-            students.forEach(st => {
-              const records = studentAttMap[st.id] || [];
-              if (records.length > 0) {
-                const allPass = records.every(r => {
-                  const score = parseFloat(r.internal_exam_mark);
-                  return !isNaN(score) && score >= 50;
-                });
-                if (allPass) yearPassed++;
-              }
-            });
-          } else {
-            // Fallback to marks table (component marks)
-            const [markRows] = await db.execute(
-              `SELECT m.student_id, AVG(m.marks_obtained) as avg_score
-               FROM marks m
-               WHERE m.session_id IN (${sessPlaceholders})
-               GROUP BY m.student_id`,
-              sessionIds
-            );
-            if (markRows && markRows.length > 0) {
-              markRows.forEach(mr => {
-                if (parseFloat(mr.avg_score) >= 20) {
-                  yearPassed++;
-                }
-              });
+          const studentAttMap = {};
+          (attRows || []).forEach(a => {
+            if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
+            studentAttMap[a.student_id].push(a);
+          });
+
+          const studentMarksMap = {};
+          (markRows || []).forEach(m => {
+            if (!studentMarksMap[m.student_id]) studentMarksMap[m.student_id] = [];
+            studentMarksMap[m.student_id].push(m);
+          });
+
+          students.forEach(st => {
+            const attRecords = (studentAttMap[st.id] || []).filter(r => r.internal_exam_mark !== null && r.internal_exam_mark !== undefined && r.internal_exam_mark !== '' && !isNaN(parseFloat(r.internal_exam_mark)));
+            const markRecords = studentMarksMap[st.id] || [];
+
+            if (attRecords.length > 0) {
+              const allPass = attRecords.every(r => parseFloat(r.internal_exam_mark) >= 50);
+              if (allPass) yearPassed++;
+            } else if (markRecords.length > 0) {
+              const allPass = markRecords.every(m => parseFloat(m.avg_score) >= 20);
+              if (allPass) yearPassed++;
             }
-          }
+          });
         }
       }
 

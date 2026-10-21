@@ -131,11 +131,85 @@ export const statsAPI = {
   },
   getCollegeStats: () => get('/stats/college'),
   getContinuousAssessment: (sessionLabel = 'internal1') => get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`),
-  getHodMarks: (department, sessionLabel) => {
-    const params = new URLSearchParams();
-    if (department) params.append('department', department);
-    if (sessionLabel) params.append('sessionLabel', sessionLabel);
-    return get(`/stats/hod-marks?${params.toString()}`);
+  getHodMarks: async (department, sessionLabel = 'internal1') => {
+    try {
+      const params = new URLSearchParams();
+      if (department) params.append('department', department);
+      if (sessionLabel) params.append('sessionLabel', sessionLabel);
+      const res = await get(`/stats/hod-marks?${params.toString()}`);
+      if (res && res.years && res.years.length > 0) return res;
+    } catch (e) {
+      console.warn('Fallback to continuous assessment for HOD marks:', e.message);
+    }
+
+    try {
+      const ca = await get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`);
+      if (ca && ca.departments) {
+        const target = (department || '').toLowerCase().trim();
+        const deptMatch = ca.departments.find(d => {
+          const full = (d.departmentFullName || '').toLowerCase().trim();
+          const short = (d.department || '').toLowerCase().trim();
+          if (target.includes('info') || target === 'it') {
+            return full.includes('info') || short.includes('(it)');
+          }
+          if (target.includes('computer') || target === 'cse') {
+            return full.includes('computer') || short.includes('(cse)');
+          }
+          if (target.includes('artificial') || target.includes('data') || target.includes('ai')) {
+            return full.includes('artificial') || short.includes('(ai');
+          }
+          if (target.includes('electronics and comm') || target === 'ece') {
+            return full.includes('comm') || short.includes('(ece)');
+          }
+          if (target.includes('electrical and elec') || target === 'eee') {
+            return full.includes('electrical') || short.includes('(eee)');
+          }
+          if (target.includes('mech')) {
+            return full.includes('mech') || short.includes('(mech)');
+          }
+          if (target.includes('civil')) {
+            return full.includes('civil') || short.includes('(civil)');
+          }
+          if (target.includes('science') || target.includes('humanities') || target.includes('s&h') || target.includes('first year')) {
+            return full.includes('science') || short.includes('s&h');
+          }
+          return full.includes(target) || target.includes(full);
+        });
+
+        if (deptMatch) {
+          const years = (deptMatch.years || []).map(y => {
+            const sem = y.semester || (y.year === 'I' ? 1 : y.year === 'II' ? 3 : y.year === 'III' ? 5 : 7);
+            const strength = parseInt(y.strength) || 0;
+            const passed = parseInt(y.passed) || 0;
+            const failed = Math.max(0, strength - passed);
+            const passPct = y.percentage || (strength > 0 ? ((passed / strength) * 100).toFixed(2) : '0.00');
+            return {
+              year: y.year,
+              semester: sem,
+              strength,
+              passed,
+              failed,
+              passPct
+            };
+          });
+
+          return {
+            success: true,
+            department: deptMatch.departmentFullName || department,
+            years,
+            overall: {
+              strength: deptMatch.deptStrength || 0,
+              passed: deptMatch.deptPassed || 0,
+              failed: Math.max(0, (deptMatch.deptStrength || 0) - (deptMatch.deptPassed || 0)),
+              passPct: deptMatch.deptOverallPct || '0.00'
+            }
+          };
+        }
+      }
+    } catch (caErr) {
+      console.error('Failed to load CA stats fallback:', caErr);
+    }
+    return null;
   }
 };
 

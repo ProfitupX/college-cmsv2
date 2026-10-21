@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
-import { statsAPI, marksAPI, classesAPI, subjectsAPI, studentsAPI } from '../services/api';
+import { statsAPI, marksAPI, classesAPI, subjectsAPI, studentsAPI, remarksAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
   generateSubjectAnalysisPDF, 
@@ -171,34 +171,31 @@ export default function ReportsPage() {
   // 3. Load Remarks for Class & Session
   useEffect(() => {
     if (!selectedClassId) return;
-    import('../services/api').then(({ remarksAPI }) => {
-      remarksAPI.get(selectedClassId, sessionLabel).then(data => {
-        setClassRemarks(data.remarks || '');
-        setImprovementPlan(data.improvement_plan || '');
-      }).catch(err => console.error(err));
-    });
+    remarksAPI.get(selectedClassId, sessionLabel)
+      .then(data => {
+        setClassRemarks(data?.remarks || '');
+        setImprovementPlan(data?.improvement_plan || '');
+      })
+      .catch(err => console.error(err));
   }, [selectedClassId, sessionLabel]);
 
   // 4. Load HOD Marks if user is HOD
   useEffect(() => {
     if (user?.role === 'hod' && user?.department) {
       setHodMarksLoading(true);
-      import('../services/api').then(({ statsAPI }) => {
-        statsAPI.getHodMarks(user.department, sessionLabel)
-          .then(data => setHodMarksData(data))
-          .catch(err => {
-            console.error('Failed to load HOD marks:', err);
-            setHodMarksData(null);
-          })
-          .finally(() => setHodMarksLoading(false));
-      });
+      statsAPI.getHodMarks(user.department, sessionLabel)
+        .then(data => setHodMarksData(data))
+        .catch(err => {
+          console.error('Failed to load HOD marks:', err);
+          setHodMarksData(null);
+        })
+        .finally(() => setHodMarksLoading(false));
     }
   }, [user, sessionLabel]);
 
   const handleSaveRemarks = async () => {
     setSavingRemarks(true);
     try {
-      const { remarksAPI } = await import('../services/api');
       await remarksAPI.save(selectedClassId, sessionLabel, { remarks: classRemarks, improvement_plan: improvementPlan });
       alert('Remarks saved successfully!');
     } catch (err) {

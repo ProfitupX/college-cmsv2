@@ -329,18 +329,10 @@ export const generateSubjectAnalysisPDF = async ({
   // Signature Block: Subject Faculty & HOD
   y = doc.internal.pageSize.getHeight() - 30; // 30mm from the bottom of the page
   
-  const facultyName = staff?.name || 'Subject Faculty';
-  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
-
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${facultyName})`, 25, y + 4.5);
-  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -569,18 +561,11 @@ export const generateSubjectMarksListPDF = async ({
     doc.addPage();
     y = 30;
   }
-  const facultyName = staff?.name || 'Subject Faculty';
-  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${facultyName})`, 25, y + 4.5);
-  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -760,18 +745,10 @@ export const generateClassAnalysisPDF = async ({
   }
 
   // Signatures (Class Incharge & HOD)
-  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
-  const hodName = getDepartmentHodFallback(classObj?.department);
-
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', 25, y);
   doc.text('HOD', 165, y);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${inchargeName})`, 25, y + 4.5);
-  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1133,20 +1110,11 @@ export const generateConsolidatedMarksPDF = async ({
     sigY = finalY + 14;
   }
 
-  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
-  const hodName = getDepartmentHodFallback(classObj?.department);
-
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${inchargeName})`, marginLeft + 25, sigY + 4.5);
-  doc.text(`(${hodName})`, pageWidth / 2, sigY + 4.5, { align: 'center' });
-  doc.text(`(${PRINCIPAL_NAME})`, pageWidth - marginLeft - 25, sigY + 4.5, { align: 'right' });
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1356,18 +1324,10 @@ export const generateSubjectMarksListPDF2021 = async ({
     y = 30;
   }
 
-  const facultyName = staff?.name || 'Subject Faculty';
-  const hodName = getDepartmentHodFallback(subject?.department || classObj?.department);
-
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('SUBJECT FACULTY', 25, y);
   doc.text('HOD', 165, y);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${facultyName})`, 25, y + 4.5);
-  doc.text(`(${hodName})`, 165, y + 4.5);
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }));
@@ -1855,20 +1815,11 @@ export const generateOverallMarksAndAttendancePDF = async ({
   
   // Signatures: Class Incharge, HOD, Principal
   sigY += 16;
-  const inchargeName = inchargeNameParam || getClassInchargeName(classObj);
-  const hodName = getDepartmentHodFallback(classObj?.department);
-
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`(${inchargeName})`, marginLeft + 25, sigY + 4.5);
-  doc.text(`(${hodName})`, pageWidth / 2, sigY + 4.5, { align: 'center' });
-  doc.text(`(${PRINCIPAL_NAME})`, pageWidth - marginLeft - 25, sigY + 4.5, { align: 'right' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${classObj?.name}_ExamCell_Legal_Statement_${withInternal ? 'With_Internal' : 'Without_Internal'}.pdf`);
@@ -1918,17 +1869,17 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
   doc.setTextColor(15, 23, 42);
   doc.text(department || 'Engineering', boxX + 42, boxY + 7.5);
 
-  // Row 2: Head of Department (HOD Full Name)
+  // Row 2: Program
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('Head of Dept (HOD)', boxX + 4, boxY + 16);
+  doc.text('Program', boxX + 4, boxY + 16);
   doc.setTextColor(30, 41, 59);
   doc.text(':', boxX + 38, boxY + 16);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 58, 138); // Professional deep blue accent
-  doc.text(hodName, boxX + 42, boxY + 16);
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('B.E. / B.Tech', boxX + 42, boxY + 16);
 
   // Right Column: Assessment Mode & Academic Year
   // Row 1: Assessment Mode
@@ -2000,19 +1951,15 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
   // Official Signature Block (HOD only - for HOD's internal reference)
   const sigY = Math.max(doc.lastAutoTable.finalY + 32, 160);
   
-  // Right: HOD Signature with Full Name
+  // Right: HOD Signature
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(30, 41, 59);
   doc.text('HEAD OF THE DEPARTMENT', 165, sigY, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text(hodName ? `${hodName}` : 'H.O.D', 165, sigY + 6, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Department of ${department}`, 165, sigY + 11.5, { align: 'center' });
+  doc.text(`Department of ${department}`, 165, sigY + 5.5, { align: 'center' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }));
   doc.save(`${(department || 'Department').replace(/\s+/g, '_')}_${sessionLabel}_Report.pdf`);
