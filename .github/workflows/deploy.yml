@@ -72,16 +72,10 @@ jobs:
               fi
             fi
 
-            # 3. Install production dependencies if needed & seed database
+            # 3. Install production dependencies if needed
             if [ -d "/var/www/markhub/server" ]; then
               cd /var/www/markhub/server
               npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
-              if [ -f "seed_all_first_year.js" ]; then
-                node seed_all_first_year.js >> "$LOG_FILE" 2>&1 || true
-              fi
-              if [ -f "seed_cs25c07_real_data.js" ]; then
-                node seed_cs25c07_real_data.js >> "$LOG_FILE" 2>&1 || true
-              fi
             fi
 
             # 4. Restart PM2 backend cleanly with latest code

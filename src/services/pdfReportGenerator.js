@@ -524,23 +524,23 @@ export const generateSubjectMarksListPDF = async ({
 
   const colStyles = withInternal ? {
     0: { cellWidth: 8, halign: 'center' },
-    1: { cellWidth: 22, halign: 'center' },
-    2: { cellWidth: 38, halign: 'left' },
-    3: { cellWidth: 15, halign: 'center' },
-    4: { cellWidth: 16, halign: 'center' },
+    1: { cellWidth: 24, halign: 'center' },
+    2: { cellWidth: 44, halign: 'left' },
+    3: { cellWidth: 16, halign: 'center' },
+    4: { cellWidth: 17, halign: 'center' },
     5: { cellWidth: 13, halign: 'center' },
     6: { cellWidth: 14, halign: 'center' },
-    7: { cellWidth: 16, halign: 'center' },
-    8: { cellWidth: 18, halign: 'center' },
-    9: { cellWidth: 16, halign: 'center' }
+    7: { cellWidth: 18, halign: 'center' },
+    8: { cellWidth: 19, halign: 'center' },
+    9: { cellWidth: 17, halign: 'center' }
   } : {
     0: { cellWidth: 10, halign: 'center' },
     1: { cellWidth: 26, halign: 'center' },
-    2: { cellWidth: 50, halign: 'left' },
+    2: { cellWidth: 52, halign: 'left' },
     3: { cellWidth: 20, halign: 'center' },
     4: { cellWidth: 24, halign: 'center' },
     5: { cellWidth: 18, halign: 'center' },
-    6: { cellWidth: 24, halign: 'center' },
+    6: { cellWidth: 22, halign: 'center' },
     7: { cellWidth: 18, halign: 'center' }
   };
 
@@ -550,6 +550,7 @@ export const generateSubjectMarksListPDF = async ({
     body: bodyRows,
     foot: [footRow],
     theme: 'grid',
+    margin: { top: 15, bottom: 18, left: 10, right: 10 },
     styles: { fontSize: 8, halign: 'center' },
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
     footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
@@ -1300,17 +1301,17 @@ export const generateSubjectMarksListPDF2021 = async ({
 
   // Column widths
   const colStyles = withInternal ? {
-    0: { cellWidth: 8 },
-    1: { cellWidth: 26 },
-    2: { cellWidth: 42, halign: 'left' },
-    3: { cellWidth: 20 },
+    0: { cellWidth: 8, halign: 'center' },
+    1: { cellWidth: 26, halign: 'center' },
+    2: { cellWidth: 44, halign: 'left' },
+    3: { cellWidth: 20, halign: 'center' },
   } : {
     0: { cellWidth: 10, halign: 'center' },
     1: { cellWidth: 28, halign: 'center' },
-    2: { cellWidth: 54, halign: 'left' },
+    2: { cellWidth: 56, halign: 'left' },
     3: { cellWidth: 24, halign: 'center' },
-    4: { cellWidth: 28, halign: 'center' },
-    5: { cellWidth: 22, halign: 'center' }
+    4: { cellWidth: 44, halign: 'center' },
+    5: { cellWidth: 28, halign: 'center' }
   };
 
   autoTable(doc, {
@@ -1318,6 +1319,7 @@ export const generateSubjectMarksListPDF2021 = async ({
     head: [headRow],
     body: bodyRows,
     theme: 'grid',
+    margin: { top: 15, bottom: 18, left: 10, right: 10 },
     styles: { fontSize: 8, halign: 'center', valign: 'middle' },
     headStyles: {
       fillColor: [124, 58, 237],
