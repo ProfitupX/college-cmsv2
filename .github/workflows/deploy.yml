@@ -51,11 +51,8 @@ jobs:
           script: |
             set +e
             LOG_FILE="/tmp/deploy_debug.log"
-            TARGET="/var/www/markhub/dist"
-            mkdir -p "$TARGET" 2>/dev/null || true
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
-            trap 'cp -f "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true' EXIT
 
             # 1. Update backend repo if git directory exists
             git config --global --add safe.directory "*" 2>/dev/null || true
@@ -83,46 +80,27 @@ jobs:
 
             # 4. Restart PM2 backend cleanly with latest code
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            echo "--- USER: $(whoami), PWD: $(pwd) ---" >> "$LOG_FILE"
-            echo "--- SUDO PERMISSIONS ---" >> "$LOG_FILE"
-            sudo -n -l >> "$LOG_FILE" 2>&1 || true
+            echo "--- SUDO CHECK: $(sudo -n whoami 2>&1 || true)" >> "$LOG_FILE"
             echo "--- PROCESSES RUNNING NODE ---" >> "$LOG_FILE"
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
             echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
-            echo "--- NGINX CONFIG FOR MARKHUB ---" >> "$LOG_FILE"
-            grep -rn "5000" /etc/nginx/ 2>/dev/null >> "$LOG_FILE" || true
-            grep -rn "markhub" /etc/nginx/ 2>/dev/null >> "$LOG_FILE" || true
 
-            # If any sudo permissions exist, attempt to restart services / free port 5000
-            echo "--- ATTEMPTING PRIVILEGED RESTARTS ---" >> "$LOG_FILE"
-            sudo -n pm2 reload all >> "$LOG_FILE" 2>&1 || true
-            sudo -n pm2 restart all >> "$LOG_FILE" 2>&1 || true
-            sudo -n /usr/bin/pm2 reload all >> "$LOG_FILE" 2>&1 || true
-            sudo -n /usr/local/bin/pm2 reload all >> "$LOG_FILE" 2>&1 || true
-            sudo -n systemctl restart pm2-root >> "$LOG_FILE" 2>&1 || true
-            sudo -n systemctl restart pm2 >> "$LOG_FILE" 2>&1 || true
-            sudo -n systemctl restart college-cms >> "$LOG_FILE" 2>&1 || true
-            sudo -n systemctl restart markhub >> "$LOG_FILE" 2>&1 || true
-            sudo -n pkill -9 -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
-            sudo -n fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
+            # If sudo is available, kill port 5000 occupant or restart systemd
+            if sudo -n true 2>/dev/null; then
+              echo "Sudo available. Freeing port 5000..." >> "$LOG_FILE"
+              sudo -n fuser -k -9 5000/tcp 2>/dev/null || true
+              sudo -n systemctl restart college-cms 2>/dev/null || true
+              sudo -n pm2 restart all 2>/dev/null || true
+            fi
 
-            # Cleanly stop previous college-cms PM2 and free port 5000
-            echo "--- STOPPING PREVIOUS INSTANCE ---" >> "$LOG_FILE"
+            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
-            pkill -9 -u $(whoami) -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
-            fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
-            sleep 1
-
-            # Start PM2 application under markhub-deploy
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
             sleep 2
             pm2 status >> "$LOG_FILE" 2>&1 || true
-            echo "--- PROCESSES AFTER START ---" >> "$LOG_FILE"
-            ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
-            ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
             echo "=== PM2 ERROR LOG ===" >> "$LOG_FILE"
             tail -n 25 /home/markhub-deploy/.pm2/logs/college-cms-error.log >> "$LOG_FILE" 2>&1 || true
             echo "=== PM2 OUT LOG ===" >> "$LOG_FILE"
