@@ -86,5 +86,6 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 server.on('error', (err) => {
   console.error('❌ Server startup error:', err.message);
+  process.exit(1);
 });
 

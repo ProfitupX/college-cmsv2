@@ -358,7 +358,7 @@ router.get('/continuous-assessment', async (req, res) => {
 
         for (const b of shBranches) {
           const [classes] = await db.execute(
-            "SELECT id, name FROM classes WHERE year_label = 'I' AND (name LIKE ? OR id LIKE ?)",
+            "SELECT id, name FROM classes WHERE (year_label = 'I' OR department = 'Science and Humanities' OR department = 'First Year') AND (name LIKE ? OR id LIKE ?)",
             [`%${b.pattern}%`, `%${b.pattern}%`]
           );
 
