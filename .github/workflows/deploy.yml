@@ -51,8 +51,11 @@ jobs:
           script: |
             set +e
             LOG_FILE="/tmp/deploy_debug.log"
+            TARGET="/var/www/markhub/dist"
+            mkdir -p "$TARGET" 2>/dev/null || true
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
+            trap 'cp -f "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true' EXIT
 
             # 1. Update backend repo if git directory exists
             git config --global --add safe.directory "*" 2>/dev/null || true
@@ -104,17 +107,14 @@ jobs:
             sudo -n pkill -9 -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
             sudo -n fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
 
-            # Kill any user-owned node processes or port 5000 occupant
-            echo "--- KILLING USER NODE PROCESSES ---" >> "$LOG_FILE"
-            pkill -9 -u $(whoami) -f "/var/www/markhub/server" 2>/dev/null || true
-            pkill -9 -u $(whoami) -f "server/index.js" 2>/dev/null || true
-            pkill -9 -u $(whoami) -f "node" 2>/dev/null || true
-            fuser -k -9 5000/tcp 2>/dev/null || true
-            sleep 2
+            # Cleanly stop previous college-cms PM2 and free port 5000
+            echo "--- STOPPING PREVIOUS INSTANCE ---" >> "$LOG_FILE"
+            pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
+            pkill -9 -u $(whoami) -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
+            fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
+            sleep 1
 
             # Start PM2 application under markhub-deploy
-            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
-            pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
