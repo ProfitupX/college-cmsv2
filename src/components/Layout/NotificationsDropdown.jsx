@@ -12,6 +12,57 @@ export default function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Helper to determine if a department matches the user's department
+  const isDeptMatch = (targetDept, userDept) => {
+    if (!targetDept || !userDept) return false;
+    const t = targetDept.toLowerCase().trim();
+    const u = userDept.toLowerCase().trim();
+    if (t === u) return true;
+    if (u.includes('science') || u.includes('humanities') || u === 's&h') {
+      return t.includes('science') || t.includes('humanities') || t === 's&h' || t === 'first year';
+    }
+    if (u.includes('computer') || u === 'cse') return t.includes('computer') || t === 'cse';
+    if (u.includes('information') || u === 'it') return t.includes('information') || t === 'it';
+    if (u.includes('artificial') || u.includes('data') || u === 'ai&ds' || u === 'ad') {
+      return t.includes('artificial') || t.includes('data') || t === 'ai&ds' || t === 'ad';
+    }
+    if (u.includes('communication') || u === 'ece') return t.includes('communication') || t === 'ece';
+    if (u.includes('electrical') || u === 'eee') return t.includes('electrical') || t === 'eee';
+    if (u.includes('mech')) return t.includes('mech');
+    if (u.includes('civil')) return t.includes('civil');
+    return false;
+  };
+
+  // Detect subject department from legacy message text
+  const detectDeptFromText = (text = '') => {
+    const t = text.toUpperCase();
+    if (t.includes('MA25C01') || t.includes('PH25') || t.includes('CY25') || t.includes('EN25') || t.includes('UC25') || t.includes('I YEAR') || t.includes('FIRST YEAR') || t.includes('S&H')) {
+      return 'Science and Humanities';
+    }
+    if (t.includes('IT25') || t.includes('CW25') || t.includes('INFORMATION TECHNOLOGY') || t.includes(' IT ') || t.includes('(IT)')) {
+      return 'Information Technology';
+    }
+    if (t.includes('CS25') || t.includes('CS35') || t.includes('COMPUTER SCIENCE') || t.includes('CSE')) {
+      return 'Computer Science and Engineering';
+    }
+    if (t.includes('AD25') || t.includes('AD35') || t.includes('ARTIFICIAL INTELLIGENCE') || t.includes('AI&DS')) {
+      return 'Artificial Intelligence and Data Science';
+    }
+    if (t.includes('EC25') || t.includes('EC35') || t.includes('ELECTRONICS AND COMMUNICATION') || t.includes('ECE')) {
+      return 'Electronics and Communication Engineering';
+    }
+    if (t.includes('EE25') || t.includes('EE35') || t.includes('ELECTRICAL AND ELECTRONICS') || t.includes('EEE')) {
+      return 'Electrical and Electronics Engineering';
+    }
+    if (t.includes('ME25') || t.includes('ME35') || t.includes('ME37') || t.includes('MECHANICAL') || t.includes('MECH')) {
+      return 'Mechanical Engineering';
+    }
+    if (t.includes('CE25') || t.includes('CE35') || t.includes('CIVIL')) {
+      return 'Civil Engineering';
+    }
+    return null;
+  };
+
   const fetchNotifications = async () => {
     if (!user || !user.role || !user.id) return;
     try {
@@ -34,8 +85,33 @@ export default function NotificationsDropdown() {
         const readSet = new Set(locallyRead);
         const delSet = new Set(locallyDeleted);
 
+        const isSuperUser = ['principal', 'vice_principal', 'admin'].includes(user.role);
+
         const processed = data
           .filter(n => !delSet.has(n.id))
+          .filter(n => {
+            // Direct personal notifications always pass
+            if (n.target_id === user.id) return true;
+            // Superusers see all
+            if (isSuperUser) return true;
+
+            // Role hierarchy check
+            if (user.role === 'faculty') {
+              if (n.target_role === 'hod') return false;
+              if (n.target_role === 'class_coordinator' && !user.isClassCoordinator) return false;
+            } else if (user.role === 'class_coordinator') {
+              if (n.target_role === 'hod') return false;
+            }
+
+            // Department isolation check
+            const notifDept = n.target_department || detectDeptFromText(`${n.title} ${n.message}`);
+            if (notifDept) {
+              return isDeptMatch(notifDept, user.department);
+            }
+
+            // General broadcast notifications (no department specified)
+            return n.target_role === 'all' || n.target_role === user.role;
+          })
           .map(n => ({
             ...n,
             is_read: n.target_id === user.id ? (n.is_read ? 1 : 0) : (readSet.has(n.id) ? 1 : 0)
