@@ -231,13 +231,28 @@ router.post('/submit', async (req, res) => {
     // 6. Notifications for Freeze action
     if (actionType === 'frozen') {
       try {
-        const [subRows] = await db.execute('SELECT code, name, department, class_id FROM subjects WHERE id = ?', [subjectId]);
+        const [subRows] = await db.execute(`
+          SELECT s.code, s.name, s.department AS sub_dept, s.class_id,
+                 c.department AS class_dept, c.year_label, c.name AS class_name, c.class_coordinator
+          FROM subjects s 
+          LEFT JOIN classes c ON c.id = s.class_id 
+          WHERE s.id = ?
+        `, [subjectId]);
         const sub = subRows.length > 0 ? subRows[0] : null;
         const subName = sub ? `${sub.code} ${sub.name}` : 'A Subject';
         let coordNotified = false;
         
-        // Notify HOD of the subject's department
-        const dept = (sub && sub.department) ? sub.department : null;
+        // Resolve true department: prioritize subject department, fallback to class department / S&H
+        let dept = sub?.sub_dept;
+        if (!dept && sub) {
+          if (sub.year_label === 'I' || sub.class_dept === 'Science and Humanities' || sub.class_dept === 'First Year') {
+            dept = 'Science and Humanities';
+          } else {
+            dept = sub.class_dept;
+          }
+        }
+
+        // Notify HOD of the subject's related department ONLY
         await db.execute(
           `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('hod', ?, 'Marks Frozen', ?, '/dashboard')`,
           [dept, `Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
@@ -461,22 +476,27 @@ router.post('/request-unlock', async (req, res) => {
     let subjectName = 'a subject';
     let subjectDept = null;
     if (subjectId) {
-       const [subs] = await db.execute('SELECT name, code, department, class_id FROM subjects WHERE id = ?', [subjectId]);
+       const [subs] = await db.execute(`
+         SELECT s.name, s.code, s.department AS sub_dept, s.class_id,
+                c.department AS class_dept, c.year_label
+         FROM subjects s
+         LEFT JOIN classes c ON c.id = s.class_id
+         WHERE s.id = ?
+       `, [subjectId]);
        if (subs[0]) {
          subjectName = `${subs[0].code} ${subs[0].name}`;
-         subjectDept = subs[0].department;
-         if (!subjectDept && subs[0].class_id) {
-           const [cls] = await db.execute('SELECT department FROM classes WHERE id = ?', [subs[0].class_id]);
-           if (cls[0]) subjectDept = cls[0].department;
+         subjectDept = subs[0].sub_dept;
+         if (!subjectDept) {
+           if (subs[0].year_label === 'I' || subs[0].class_dept === 'Science and Humanities' || subs[0].class_dept === 'First Year') {
+             subjectDept = 'Science and Humanities';
+           } else {
+             subjectDept = subs[0].class_dept;
+           }
          }
        }
     }
-    if (!subjectDept && classId) {
-      const [cls] = await db.execute('SELECT department FROM classes WHERE id = ?', [classId]);
-      if (cls[0]) subjectDept = cls[0].department;
-    }
 
-    // Notify HOD of the subject's department
+    // Notify HOD of the subject's related department ONLY
     await db.execute(
       `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('hod', ?, 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
       [subjectDept, `${staffName} requested to unlock marks for ${subjectName}.`]
@@ -509,12 +529,13 @@ router.get('/unlock-requests', async (req, res) => {
     `;
     const params = [];
     if (department) {
-      const isSH = department === 'Science and Humanities' || department === 'First Year' || department.toLowerCase().includes('science');
-      if (isSH) {
-        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR st.department = 'Science and Humanities')`;
+      const depLower = department.trim().toLowerCase();
+      const isFirstYear = depLower.includes('science') || depLower.includes('humanities') || depLower.includes('first year') || depLower === 's&h';
+      if (isFirstYear) {
+        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR sub.department = 'Science and Humanities' OR st.department = 'Science and Humanities')`;
       } else {
-        sql += ` WHERE ((cl.department = ? OR sub.department = ? OR st.department = ?) AND (cl.year_label != 'I' OR cl.year_label IS NULL))`;
-        params.push(department, department, department);
+        sql += ` WHERE ((cl.department LIKE ? OR sub.department LIKE ? OR st.department LIKE ?) AND (cl.year_label IN ('II', 'III', 'IV') OR cl.year_label IS NULL))`;
+        params.push(`%${department}%`, `%${department}%`, `%${department}%`);
       }
     }
     sql += ` ORDER BY ur.requested_at DESC`;

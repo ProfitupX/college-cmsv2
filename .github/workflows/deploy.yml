@@ -72,14 +72,10 @@ jobs:
               fi
             fi
 
-            # 3. Install production dependencies and run database migrations
+            # 3. Install production dependencies if needed
             if [ -d "/var/www/markhub/server" ]; then
               cd /var/www/markhub/server
               npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
-              if [ -f "/var/www/markhub/server/db_migrate.js" ]; then
-                echo "=== RUNNING DB MIGRATION ===" >> "$LOG_FILE"
-                node /var/www/markhub/server/db_migrate.js >> "$LOG_FILE" 2>&1 || true
-              fi
             fi
 
             # 4. Restart PM2 backend cleanly with latest code
@@ -89,16 +85,6 @@ jobs:
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
             echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
-            echo "--- NGINX SITES ENABLED ---" >> "$LOG_FILE"
-            cat /etc/nginx/sites-enabled/* >> "$LOG_FILE" 2>&1 || true
-            echo "--- PROCESS 1212 COMMANDLINE ---" >> "$LOG_FILE"
-            tr '\0' ' ' < /proc/1212/cmdline >> "$LOG_FILE" 2>&1 || true
-            echo "" >> "$LOG_FILE"
-            echo "--- PROCESS 311286 COMMANDLINE ---" >> "$LOG_FILE"
-            tr '\0' ' ' < /proc/311286/cmdline >> "$LOG_FILE" 2>&1 || true
-            echo "" >> "$LOG_FILE"
-            echo "--- VAR WWW DIRECTORY ---" >> "$LOG_FILE"
-            ls -la /var/www >> "$LOG_FILE" 2>&1 || true
 
             # If sudo is available, kill port 5000 occupant or restart systemd
             if sudo -n true 2>/dev/null; then
@@ -140,6 +126,27 @@ jobs:
               echo "=== NEW ASSETS VERIFICATION ===" >> "$LOG_FILE"
               ls -la "$TARGET/assets" >> "$LOG_FILE" 2>&1 || true
               
+              # Save system diagnostic dump to server_diag.txt
+              DIAG="$TARGET/server_diag.txt"
+              echo "=== SYSTEM DIAGNOSTIC DUMP ===" > "$DIAG"
+              echo "--- WHOAMI & GROUPS ---" >> "$DIAG"
+              id >> "$DIAG" 2>&1 || true
+              groups >> "$DIAG" 2>&1 || true
+              echo "--- SUDO CHECK ---" >> "$DIAG"
+              sudo -n -l >> "$DIAG" 2>&1 || true
+              echo "--- PROCESS 1212 (PARENT) ---" >> "$DIAG"
+              tr '\0' ' ' < /proc/1212/cmdline >> "$DIAG" 2>&1 || true
+              echo "" >> "$DIAG"
+              echo "--- PROCESS 311286 ---" >> "$DIAG"
+              tr '\0' ' ' < /proc/311286/cmdline >> "$DIAG" 2>&1 || true
+              echo "" >> "$DIAG"
+              echo "--- ALL NODE PROCESSES ---" >> "$DIAG"
+              ps -eo pid,ppid,user,args | grep -E 'node|pm2' >> "$DIAG" 2>&1 || true
+              echo "--- NGINX SITES ENABLED ---" >> "$DIAG"
+              cat /etc/nginx/sites-enabled/* >> "$DIAG" 2>&1 || true
+              echo "--- LISTENING SOCKETS ---" >> "$DIAG"
+              ss -lptn >> "$DIAG" 2>&1 || true
+
               # Save deploy log
               cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
             fi
