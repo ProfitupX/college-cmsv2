@@ -72,10 +72,14 @@ jobs:
               fi
             fi
 
-            # 3. Install production dependencies if needed
+            # 3. Install production dependencies and run database migrations
             if [ -d "/var/www/markhub/server" ]; then
               cd /var/www/markhub/server
               npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
+              if [ -f "/var/www/markhub/server/db_migrate.js" ]; then
+                echo "=== RUNNING DB MIGRATION ===" >> "$LOG_FILE"
+                node /var/www/markhub/server/db_migrate.js >> "$LOG_FILE" 2>&1 || true
+              fi
             fi
 
             # 4. Restart PM2 backend cleanly with latest code
@@ -85,6 +89,16 @@ jobs:
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
             echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
+            echo "--- NGINX SITES ENABLED ---" >> "$LOG_FILE"
+            cat /etc/nginx/sites-enabled/* >> "$LOG_FILE" 2>&1 || true
+            echo "--- PROCESS 1212 COMMANDLINE ---" >> "$LOG_FILE"
+            tr '\0' ' ' < /proc/1212/cmdline >> "$LOG_FILE" 2>&1 || true
+            echo "" >> "$LOG_FILE"
+            echo "--- PROCESS 311286 COMMANDLINE ---" >> "$LOG_FILE"
+            tr '\0' ' ' < /proc/311286/cmdline >> "$LOG_FILE" 2>&1 || true
+            echo "" >> "$LOG_FILE"
+            echo "--- VAR WWW DIRECTORY ---" >> "$LOG_FILE"
+            ls -la /var/www >> "$LOG_FILE" 2>&1 || true
 
             # If sudo is available, kill port 5000 occupant or restart systemd
             if sudo -n true 2>/dev/null; then

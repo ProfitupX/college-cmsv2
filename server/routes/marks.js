@@ -461,11 +461,19 @@ router.post('/request-unlock', async (req, res) => {
     let subjectName = 'a subject';
     let subjectDept = null;
     if (subjectId) {
-       const [subs] = await db.execute('SELECT name, code, department FROM subjects WHERE id = ?', [subjectId]);
+       const [subs] = await db.execute('SELECT name, code, department, class_id FROM subjects WHERE id = ?', [subjectId]);
        if (subs[0]) {
          subjectName = `${subs[0].code} ${subs[0].name}`;
          subjectDept = subs[0].department;
+         if (!subjectDept && subs[0].class_id) {
+           const [cls] = await db.execute('SELECT department FROM classes WHERE id = ?', [subs[0].class_id]);
+           if (cls[0]) subjectDept = cls[0].department;
+         }
        }
+    }
+    if (!subjectDept && classId) {
+      const [cls] = await db.execute('SELECT department FROM classes WHERE id = ?', [classId]);
+      if (cls[0]) subjectDept = cls[0].department;
     }
 
     // Notify HOD of the subject's department
@@ -501,8 +509,13 @@ router.get('/unlock-requests', async (req, res) => {
     `;
     const params = [];
     if (department) {
-      sql += ` WHERE st.department = ?`;
-      params.push(department);
+      const isSH = department === 'Science and Humanities' || department === 'First Year' || department.toLowerCase().includes('science');
+      if (isSH) {
+        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR st.department = 'Science and Humanities')`;
+      } else {
+        sql += ` WHERE ((cl.department = ? OR sub.department = ? OR st.department = ?) AND (cl.year_label != 'I' OR cl.year_label IS NULL))`;
+        params.push(department, department, department);
+      }
     }
     sql += ` ORDER BY ur.requested_at DESC`;
 
