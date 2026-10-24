@@ -804,15 +804,15 @@ export default function MarksEntryPage() {
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
               >
-                <option value="subject_marks_with_internal">Subject Marks List (With Internal Marks)</option>
-                <option value="subject_marks_without_internal">Subject Marks List (Without Internal Marks)</option>
+                <option value="subject_marks_with_internal">Subject Marks List (With Assignment Marks)</option>
+                <option value="subject_marks_without_internal">Subject Marks List (Without Assignment Marks)</option>
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
                 {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
                   <>
                     <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
                     <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
-                    <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Internal Marks)</option>
-                    <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Internal Marks)</option>
+                    <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Assignment Marks)</option>
+                    <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Assignment Marks)</option>
                   </>
                 )}
               </select>

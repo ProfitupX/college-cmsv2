@@ -350,10 +350,22 @@ export const generateSubjectMarksListPDF = async ({
   const doc = new jsPDF('p', 'mm', 'a4');
   
   const title = withInternal 
-    ? `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (With Internal Marks)`
-    : `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (Without Internal Marks / Real Exam Marks)`;
+    ? `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (With Assignment Marks)`
+    : `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (Without Assignment Marks / Real Exam Marks)`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.20', '01', '', '1 of 1');
   
+  const isInternal2 = assessmentMode === 'internal2';
+  const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+
+  // Total prescribed hours for this internal assessment:
+  // Internal 1: strictly 30 hours (only theory hours for Internal 1, NO lab hours!)
+  // Internal 2: cumulative (Int 1 theory (30) + Int 2 theory (30) + Lab hours (40) if subject has lab)
+  const tHours = !isInternal2 
+    ? parseInt(int1Hours || 30, 10) 
+    : (parseInt(int1Hours || 30, 10) + parseInt(int2Hours || 30, 10) + (hasLab ? parseInt(labHours || 40, 10) : 0));
+
+  const totHoursDisplay = tHours;
+
   let y = 46;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -364,30 +376,9 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Staff Name            : ${staffName}`, 14, y);
   doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
-  const totHoursDisplay = parseInt(int1Hours || 0) + parseInt(int2Hours || 0) + parseInt(labHours || 0) || totalHours || 0;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 8;
-
-  const isInternal2 = assessmentMode === 'internal2';
-  const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
-  
-  // Find max actual attended hours across students
-  let maxActual = 0;
-  let maxCumActual = 0;
-  students.forEach(st => {
-    const a = parseInt(attendanceData[st.id] || 0, 10);
-    if (a > maxActual) maxActual = a;
-
-    const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
-    const l = hasLab ? parseInt(labData[st.id]?.labAttendance || 0, 10) : 0;
-    const cum = i1 + a + l;
-    if (cum > maxCumActual) maxCumActual = cum;
-  });
-
-  const tHours = !isInternal2 
-    ? parseInt(int1Hours || totalHours || 0, 10) 
-    : (parseInt(int1Hours || 0, 10) + parseInt(int2Hours || 0, 10) + (hasLab ? parseInt(labHours || 0, 10) : 0) || parseInt(totalHours || 0, 10));
 
   // Anna Univ 25th Regulation attendance rule:
   const getAttendanceMark = (pct) => {
@@ -398,13 +389,13 @@ export const generateSubjectMarksListPDF = async ({
     return 0; // Below 80% is 0 mark
   };
 
-  // Prepare Table Headers based on withInternal
+  // Prepare Table Headers based on withInternal (With Assignment Marks)
   const headRow = withInternal ? [
     'S.No',
     'Roll No',
     'Student Name',
     'Actual Attd\n(Hrs)',
-    `Conv Attd\n(/ ${tHours > 0 ? tHours : 30})`,
+    `Attended\n(/ ${tHours > 0 ? tHours : 30})`,
     'Attd\n%',
     'Attd Mark\n(Max: 5)',
     'Activities\n(Max: 95)',
@@ -415,7 +406,7 @@ export const generateSubjectMarksListPDF = async ({
     'Roll No',
     'Student Name',
     'Actual Attd\n(Hrs)',
-    `Conv Attd\n(/ ${tHours > 0 ? tHours : 30})`,
+    `Attended\n(/ ${tHours > 0 ? tHours : 30})`,
     'Attd\n%',
     'Written Exam Mark\n(/ 100)',
     'Result\n(Pass / Fail)'
@@ -440,9 +431,8 @@ export const generateSubjectMarksListPDF = async ({
 
     if (!isInternal2) {
       rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      const conducted = maxActual > 0 ? maxActual : tHours;
-      pct = conducted > 0 ? Math.min(100, Math.round((rawHours / conducted) * 100)) : 0;
-      convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conducted) * tHours)) : rawHours;
+      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+      convertedHours = rawHours;
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
@@ -452,10 +442,8 @@ export const generateSubjectMarksListPDF = async ({
       const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
       const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
       rawHours = i1Attd + i2Attd + lAttd;
-
-      const conductedCum = maxCumActual > 0 ? maxCumActual : tHours;
-      pct = conductedCum > 0 ? Math.min(100, Math.round((rawHours / conductedCum) * 100)) : 0;
-      convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conductedCum) * tHours)) : rawHours;
+      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+      convertedHours = rawHours;
       const computedMark = getAttendanceMark(pct);
       attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
         ? parseFloat(attendanceMarks[student.id])
@@ -571,7 +559,7 @@ export const generateSubjectMarksListPDF = async ({
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }), user);
-  doc.save(`${subject?.code}_${assessmentMode}_Marks_${withInternal ? 'With_Internal' : 'Without_Internal'}.pdf`);
+  doc.save(`${subject?.code}_${assessmentMode}_Marks_${withInternal ? 'With_Assignment' : 'Without_Assignment'}.pdf`);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -1161,8 +1149,8 @@ export const generateSubjectMarksListPDF2021 = async ({
   }
 
   const title = withInternal
-    ? `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (With Internal Marks - 2021 Regulation)`
-    : `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (Without Internal Marks / Real Exam Marks - 2021 Regulation)`;
+    ? `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (With Assignment Marks - 2021 Regulation)`
+    : `${isInternal2 ? 'Internal Assessment 2' : 'Internal Assessment 1'} — Marks List (Without Assignment Marks / Real Exam Marks - 2021 Regulation)`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.21', '01', '', '1 of 1');
 
   let y = 46;
@@ -1346,7 +1334,7 @@ export const generateSubjectMarksListPDF2021 = async ({
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }), user);
-  doc.save(`${subject?.code}_2021Reg_${isInternal2 ? 'IA2' : 'IA1'}_Marks_${withInternal ? 'With_Internal' : 'Without_Internal'}.pdf`);
+  doc.save(`${subject?.code}_2021Reg_${isInternal2 ? 'IA2' : 'IA1'}_Marks_${withInternal ? 'With_Assignment' : 'Without_Assignment'}.pdf`);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -1533,8 +1521,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   const typeLabel = withInternal 
-    ? 'ExamCell Legal Statement (With Internal Marks)' 
-    : 'ExamCell Legal Statement (Without Internal Marks / Real Exam Marks)';
+    ? 'ExamCell Legal Statement (With Assignment Marks)' 
+    : 'ExamCell Legal Statement (Without Assignment Marks / Real Exam Marks)';
   if (fromDate && toDate) {
     const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
     const toStr = new Date(toDate).toLocaleDateString('en-GB');
@@ -1849,7 +1837,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
 
   addFooterToAllPages(doc, dateStr, now.toLocaleTimeString('en-GB', { hour12: false }), user);
-  doc.save(`${classObj?.name}_ExamCell_Legal_Statement_${withInternal ? 'With_Internal' : 'Without_Internal'}.pdf`);
+  doc.save(`${classObj?.name}_ExamCell_Legal_Statement_${withInternal ? 'With_Assignment' : 'Without_Assignment'}.pdf`);
 };
 
 export const generateHodMarksPDF = async (department, sessionLabel, data, hodNameParam = '', user = null) => {

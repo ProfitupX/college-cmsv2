@@ -745,8 +745,8 @@ export default function ReportsPage() {
                     fontSize: '0.8rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
                   }}
                 >
-                  <option value="with_internal">With Internal Marks (Full CIA + Exam)</option>
-                  <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                  <option value="with_internal">With Assignment Marks</option>
+                  <option value="without_internal">Without Assignment Marks</option>
                 </select>
                 <button
                   style={{
@@ -853,8 +853,8 @@ export default function ReportsPage() {
                         fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
                       }}
                     >
-                      <option value="with_internal">With Internal Marks</option>
-                      <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                      <option value="with_internal">With Assignment Marks</option>
+                      <option value="without_internal">Without Assignment Marks</option>
                     </select>
 
                     <input 

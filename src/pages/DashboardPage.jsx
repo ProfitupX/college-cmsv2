@@ -879,8 +879,8 @@ export default function DashboardPage() {
                   fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
                 }}
               >
-                <option value="with_internal">With Internal</option>
-                <option value="without_internal">Without Internal (Real Exam)</option>
+                <option value="with_internal">With Assignment Marks</option>
+                <option value="without_internal">Without Assignment Marks</option>
               </select>
               <input 
                 type="date" 
@@ -978,7 +978,7 @@ export default function DashboardPage() {
                     <button 
                       className={styles.subReportBtn}
                       onClick={() => handleDownloadSubjectMarksPDF(sub.id, sub.class_id, 'internal1', 'with_internal')}
-                      title="Download Subject Marks Statement (With Internal)"
+                      title="Download Subject Marks Statement (With Assignment Marks)"
                       disabled={genLoading}
                       style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#2563EB', borderColor: 'rgba(59, 130, 246, 0.3)' }}
                     >
@@ -1133,8 +1133,8 @@ export default function DashboardPage() {
                     fontSize: '0.8rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
                   }}
                 >
-                  <option value="with_internal">With Internal Marks (Full CIA + Exam)</option>
-                  <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                  <option value="with_internal">With Assignment Marks</option>
+                  <option value="without_internal">Without Assignment Marks</option>
                 </select>
                 <button
                   style={{
@@ -1241,8 +1241,8 @@ export default function DashboardPage() {
                         fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
                       }}
                     >
-                      <option value="with_internal">With Internal Marks</option>
-                      <option value="without_internal">Without Internal Marks (Real Exam Marks)</option>
+                      <option value="with_internal">With Assignment Marks</option>
+                      <option value="without_internal">Without Assignment Marks</option>
                     </select>
 
                     <input 
