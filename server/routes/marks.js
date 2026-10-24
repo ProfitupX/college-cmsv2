@@ -155,47 +155,35 @@ router.post('/submit', async (req, res) => {
 
     // 5. Insert Attendance & Internal Exam
     if (attendance && Array.isArray(attendance)) {
-      const tHours = parseInt(totalHours, 10) || 0;
-
-      let maxActualHours = 0;
-      let maxCumActual = 0;
-      for (const a of attendance) {
-        const raw = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
-        if (raw > maxActualHours) maxActualHours = raw;
-
-        const i1 = parseInt(a.int1AttendanceHours, 10) || 0;
-        const lab = parseInt(a.labAttendance, 10) || 0;
-        const cum = i1 + raw + lab;
-        if (cum > maxCumActual) maxCumActual = cum;
-      }
+      const tHours = parseInt(totalHours, 10) || 30;
 
       for (const a of attendance) {
-        const rawHours = parseInt(a.actualTakenHours !== undefined && a.actualTakenHours !== '' ? a.actualTakenHours : (a.hoursAttended || 0), 10) || 0;
+        const rawHours = parseInt(a.hoursAttended !== undefined && a.hoursAttended !== '' ? a.hoursAttended : (a.actualTakenHours || 0), 10) || 0;
         const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
-        let convertedHours = rawHours;
+        let savedHours = rawHours;
         
         if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
-          const cumAttd = i1Attd + rawHours + labHrs;
-          const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
-          const i2Max = parseInt(req.body.int2Hours, 10) || Math.floor(tHours / 2) || 0;
+          const i1Max = parseInt(req.body.int1Hours, 10) || 30;
+          const i2Max = parseInt(req.body.int2Hours, 10) || 30;
           const lMax = parseInt(req.body.labHours, 10) || 0;
-          const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 0;
+          const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 60;
 
-          // Benchmark against actual conducted cumulative classes (or LTPC prescribed if max is 0)
-          const conductedCum = maxCumActual > 0 ? maxCumActual : cumPrescribedMax;
-          const pct = conductedCum > 0 ? Math.min(100, Math.round((cumAttd / conductedCum) * 100)) : 0;
+          const cappedI2 = Math.min(i2Max, Math.max(0, rawHours));
+          const cappedLab = Math.min(lMax, Math.max(0, labHrs));
+          const cumAttd = Math.min(cumPrescribedMax, Math.min(i1Max, i1Attd) + cappedI2 + cappedLab);
+
+          const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          convertedHours = cumPrescribedMax > 0 ? Math.min(cumPrescribedMax, Math.round((cumAttd / conductedCum) * cumPrescribedMax)) : cumAttd;
+          savedHours = cappedI2;
         } else {
-          // Internal 1:
-          // Benchmark against actual conducted classes by staff (maxActualHours) so students are never
-          // penalized if staff took fewer classes than LTPC total, and extra classes scale proportionally
-          const conductedHours = maxActualHours > 0 ? maxActualHours : tHours;
-          const pct = conductedHours > 0 ? Math.min(100, Math.round((rawHours / conductedHours) * 100)) : 0;
+          // Internal 1: Strictly capped at total class hours (standard 30)
+          const prescribedHours = parseInt(req.body.int1Hours, 10) || tHours || 30;
+          const cappedHours = Math.min(prescribedHours, Math.max(0, rawHours));
+          const pct = prescribedHours > 0 ? Math.min(100, Math.round((cappedHours / prescribedHours) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          convertedHours = tHours > 0 ? Math.min(tHours, Math.round((rawHours / conductedHours) * tHours)) : rawHours;
+          savedHours = cappedHours;
         }
 
         await conn.execute(
@@ -211,8 +199,8 @@ router.post('/submit', async (req, res) => {
           [
             sessionId, 
             String(a.studentId), 
-            convertedHours,
-            rawHours,
+            savedHours,
+            savedHours,
             attMark,
             a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark))
               ? parseFloat(a.internalExamMark) 

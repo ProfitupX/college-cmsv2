@@ -12,22 +12,9 @@ export default function MarksTable({
   const isElevated = user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'hod' || user?.role === 'admin';
   const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
 
-  // Which hours to show based on mode
-  const displayHours = assessmentMode === 'internal1' ? int1Hours : int2Hours;
+  // Which hours to show based on mode (default standard 30)
+  const displayHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
   const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-
-  // Calculate maximum actual attended hours across students to represent conducted classes
-  let maxActualHours = 0;
-  let maxCumActualHours = 0;
-  students.forEach((st) => {
-    const raw = parseInt(attendanceData[st.id] || 0, 10);
-    if (raw > maxActualHours) maxActualHours = raw;
-
-    const i1 = parseInt(int1AttendanceData[st.id] || 0, 10);
-    const l = isLabCumTheory ? parseInt(labData?.[st.id]?.labAttendance || 0, 10) : 0;
-    const cum = i1 + raw + l;
-    if (cum > maxCumActualHours) maxCumActualHours = cum;
-  });
 
   return (
     <div className={styles.wrapper}>
@@ -57,11 +44,11 @@ export default function MarksTable({
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>📅</span>
                     <span className={styles.thLabel}>
-                      Actual Taken Hrs
+                      Attendance
                     </span>
                     <div className={styles.globalHoursWrap}>
                       <label>Total Classes:</label>
-                      <div className={styles.lockedHours} title="Auto-assigned from LTPC">{int1Hours || '?'}</div>
+                      <div className={styles.lockedHours} title="Standard Total Class Hours: 30">{int1Hours || 30}</div>
                     </div>
                   </div>
                 </th>
@@ -72,7 +59,7 @@ export default function MarksTable({
                     <div className={styles.thContent}>
                       <span className={styles.thIcon}>📅</span>
                       <span className={styles.thLabel}>Int 1 Attd</span>
-                      <div className={styles.thSub}>Max: {int1Hours || '?'}</div>
+                      <div className={styles.thSub}>Max: {int1Hours || 30}</div>
                     </div>
                   </th>
 
@@ -81,9 +68,9 @@ export default function MarksTable({
                     <div className={styles.thContent}>
                       <span className={styles.thIcon}>📅</span>
                       <span className={styles.thLabel}>
-                        Int 2 Attd Hrs
+                        Int 2 Attd
                       </span>
-                      <div className={styles.thSub}>Max: {int2Hours || '?'}</div>
+                      <div className={styles.thSub}>Max: {int2Hours || 30}</div>
                     </div>
                   </th>
 
@@ -93,7 +80,7 @@ export default function MarksTable({
                       <div className={styles.thContent}>
                         <span className={styles.thIcon}>🧑‍🔬</span>
                         <span className={styles.thLabel}>Lab Attd</span>
-                        <div className={styles.thSub}>Max: {labHours || '?'}</div>
+                        <div className={styles.thSub}>Max: {labHours || 30}</div>
                       </div>
                     </th>
                   )}
@@ -142,11 +129,9 @@ export default function MarksTable({
                 int1AttendanceHours={int1AttendanceData[student.id] || ''}
                 internalExamMark={internalExamData[student.id] || ''}
                 displayHours={displayHours}
-                conductedHours={maxActualHours > 0 ? maxActualHours : displayHours}
-                conductedCumHours={maxCumActualHours}
-                int1Hours={int1Hours}
-                int2Hours={int2Hours}
-                labHours={labHours}
+                int1Hours={int1Hours || 30}
+                int2Hours={int2Hours || 30}
+                labHours={labHours || 30}
                 assessmentMode={assessmentMode}
                 selectedSubject={selectedSubject}
                 labData={labData ? labData[student.id] || {} : {}}

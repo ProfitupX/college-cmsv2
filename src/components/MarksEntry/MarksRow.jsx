@@ -31,27 +31,31 @@ export default function MarksRow({
   let cumulativeAttended = 0;
   let cumulativeMaxHours = 0;
 
+  // Max allowed hours (strictly 30 or LTPC prescribed, cannot exceed)
+  const maxAttdHours = parseInt(int1Hours || displayHours || 30, 10);
+  const maxInt2Hours = parseInt(int2Hours || displayHours || 30, 10);
+  const maxLabHours  = parseInt(labHours || 30, 10);
+
   if (assessmentMode === 'internal1') {
-    const baseHours = parseInt(conductedHours || int1Hours || displayHours || 0);
-    const aHours = parseInt(attendanceHours || 0);
+    const baseHours = maxAttdHours;
+    const aHours = parseInt(attendanceHours || 0, 10);
     if (baseHours > 0 && !isNaN(aHours)) {
-      attendanceMark = getAttendanceMark(aHours, baseHours);
+      const cappedHours = Math.min(aHours, baseHours);
+      attendanceMark = getAttendanceMark(cappedHours, baseHours);
     }
   } else {
     // Internal 2 mode: Cumulative attendance (Int1 + Int2 [+ Lab if Lab-cum-Theory])
-    const i1Attd = parseInt(int1AttendanceHours || 0);
-    const i2Attd = parseInt(attendanceHours || 0);
+    const i1Attd = parseInt(int1AttendanceHours || 0, 10);
+    const i2Attd = parseInt(attendanceHours || 0, 10);
     const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-    const lAttd  = isLabCumTheory ? parseInt(labData?.labAttendance || 0) : 0;
+    const lAttd  = isLabCumTheory ? parseInt(labData?.labAttendance || 0, 10) : 0;
     
-    cumulativeAttended = i1Attd + i2Attd + lAttd;
+    const i1Max = maxAttdHours;
+    const i2Max = maxInt2Hours;
+    const lMax  = isLabCumTheory ? maxLabHours : 0;
+    cumulativeMaxHours = i1Max + i2Max + lMax;
 
-    const i1Max = parseInt(int1Hours || 0);
-    const i2Max = parseInt(int2Hours || 0);
-    const lMax  = isLabCumTheory ? parseInt(labHours || 0) : 0;
-    const cumPrescribed = i1Max + i2Max + lMax;
-    
-    cumulativeMaxHours = conductedCumHours > 0 ? conductedCumHours : cumPrescribed;
+    cumulativeAttended = Math.min(i1Attd, i1Max) + Math.min(i2Attd, i2Max) + (isLabCumTheory ? Math.min(lAttd, lMax) : 0);
 
     if (cumulativeMaxHours > 0) {
       attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
@@ -120,13 +124,33 @@ export default function MarksRow({
             <input
               type="number"
               min="0"
-              className={styles.input}
+              max={maxAttdHours}
+              className={`${styles.input} ${parseFloat(attendanceHours) > maxAttdHours ? styles.inputError : ''}`}
               value={attendanceHours}
-              onChange={(e) => onAttendanceChange(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  onAttendanceChange('');
+                  return;
+                }
+                const num = parseFloat(val);
+                if (!isNaN(num) && num > maxAttdHours) {
+                  onAttendanceChange(String(maxAttdHours));
+                  return;
+                }
+                if (!isNaN(num) && num < 0) {
+                  onAttendanceChange('0');
+                  return;
+                }
+                onAttendanceChange(val);
+              }}
               disabled={isLocked}
               placeholder="—"
             />
-            <span className={styles.inputMax}>/{int1Hours || displayHours || '?'}</span>
+            <span className={styles.inputMax}>/{maxAttdHours}</span>
+            {parseFloat(attendanceHours) > maxAttdHours && (
+              <span className={styles.errorTip}>Max: {maxAttdHours}</span>
+            )}
           </div>
         </td>
       ) : (
@@ -142,7 +166,7 @@ export default function MarksRow({
                 disabled
                 title="Attendance from Internal Assessment 1"
               />
-              <span className={styles.inputMax}>/{int1Hours || '?'}</span>
+              <span className={styles.inputMax}>/{maxAttdHours}</span>
             </div>
           </td>
 
@@ -152,13 +176,33 @@ export default function MarksRow({
               <input
                 type="number"
                 min="0"
-                className={styles.input}
+                max={maxInt2Hours}
+                className={`${styles.input} ${parseFloat(attendanceHours) > maxInt2Hours ? styles.inputError : ''}`}
                 value={attendanceHours}
-                onChange={(e) => onAttendanceChange(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    onAttendanceChange('');
+                    return;
+                  }
+                  const num = parseFloat(val);
+                  if (!isNaN(num) && num > maxInt2Hours) {
+                    onAttendanceChange(String(maxInt2Hours));
+                    return;
+                  }
+                  if (!isNaN(num) && num < 0) {
+                    onAttendanceChange('0');
+                    return;
+                  }
+                  onAttendanceChange(val);
+                }}
                 disabled={isLocked}
                 placeholder="—"
               />
-              <span className={styles.inputMax}>/{int2Hours || '?'}</span>
+              <span className={styles.inputMax}>/{maxInt2Hours}</span>
+              {parseFloat(attendanceHours) > maxInt2Hours && (
+                <span className={styles.errorTip}>Max: {maxInt2Hours}</span>
+              )}
             </div>
           </td>
 
@@ -169,13 +213,33 @@ export default function MarksRow({
                 <input
                   type="number"
                   min="0"
-                  className={styles.input}
+                  max={maxLabHours}
+                  className={`${styles.input} ${parseFloat(labData?.labAttendance) > maxLabHours ? styles.inputError : ''}`}
                   value={labData?.labAttendance || ''}
-                  onChange={(e) => onLabDataChange('labAttendance', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      onLabDataChange('labAttendance', '');
+                      return;
+                    }
+                    const num = parseFloat(val);
+                    if (!isNaN(num) && num > maxLabHours) {
+                      onLabDataChange('labAttendance', String(maxLabHours));
+                      return;
+                    }
+                    if (!isNaN(num) && num < 0) {
+                      onLabDataChange('labAttendance', '0');
+                      return;
+                    }
+                    onLabDataChange('labAttendance', val);
+                  }}
                   disabled={isLocked}
                   placeholder="—"
                 />
-                <span className={styles.inputMax}>/{labHours || '?'}</span>
+                <span className={styles.inputMax}>/{maxLabHours}</span>
+                {parseFloat(labData?.labAttendance) > maxLabHours && (
+                  <span className={styles.errorTip}>Max: {maxLabHours}</span>
+                )}
               </div>
             </td>
           )}
