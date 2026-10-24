@@ -177,72 +177,28 @@ tbody tr:last-child td { border-bottom: none; }
   border: 1px solid rgba(108,99,255,0.2);
 }
 
-/* Sticky On-Screen Slide Bar */
-.stickySlideBar {
-  position: sticky;
-  bottom: 0;
-  z-index: 25;
-  background: var(--surface, #ffffff);
-  border-top: 2px solid var(--border-solid, #e2e8f0);
-  padding: 10px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.08);
-  border-radius: 0 0 10px 10px;
+.tableScroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.4) transparent;
 }
 
-.slideBarLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-primary, #0f172a);
-  white-space: nowrap;
+.tableScroll::-webkit-scrollbar {
+  height: 8px;
 }
 
-.slidePctBadge {
-  background: var(--primary-light, #eff6ff);
-  color: var(--primary, #2563eb);
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
+.tableScroll::-webkit-scrollbar-track {
+  background: var(--surface-hover, #f8fafc);
+  border-radius: 4px;
 }
 
-.slideNavGroup {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  max-width: 650px;
+.tableScroll::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 4px;
 }
 
-.slideRangeInput {
-  flex: 1;
-  cursor: pointer;
-  accent-color: var(--primary, #2563eb);
-  height: 6px;
-}
-
-.slideBtn {
-  background: var(--surface-hover, #f1f5f9);
-  border: 1px solid var(--border-solid, #cbd5e1);
-  color: var(--text-primary, #1e293b);
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.slideBtn:hover {
-  background: var(--primary, #2563eb);
-  color: #ffffff;
-  border-color: var(--primary, #2563eb);
+.tableScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.7);
 }
 

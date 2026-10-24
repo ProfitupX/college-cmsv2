@@ -407,17 +407,14 @@ export const generateSubjectMarksListPDF = async ({
   };
 
   // Prepare Table Headers based on withInternal (With Assignment Marks)
+  // Per official college format: exactly Attendance Mark, Activities (Assignment), and Total Internal Marks
   const headRow = withInternal ? [
     'S.No',
     'Roll No',
     'Student Name',
-    'Actual Attd\n(Hrs)',
-    `Attended\n(/ ${tHours > 0 ? tHours : 30})`,
-    'Attd\n%',
     'Attd Mark\n(Max: 5)',
-    'Activities\n(Max: 95)',
-    'Total Internal\n(Act + Attd)\n(Max: 100)',
-    '100 Marks Internal\n(Exam)'
+    'Activities\n(Assignment Mark)\n(Max: 95)',
+    'Total Internal Marks\n(Act + Attd)\n(Max: 100)'
   ] : [
     'S.No',
     'Roll No',
@@ -468,13 +465,9 @@ export const generateSubjectMarksListPDF = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanStudentName,
-        rawHours,
-        `${convertedHours} / ${tHours > 0 ? tHours : '—'}`,
-        `${pct}%`,
         attendanceMark,
         convertedTotal,
-        totalInternal,
-        internalExamMarkStr
+        totalInternal
       ];
     } else {
       // Without internal: Real exam mark and pass/fail status
@@ -496,12 +489,8 @@ export const generateSubjectMarksListPDF = async ({
     '',
     '',
     'MAX MARKS',
-    tHours > 0 ? `${tHours} Hrs` : '-',
-    `${tHours > 0 ? tHours : '-'} Hrs`,
-    '100%',
     '5',
     '95',
-    '100',
     '100'
   ] : [
     '',
@@ -515,16 +504,12 @@ export const generateSubjectMarksListPDF = async ({
   ];
 
   const colStyles = withInternal ? {
-    0: { cellWidth: 8, halign: 'center' },
-    1: { cellWidth: 24, halign: 'center' },
-    2: { cellWidth: 44, halign: 'left' },
-    3: { cellWidth: 16, halign: 'center' },
-    4: { cellWidth: 17, halign: 'center' },
-    5: { cellWidth: 13, halign: 'center' },
-    6: { cellWidth: 14, halign: 'center' },
-    7: { cellWidth: 18, halign: 'center' },
-    8: { cellWidth: 19, halign: 'center' },
-    9: { cellWidth: 17, halign: 'center' }
+    0: { cellWidth: 14, halign: 'center' },
+    1: { cellWidth: 32, halign: 'center' },
+    2: { cellWidth: 64, halign: 'left' },
+    3: { cellWidth: 22, halign: 'center' },
+    4: { cellWidth: 26, halign: 'center' },
+    5: { cellWidth: 24, halign: 'center' }
   } : {
     0: { cellWidth: 10, halign: 'center' },
     1: { cellWidth: 26, halign: 'center' },

@@ -267,21 +267,21 @@ export default function ReportPreviewModal({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>S.No</th>
-                  <th>Roll No</th>
+                  <th style={{ width: '50px' }}>S.No</th>
+                  <th style={{ width: '130px' }}>Roll No</th>
                   <th>Student Name</th>
-                  <th>Actual Attd</th>
-                  <th>Attended</th>
-                  <th>Attd %</th>
-                  <th>Attd Mark (5)</th>
-                  {withInternal && (
+                  {withInternal ? (
                     <>
-                      <th>Assignment (95)</th>
-                      <th>Total Internal (100)</th>
+                      <th style={{ width: '110px' }}>Attd Mark (5)</th>
+                      <th style={{ width: '130px' }}>Activities (95)</th>
+                      <th style={{ width: '140px' }}>Total Internal (100)</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ width: '130px' }}>Exam Mark (100)</th>
+                      <th style={{ width: '110px' }}>Result</th>
                     </>
                   )}
-                  <th>Exam Mark (100)</th>
-                  {!withInternal && <th>Result</th>}
                 </tr>
               </thead>
               <tbody>
@@ -290,34 +290,25 @@ export default function ReportPreviewModal({
                     <td style={{ textAlign: 'center' }}>{r.sNo}</td>
                     <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
                     <td>{r.name}</td>
-                    <td style={{ textAlign: 'center' }}>{r.rawHours}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{ 
-                        color: r.pct >= 90 ? '#10b981' : r.pct >= 80 ? '#f59e0b' : '#ef4444',
-                        fontWeight: 700
-                      }}>
-                        {r.pct}%
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
-                    {withInternal && (
+                    {withInternal ? (
                       <>
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
                         <td style={{ textAlign: 'center' }}>{r.convertedTotal}</td>
                         <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
                       </>
-                    )}
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                    {!withInternal && (
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
-                        {r.resultStr}
-                      </td>
+                    ) : (
+                      <>
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
+                          {r.resultStr}
+                        </td>
+                      </>
                     )}
                   </tr>
                 ))}
                 {previewRows.length === 0 && (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
                       No student records found to display.
                     </td>
                   </tr>

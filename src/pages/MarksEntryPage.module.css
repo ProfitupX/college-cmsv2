@@ -513,6 +513,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
   box-shadow: var(--shadow-sm);
   animation: fadeInUp 0.4s ease;
 }
@@ -520,6 +521,7 @@
 .actionLeft {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .savedMsg {
@@ -545,38 +547,46 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .downloadGroup {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--border-solid);
   overflow: hidden;
+  background: var(--surface);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .downloadSelect {
-  appearance: none;
   background: var(--surface);
   color: var(--text-primary);
   border: none;
   padding: 10px 14px;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
   border-right: 1px solid var(--border-solid);
   cursor: pointer;
   outline: none;
   font-family: inherit;
+  max-width: 320px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .downloadGroup .downloadBtn {
   border: none;
   border-radius: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .clearBtn, .downloadBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 10px 18px;
@@ -586,6 +596,8 @@
   font-weight: 600;
   color: var(--text-secondary);
   background: transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
@@ -602,7 +614,7 @@
 }
 
 .saveBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 10px 24px;
@@ -612,6 +624,8 @@
   font-size: 0.88rem;
   font-family: var(--font-heading);
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
   box-shadow: 0 4px 16px rgba(108, 99, 255, 0.35);
 }

@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react';
 import MarksRow2021 from './MarksRow2021';
 import styles from './MarksTable.module.css';
 
@@ -21,36 +20,6 @@ export default function MarksTable2021({
   assessmentMode, selectedSubject,
   onInternalExamChange, onLabDataChange, isLocked
 }) {
-  const scrollContainerRef = useRef(null);
-  const [scrollPct, setScrollPct] = useState(0);
-
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-    const maxScroll = scrollWidth - clientWidth;
-    if (maxScroll > 0) {
-      setScrollPct(Math.round((scrollLeft / maxScroll) * 100));
-    }
-  };
-
-  const handleSliderChange = (e) => {
-    const val = parseFloat(e.target.value);
-    setScrollPct(val);
-    if (!scrollContainerRef.current) return;
-    const { scrollWidth, clientWidth } = scrollContainerRef.current;
-    const maxScroll = scrollWidth - clientWidth;
-    scrollContainerRef.current.scrollLeft = (val / 100) * maxScroll;
-  };
-
-  const jumpTo = (ratio) => {
-    if (!scrollContainerRef.current) return;
-    const { scrollWidth, clientWidth } = scrollContainerRef.current;
-    const maxScroll = scrollWidth - clientWidth;
-    scrollContainerRef.current.scrollTo({
-      left: ratio * maxScroll,
-      behavior: 'smooth'
-    });
-  };
 
   // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
   const isLabType = [
@@ -63,11 +32,7 @@ export default function MarksTable2021({
 
   return (
     <div className={styles.wrapper}>
-      <div 
-        className={styles.tableScroll}
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-      >
+      <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -174,33 +139,7 @@ export default function MarksTable2021({
         </table>
       </div>
 
-      {/* Sticky On-Screen Slide Bar */}
-      <div className={styles.stickySlideBar}>
-        <div className={styles.slideBarLabel}>
-          <span>↔ Slide Table Columns:</span>
-          <span className={styles.slidePctBadge}>{scrollPct}%</span>
-        </div>
-        <div className={styles.slideNavGroup}>
-          <button type="button" className={styles.slideBtn} onClick={() => jumpTo(0)} title="Jump to Student Names">
-            ⇤ Names &amp; Roll
-          </button>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={scrollPct}
-            onChange={handleSliderChange}
-            className={styles.slideRangeInput}
-            title="Slide horizontally across marks and exam columns"
-          />
-          <button type="button" className={styles.slideBtn} onClick={() => jumpTo(0.5)} title="Jump to CIA Components">
-            CIA Marks
-          </button>
-          <button type="button" className={styles.slideBtn} onClick={() => jumpTo(1)} title="Jump to Internal & Lab Exam">
-            Exam &amp; Results ⇥
-          </button>
-        </div>
-      </div>
+
 
       {/* Footer */}
       <div className={styles.footer}>

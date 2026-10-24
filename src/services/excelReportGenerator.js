@@ -67,26 +67,39 @@ const drawExcelCollegeHeader = async ({
   numCols = 10,
 }) => {
   // Set row heights for rows 1 to 4 to host logo and format box cleanly
-  worksheet.getRow(1).height = 19;
-  worksheet.getRow(2).height = 19;
-  worksheet.getRow(3).height = 19;
-  worksheet.getRow(4).height = 19;
+  worksheet.getRow(1).height = 20;
+  worksheet.getRow(2).height = 20;
+  worksheet.getRow(3).height = 20;
+  worksheet.getRow(4).height = 20;
 
-  // 1. Embed College Logo Banner on Top Left (Aspect ratio 4.09:1)
+  // Format Info Box column position
+  const startFormatCol = Math.max(numCols - 2, 4);
+
+  // 1. Embed College Logo Banner
   const logoBase64 = await getImageBase64(logoImg);
   if (logoBase64) {
     const imageId = workbook.addImage({
       base64: logoBase64,
       extension: 'jpeg',
     });
-    worksheet.addImage(imageId, {
-      tl: { col: 0.1, row: 0.1 },
-      ext: { width: 440, height: 100 }
-    });
+
+    if (numCols > 12) {
+      // Wide layout (ExamCell Legal Statement):
+      // Center the logo across columns nicely with ample width
+      const centerCol = Math.max(0.5, Math.floor((startFormatCol - 7) / 2));
+      worksheet.addImage(imageId, {
+        tl: { col: centerCol, row: 0.15 },
+        ext: { width: 560, height: 100 }
+      });
+    } else {
+      worksheet.addImage(imageId, {
+        tl: { col: 0.1, row: 0.15 },
+        ext: { width: 440, height: 95 }
+      });
+    }
   }
 
   // 2. Format Info Box on Top Right (Rows 1 to 4)
-  const startFormatCol = Math.max(numCols - 2, 4);
   const dateStr = new Date().toLocaleDateString('en-GB');
 
   const formatRows = [
@@ -175,8 +188,7 @@ export const exportSubjectMarksExcel = async ({
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
-  const isLabAssignmentOnly = isInternal2 && hasLab && theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf;
-  const numCols = withInternal ? 10 : 8;
+  const numCols = withInternal ? 6 : 8;
 
   // Draw Official College Header (Rows 1-5 + Spacer Row 6)
   await drawExcelCollegeHeader({
@@ -187,20 +199,59 @@ export const exportSubjectMarksExcel = async ({
     numCols
   });
 
-  // Metadata Block (Rows 7-9)
-  const metaData = [
-    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
-    ['Faculty Name:', staffName, '', '', 'Academic Year:', '2026 - 2027'],
-    ['Subject Code / Name:', `${subject?.code || ''} — ${subject?.name || ''}`, '', '', 'Total Prescribed Hrs:', `${tHours} Hours`]
+  // Metadata Block (Rows 7-9) with merged cells for clean alignment & zero truncation
+  const metaRows = [
+    {
+      label1: 'Year / Semester:',
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      label2: 'Department:',
+      val2: subject?.department || classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Faculty Name:',
+      val1: staffName,
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Subject Code / Name:',
+      val1: `${subject?.code || ''} — ${subject?.name || ''}`,
+      label2: 'Total Prescribed Hrs:',
+      val2: `${tHours} Hours`
+    }
   ];
 
-  metaData.forEach((row, i) => {
-    const r = worksheet.getRow(7 + i);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9, bold: false };
-    r.getCell(1).font = { bold: true };
-    r.getCell(5).font = { bold: true };
-    r.height = 18;
+  metaRows.forEach((item, i) => {
+    const rowNum = 7 + i;
+    worksheet.getRow(rowNum).height = 20;
+
+    worksheet.mergeCells(rowNum, 1, rowNum, 2);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.getCell(rowNum, 3).value = item.val1;
+    worksheet.getCell(rowNum, 3).font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    worksheet.getCell(rowNum, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    worksheet.getCell(rowNum, 3).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 4, rowNum, 5);
+    const l2 = worksheet.getCell(rowNum, 4);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.getCell(rowNum, 6).value = item.val2;
+    worksheet.getCell(rowNum, 6).font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    worksheet.getCell(rowNum, 6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    worksheet.getCell(rowNum, 6).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= 6; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(10).height = 8; // spacer
@@ -208,17 +259,10 @@ export const exportSubjectMarksExcel = async ({
   // Table Column Headers (Row 11)
   let headers = [];
   if (withInternal) {
-    if (isLabAssignmentOnly) {
-      headers = [
-        'S.No', 'Roll No', 'Student Name', 'Actual Attd (Hrs)', `Attended (/ ${tHours})`, 'Attd %',
-        'Attd Mark (5)', 'Assignment / Act (50)', 'Lab Exam Mark (50)', 'Total Internal (100)'
-      ];
-    } else {
-      headers = [
-        'S.No', 'Roll No', 'Student Name', 'Actual Attd (Hrs)', `Attended (/ ${tHours})`, 'Attd %',
-        'Attd Mark (5)', 'Activities (95)', 'Total Internal (Act + Attd)', '100 Marks Internal (Exam)'
-      ];
-    }
+    headers = [
+      'S.No', 'Roll No', 'Student Name',
+      'Attd Mark (Max: 5)', 'Activities / Assignment Marks (Max: 95)', 'Total Internal Marks (Max: 100)'
+    ];
   } else {
     headers = [
       'S.No', 'Roll No', 'Student Name', 'Actual Attd (Hrs)', `Attended (/ ${tHours})`, 'Attd %',
@@ -268,35 +312,14 @@ export const exportSubjectMarksExcel = async ({
 
     let rowValues = [];
     if (withInternal) {
-      if (isLabAssignmentOnly) {
-        const act50 = Math.round((convertedTotal / 95) * 50);
-        const combLabAct = act50 + labConverted;
-        rowValues = [
-          idx + 1,
-          student.roll_no || student.rollNo || '-',
-          cleanName,
-          rawHours,
-          `${cappedHours} / ${tHours}`,
-          `${pct}%`,
-          attendanceMark,
-          act50,
-          labConverted,
-          combLabAct
-        ];
-      } else {
-        rowValues = [
-          idx + 1,
-          student.roll_no || student.rollNo || '-',
-          cleanName,
-          rawHours,
-          `${cappedHours} / ${tHours}`,
-          `${pct}%`,
-          attendanceMark,
-          convertedTotal,
-          totalInternal,
-          examMarkStr
-        ];
-      }
+      rowValues = [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        attendanceMark,
+        convertedTotal,
+        totalInternal
+      ];
     } else {
       const isPass = !isExamAbsent && parseInt(examMarkStr, 10) >= 50;
       const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
@@ -346,11 +369,7 @@ export const exportSubjectMarksExcel = async ({
   // Criteria Row
   const criteriaRow = worksheet.getRow(currentRow);
   if (withInternal) {
-    if (isLabAssignmentOnly) {
-      criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, `${tHours} Hrs`, '100%', 5, 50, 50, 100];
-    } else {
-      criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, `${tHours} Hrs`, '100%', 5, 95, 100, 100];
-    }
+    criteriaRow.values = ['', '', 'MAX MARKS', 5, 95, 100];
   } else {
     criteriaRow.values = ['', '', 'MAX MARKS / CRITERIA', `${tHours} Hrs`, `${tHours} Hrs`, '100%', 100, '>= 50% PASS'];
   }
@@ -365,7 +384,7 @@ export const exportSubjectMarksExcel = async ({
 
   // Signatures
   const sigRow = worksheet.getRow(currentRow);
-  sigRow.values = ['', 'SUBJECT FACULTY', '', '', 'CLASS IN-CHARGE', '', '', 'HOD', '', 'PRINCIPAL'];
+  sigRow.values = ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', 'HOD', 'PRINCIPAL'];
   sigRow.height = 24;
   sigRow.eachCell((cell) => {
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
@@ -373,18 +392,27 @@ export const exportSubjectMarksExcel = async ({
   });
 
   // Column Widths
-  worksheet.columns = [
-    { width: 7 },   // S.No
-    { width: 17 },  // Roll No
-    { width: 32 },  // Student Name
-    { width: 15 },  // Actual Attd
-    { width: 15 },  // Attended
-    { width: 11 },  // Attd %
-    { width: 13 },  // Attd Mark
-    { width: 22 },  // Assignment / Act
-    { width: 22 },  // Total Internal
-    { width: 18 }   // Exam
-  ];
+  if (withInternal) {
+    worksheet.columns = [
+      { width: 8 },   // S.No
+      { width: 18 },  // Roll No
+      { width: 34 },  // Student Name
+      { width: 18 },  // Attd Mark (Max: 5)
+      { width: 26 },  // Activities (Max: 95)
+      { width: 24 }   // Total Internal (Max: 100)
+    ];
+  } else {
+    worksheet.columns = [
+      { width: 8 },   // S.No
+      { width: 18 },  // Roll No
+      { width: 34 },  // Student Name
+      { width: 16 },  // Actual Attd
+      { width: 16 },  // Attended
+      { width: 12 },  // Attd %
+      { width: 22 },  // Written Exam
+      { width: 18 }   // Result
+    ];
+  }
 
   const filename = `${subject?.code || 'SUB'}_${assessmentMode}_Marks_${withInternal ? 'With_Assignment' : 'Without_Assignment'}.xlsx`;
   await triggerDownload(workbook, filename);
@@ -564,20 +592,65 @@ export const exportOverallMarksExcel = async ({
     numCols: totalColumns
   });
 
-  // Metadata Block (Rows 7-9)
-  const meta = [
-    ['Class / Year / Sem:', `${classObj?.name || 'Class'} (${classObj?.year_label || 'II'} / Sem ${classObj?.semester || '4'})`, '', '', 'Department:', classObj?.department || 'Information Technology'],
-    ['Regulation:', is2021 ? '2021 Regulation' : '2025 Regulation', '', '', 'Academic Year:', '2026 - 2027'],
-    ['Total Subjects:', targetSubjects.length, '', '', 'Generated Date:', new Date().toLocaleDateString('en-GB')]
+  // Metadata Block (Rows 7-9) with properly merged cells so text is never cut off
+  const metaRows = [
+    {
+      label1: 'Class / Year / Sem:',
+      val1: `${classObj?.name || 'Class'} (${classObj?.year_label || 'II'} / Sem ${classObj?.semester || '4'})`,
+      label2: 'Department:',
+      val2: classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Regulation:',
+      val1: is2021 ? '2021 Regulation' : '2025 Regulation',
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Total Subjects:',
+      val1: `${targetSubjects.length} Subjects`,
+      label2: 'Generated Date:',
+      val2: new Date().toLocaleDateString('en-GB')
+    }
   ];
 
-  meta.forEach((row, idx) => {
-    const r = worksheet.getRow(7 + idx);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9 };
-    r.getCell(1).font = { bold: true };
-    r.getCell(5).font = { bold: true };
-    r.height = 18;
+  metaRows.forEach((item, idx) => {
+    const rowNum = 7 + idx;
+    worksheet.getRow(rowNum).height = 20;
+
+    // Field 1: Label (Cols 1 to 3) + Value (Cols 4 to 8)
+    worksheet.mergeCells(rowNum, 1, rowNum, 3);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 4, rowNum, 8);
+    const v1 = worksheet.getCell(rowNum, 4);
+    v1.value = item.val1;
+    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    // Field 2: Label (Cols 9 to 11) + Value (Cols 12 to 16)
+    worksheet.mergeCells(rowNum, 9, rowNum, 11);
+    const l2 = worksheet.getCell(rowNum, 9);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 12, rowNum, 16);
+    const v2 = worksheet.getCell(rowNum, 12);
+    v2.value = item.val2;
+    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= 16; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(10).height = 8; // spacer
