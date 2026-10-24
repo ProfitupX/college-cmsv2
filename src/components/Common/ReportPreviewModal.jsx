@@ -36,10 +36,10 @@ export default function ReportPreviewModal({
   const [showWrittenExamInPdf, setShowWrittenExamInPdf] = useState(false);
   const [targetPages, setTargetPages] = useState('auto');
 
-  // Total prescribed hours: strictly 30 for Internal 1; cumulative for Internal 2
-  const tHours = !isInternal2
-    ? parseInt(int1Hours || 30, 10)
-    : (parseInt(int1Hours || 30, 10) + parseInt(int2Hours || 30, 10) + (hasLab ? parseInt(labHours || 40, 10) : 0));
+  // Total prescribed hours: strictly int1Hours for Internal 1; int2Hours for Internal 2 (default 30)
+  const tHours = isInternal2
+    ? (parseInt(int2Hours, 10) || 30)
+    : (parseInt(int1Hours, 10) || 30);
 
   const getAttendanceMark = (pct) => {
     if (pct >= 95) return 5;
@@ -65,22 +65,11 @@ export default function ReportPreviewModal({
       let pct = 0;
       let attendanceMark = 0;
 
-      if (!isInternal2) {
-        rawHours = parseInt(attendanceData[student.id] || 0, 10);
-        pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-        attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-          ? parseFloat(attendanceMarks[student.id])
-          : getAttendanceMark(pct);
-      } else {
-        const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
-        const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
-        const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
-        rawHours = i1Attd + i2Attd + lAttd;
-        pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-        attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-          ? parseFloat(attendanceMarks[student.id])
-          : getAttendanceMark(pct);
-      }
+      rawHours = parseInt(attendanceData[student.id] || 0, 10);
+      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
+        ? parseFloat(attendanceMarks[student.id])
+        : getAttendanceMark(pct);
 
       const examMark = internalExamData ? internalExamData[student.id] : undefined;
       const numExam = parseFloat(examMark);

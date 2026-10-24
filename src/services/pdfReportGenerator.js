@@ -371,11 +371,12 @@ export const generateSubjectMarksListPDF = async ({
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
 
   // Total prescribed hours for this internal assessment:
-  // Internal 1: strictly 30 hours (only theory hours for Internal 1, NO lab hours!)
-  // Internal 2: cumulative (Int 1 theory (30) + Int 2 theory (30) + Lab hours (40) if subject has lab)
-  const tHours = !isInternal2 
-    ? parseInt(int1Hours || 30, 10) 
-    : (parseInt(int1Hours || 30, 10) + parseInt(int2Hours || 30, 10) + (hasLab ? parseInt(labHours || 40, 10) : 0));
+  // Internal 1: strictly int1Hours (default 30 hrs)
+  // Internal 2: strictly int2Hours (default 30 hrs)
+  // (Laboratory hours are never added here; Lab has its own Laboratory Marks Statement)
+  const tHours = isInternal2
+    ? (parseInt(int2Hours, 10) || 30)
+    : (parseInt(int1Hours, 10) || 30);
 
   const totHoursDisplay = tHours;
 
@@ -442,26 +443,13 @@ export const generateSubjectMarksListPDF = async ({
     let pct = 0;
     let attendanceMark = 0;
 
-    if (!isInternal2) {
-      rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      convertedHours = rawHours;
-      const computedMark = getAttendanceMark(pct);
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-        ? parseFloat(attendanceMarks[student.id])
-        : computedMark;
-    } else {
-      const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
-      const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
-      const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
-      rawHours = i1Attd + i2Attd + lAttd;
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      convertedHours = rawHours;
-      const computedMark = getAttendanceMark(pct);
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-        ? parseFloat(attendanceMarks[student.id])
-        : computedMark;
-    }
+    rawHours = parseInt(attendanceData[student.id] || 0, 10);
+    pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+    convertedHours = rawHours;
+    const computedMark = getAttendanceMark(pct);
+    attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
+      ? parseFloat(attendanceMarks[student.id])
+      : computedMark;
 
     const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
     const numExam = parseFloat(internalExamMark);
@@ -1217,7 +1205,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Staff Name         : ${staffName}`, 14, y);
   doc.text(`Academic Year  : 2026 - 2027`, 120, y);
   y += 5;
-  doc.text(`Subject              : ${subject?.code} / ${subject?.name}`, 14, y);
+  doc.text(`Subject              : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${prescribedHours || 30}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
   doc.text(`Calendar           : From Date: _________________    To Date: _________________`, 14, y);

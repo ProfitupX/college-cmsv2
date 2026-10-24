@@ -53,6 +53,80 @@ const applyThinBorders = (cell) => {
 };
 
 /**
+ * Standard College Header for all Excel workbooks
+ * Perfectly matches official Anna University / NSCET PDF layout:
+ * - Wide College Header Banner image on top left (Rows 1-4)
+ * - Format Information Box on top right (Rows 1-4)
+ * - Banner Title Bar (Row 5)
+ */
+const drawExcelCollegeHeader = async ({
+  workbook,
+  worksheet,
+  title,
+  formatNo = 'NAC/TLP-07a.20',
+  numCols = 10,
+}) => {
+  // Set row heights for rows 1 to 4 to host logo and format box cleanly
+  worksheet.getRow(1).height = 19;
+  worksheet.getRow(2).height = 19;
+  worksheet.getRow(3).height = 19;
+  worksheet.getRow(4).height = 19;
+
+  // 1. Embed College Logo Banner on Top Left (Aspect ratio 4.09:1)
+  const logoBase64 = await getImageBase64(logoImg);
+  if (logoBase64) {
+    const imageId = workbook.addImage({
+      base64: logoBase64,
+      extension: 'jpeg',
+    });
+    worksheet.addImage(imageId, {
+      tl: { col: 0.1, row: 0.1 },
+      ext: { width: 440, height: 100 }
+    });
+  }
+
+  // 2. Format Info Box on Top Right (Rows 1 to 4)
+  const startFormatCol = Math.max(numCols - 2, 4);
+  const dateStr = new Date().toLocaleDateString('en-GB');
+
+  const formatRows = [
+    `Format No. : ${formatNo}`,
+    'Rev.No     : 01',
+    `Date       : ${dateStr}`,
+    'Page       : 1 of 1'
+  ];
+
+  formatRows.forEach((text, i) => {
+    const rowNum = 1 + i;
+    worksheet.mergeCells(rowNum, startFormatCol, rowNum, numCols);
+    const cell = worksheet.getCell(rowNum, startFormatCol);
+    cell.value = text;
+    cell.font = { name: 'Arial', size: 8.5, bold: false, color: { argb: '334155' } };
+    cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F8FAFC' } };
+
+    for (let c = startFormatCol; c <= numCols; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
+  });
+
+  // 3. Banner Title Bar (Row 5)
+  worksheet.getRow(5).height = 24;
+  worksheet.mergeCells(5, 1, 5, numCols);
+  const titleCell = worksheet.getCell(5, 1);
+  titleCell.value = title.toUpperCase();
+  titleCell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: '1E3A8A' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+  for (let c = 1; c <= numCols; c++) {
+    applyThinBorders(worksheet.getCell(5, c));
+  }
+
+  // 4. Spacer (Row 6)
+  worksheet.getRow(6).height = 6;
+};
+
+/**
  * 1. Export Subject Marks List (With or Without Assignment Marks)
  */
 export const exportSubjectMarksExcel = async ({
@@ -84,9 +158,10 @@ export const exportSubjectMarksExcel = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
 
-  const tHours = !isInternal2
-    ? parseInt(int1Hours || 30, 10)
-    : (parseInt(int1Hours || 30, 10) + parseInt(int2Hours || 30, 10) + (hasLab ? parseInt(labHours || 40, 10) : 0));
+  // Strictly assessment specific hours (int1Hours/30 for Int 1, int2Hours/30 for Int 2)
+  const tHours = isInternal2
+    ? (parseInt(int2Hours, 10) || 30)
+    : (parseInt(int1Hours, 10) || 30);
 
   const getAttendanceMark = (pct) => {
     if (pct >= 95) return 5;
@@ -100,45 +175,19 @@ export const exportSubjectMarksExcel = async ({
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
-  // Embed Logo
-  const logoBase64 = await getImageBase64(logoImg);
-  if (logoBase64) {
-    const imageId = workbook.addImage({
-      base64: logoBase64,
-      extension: 'jpeg',
-    });
-    worksheet.addImage(imageId, {
-      tl: { col: 0.2, row: 0.2 },
-      ext: { width: 75, height: 75 }
-    });
-  }
+  const isLabAssignmentOnly = isInternal2 && hasLab && theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf;
+  const numCols = withInternal ? 10 : 8;
 
-  // Header Title Block
-  worksheet.mergeCells('B1:J1');
-  const titleCell1 = worksheet.getCell('B1');
-  titleCell1.value = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY, THENI';
-  titleCell1.font = { name: 'Arial', size: 13, bold: true, color: { argb: '1E3A8A' } };
-  titleCell1.alignment = { horizontal: 'center', vertical: 'middle' };
+  // Draw Official College Header (Rows 1-5 + Spacer Row 6)
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})`,
+    formatNo: 'NAC/TLP-07a.20',
+    numCols
+  });
 
-  worksheet.mergeCells('B2:J2');
-  const titleCell2 = worksheet.getCell('B2');
-  titleCell2.value = 'Approved by AICTE, New Delhi & Affiliated to Anna University, Chennai';
-  titleCell2.font = { name: 'Arial', size: 9, italic: true, color: { argb: '475569' } };
-  titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.mergeCells('B3:J3');
-  const titleCell3 = worksheet.getCell('B3');
-  titleCell3.value = `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})`;
-  titleCell3.font = { name: 'Arial', size: 11, bold: true, color: { argb: '0F172A' } };
-  titleCell3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  // Set Row Heights for Title
-  worksheet.getRow(1).height = 24;
-  worksheet.getRow(2).height = 18;
-  worksheet.getRow(3).height = 22;
-  worksheet.getRow(4).height = 10; // spacer
-
-  // Metadata Block (Rows 5-7)
+  // Metadata Block (Rows 7-9)
   const metaData = [
     ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
     ['Faculty Name:', staffName, '', '', 'Academic Year:', '2026 - 2027'],
@@ -146,7 +195,7 @@ export const exportSubjectMarksExcel = async ({
   ];
 
   metaData.forEach((row, i) => {
-    const r = worksheet.getRow(5 + i);
+    const r = worksheet.getRow(7 + i);
     r.values = row;
     r.font = { name: 'Arial', size: 9, bold: false };
     r.getCell(1).font = { bold: true };
@@ -154,12 +203,10 @@ export const exportSubjectMarksExcel = async ({
     r.height = 18;
   });
 
-  worksheet.getRow(8).height = 8; // spacer
+  worksheet.getRow(10).height = 8; // spacer
 
-  // Table Column Headers
+  // Table Column Headers (Row 11)
   let headers = [];
-  const isLabAssignmentOnly = isInternal2 && hasLab && theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf;
-
   if (withInternal) {
     if (isLabAssignmentOnly) {
       headers = [
@@ -169,7 +216,7 @@ export const exportSubjectMarksExcel = async ({
     } else {
       headers = [
         'S.No', 'Roll No', 'Student Name', 'Actual Attd (Hrs)', `Attended (/ ${tHours})`, 'Attd %',
-        'Attd Mark (5)', 'Assignment / Act (95)', 'Total Internal (Act + Attd)', '100 Marks Internal (Exam)'
+        'Attd Mark (5)', 'Activities (95)', 'Total Internal (Act + Attd)', '100 Marks Internal (Exam)'
       ];
     }
   } else {
@@ -179,7 +226,7 @@ export const exportSubjectMarksExcel = async ({
     ];
   }
 
-  const headerRow = worksheet.getRow(9);
+  const headerRow = worksheet.getRow(11);
   headerRow.values = headers;
   headerRow.height = 26;
   headerRow.eachCell((cell) => {
@@ -189,8 +236,8 @@ export const exportSubjectMarksExcel = async ({
     applyThinBorders(cell);
   });
 
-  // Populate Student Rows
-  let currentRow = 10;
+  // Populate Student Rows (Starting Row 12)
+  let currentRow = 12;
   students.forEach((student, idx) => {
     let convertedTotal = 0;
     (components || []).forEach(c => {
@@ -200,26 +247,12 @@ export const exportSubjectMarksExcel = async ({
     });
     convertedTotal = Math.round(convertedTotal);
 
-    let rawHours = 0;
-    let pct = 0;
-    let attendanceMark = 0;
-
-    if (!isInternal2) {
-      rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-        ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pct);
-    } else {
-      const i1Attd = parseInt(int1AttendanceData[student.id] || 0, 10);
-      const i2Attd = parseInt(attendanceData[student.id] || 0, 10);
-      const lAttd  = hasLab ? parseInt(labData[student.id]?.labAttendance || 0, 10) : 0;
-      rawHours = i1Attd + i2Attd + lAttd;
-      pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-        ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pct);
-    }
+    const rawHours = parseInt(attendanceData[student.id] || 0, 10);
+    const pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+    const computedAttdMark = getAttendanceMark(pct);
+    const attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
+      ? parseFloat(attendanceMarks[student.id])
+      : computedAttdMark;
 
     const cappedHours = Math.min(rawHours, tHours);
     const examMark = internalExamData ? internalExamData[student.id] : undefined;
@@ -243,7 +276,7 @@ export const exportSubjectMarksExcel = async ({
           student.roll_no || student.rollNo || '-',
           cleanName,
           rawHours,
-          cappedHours,
+          `${cappedHours} / ${tHours}`,
           `${pct}%`,
           attendanceMark,
           act50,
@@ -256,7 +289,7 @@ export const exportSubjectMarksExcel = async ({
           student.roll_no || student.rollNo || '-',
           cleanName,
           rawHours,
-          cappedHours,
+          `${cappedHours} / ${tHours}`,
           `${pct}%`,
           attendanceMark,
           convertedTotal,
@@ -272,7 +305,7 @@ export const exportSubjectMarksExcel = async ({
         student.roll_no || student.rollNo || '-',
         cleanName,
         rawHours,
-        cappedHours,
+        `${cappedHours} / ${tHours}`,
         `${pct}%`,
         examMarkStr,
         resultStr
@@ -379,45 +412,18 @@ export const exportLaboratoryMarksExcel = async ({
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
   const prescribedLabHours = parseInt(labHours || 0, 10) || 40;
+  const numCols = 6;
 
-  // Embed Logo
-  const logoBase64 = await getImageBase64(logoImg);
-  if (logoBase64) {
-    const imageId = workbook.addImage({
-      base64: logoBase64,
-      extension: 'jpeg',
-    });
-    worksheet.addImage(imageId, {
-      tl: { col: 0.2, row: 0.2 },
-      ext: { width: 75, height: 75 }
-    });
-  }
+  // Draw Official College Header
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `LABORATORY / PRACTICAL MARKS STATEMENT — ${assessmentMode === 'internal2' ? 'INTERNAL 2' : 'INTERNAL 1'}`,
+    formatNo: 'NAC/TLP-LAB.01',
+    numCols
+  });
 
-  // Header Title Block
-  worksheet.mergeCells('B1:F1');
-  const titleCell1 = worksheet.getCell('B1');
-  titleCell1.value = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY, THENI';
-  titleCell1.font = { name: 'Arial', size: 13, bold: true, color: { argb: '1E3A8A' } };
-  titleCell1.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.mergeCells('B2:F2');
-  const titleCell2 = worksheet.getCell('B2');
-  titleCell2.value = 'Approved by AICTE, New Delhi & Affiliated to Anna University, Chennai';
-  titleCell2.font = { name: 'Arial', size: 9, italic: true, color: { argb: '475569' } };
-  titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.mergeCells('B3:F3');
-  const titleCell3 = worksheet.getCell('B3');
-  titleCell3.value = `LABORATORY / PRACTICAL MARKS STATEMENT — ${assessmentMode === 'internal2' ? 'INTERNAL 2' : 'INTERNAL 1'}`;
-  titleCell3.font = { name: 'Arial', size: 11, bold: true, color: { argb: '0F172A' } };
-  titleCell3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.getRow(1).height = 24;
-  worksheet.getRow(2).height = 18;
-  worksheet.getRow(3).height = 22;
-  worksheet.getRow(4).height = 10;
-
-  // Metadata Block
+  // Metadata Block (Rows 7-9)
   const metaData = [
     ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
     ['Staff In-Charge:', staffName, '', 'Academic Year:', '2026 - 2027'],
@@ -425,7 +431,7 @@ export const exportLaboratoryMarksExcel = async ({
   ];
 
   metaData.forEach((row, i) => {
-    const r = worksheet.getRow(5 + i);
+    const r = worksheet.getRow(7 + i);
     r.values = row;
     r.font = { name: 'Arial', size: 9 };
     r.getCell(1).font = { bold: true };
@@ -433,10 +439,10 @@ export const exportLaboratoryMarksExcel = async ({
     r.height = 18;
   });
 
-  worksheet.getRow(8).height = 8;
+  worksheet.getRow(10).height = 8; // spacer
 
-  // Table Headers
-  const headerRow = worksheet.getRow(9);
+  // Table Headers (Row 11)
+  const headerRow = worksheet.getRow(11);
   headerRow.values = ['S.No', 'Roll No', 'Student Name', `Lab Attended Hours (/ ${prescribedLabHours})`, 'Lab Marks (/ 100)', 'Result (Pass / Fail)'];
   headerRow.height = 26;
   headerRow.eachCell((cell) => {
@@ -446,39 +452,27 @@ export const exportLaboratoryMarksExcel = async ({
     applyThinBorders(cell);
   });
 
-  // Rows
-  let currentRow = 10;
-  students.forEach((st, idx) => {
-    let attendedHours = 0;
-    if (labData[st.id]?.labAttendance !== undefined && labData[st.id]?.labAttendance !== null && labData[st.id]?.labAttendance !== '') {
-      attendedHours = parseInt(labData[st.id].labAttendance, 10);
-    } else if (attendanceData[st.id] !== undefined && attendanceData[st.id] !== null && attendanceData[st.id] !== '') {
-      attendedHours = parseInt(attendanceData[st.id], 10);
-    }
-    const cleanHours = Math.min(attendedHours, prescribedLabHours);
+  // Rows (Starting Row 12)
+  let currentRow = 12;
+  students.forEach((student, idx) => {
+    const rawAttd = parseInt(labData[student.id]?.labAttendance || attendanceData[student.id] || 0, 10);
+    const rawMark = parseFloat(labData[student.id]?.labMark || 0);
+    const isAbsent = isNaN(rawMark) || labData[student.id]?.labMark === null || labData[student.id]?.labMark === undefined || labData[student.id]?.labMark === '' || labData[student.id]?.labMark === 'AB';
+    const markStr = isAbsent ? 'AB' : Math.round(rawMark);
+    const isPass = !isAbsent && markStr >= 50;
+    const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
-    let rawLabMark = null;
-    if (labData[st.id]?.labMark !== undefined && labData[st.id]?.labMark !== null && labData[st.id]?.labMark !== '') {
-      rawLabMark = labData[st.id].labMark;
-    } else if (internalExamData[st.id] !== undefined && internalExamData[st.id] !== null && internalExamData[st.id] !== '') {
-      rawLabMark = internalExamData[st.id];
-    }
-
-    const numMark = parseFloat(rawLabMark);
-    const isAbsent = isNaN(numMark) || rawLabMark === null || rawLabMark === '' || rawLabMark === 'AB';
-    const markDisplay = isAbsent ? 'AB' : Math.round(numMark);
-    const result = isAbsent ? 'AB' : (numMark >= 50 ? 'PASS' : 'FAIL');
-    const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
+    const rowValues = [
+      idx + 1,
+      student.roll_no || student.rollNo || '-',
+      cleanName,
+      `${rawAttd} / ${prescribedLabHours}`,
+      markStr,
+      isAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL')
+    ];
 
     const dataRow = worksheet.getRow(currentRow);
-    dataRow.values = [
-      idx + 1,
-      st.roll_no || st.rollNo || '-',
-      cleanName,
-      cleanHours,
-      markDisplay,
-      result
-    ];
+    dataRow.values = rowValues;
     dataRow.height = 20;
 
     const bg = (idx % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
@@ -558,45 +552,19 @@ export const exportOverallMarksExcel = async ({
 
   const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
   const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name?.toUpperCase() !== 'LIBRARY');
+  const colsPerSub = is2021 ? 2 : 3;
+  const totalColumns = 3 + (targetSubjects.length * colsPerSub) + 1;
 
-  // Embed Logo
-  const logoBase64 = await getImageBase64(logoImg);
-  if (logoBase64) {
-    const imageId = workbook.addImage({
-      base64: logoBase64,
-      extension: 'jpeg',
-    });
-    worksheet.addImage(imageId, {
-      tl: { col: 0.2, row: 0.2 },
-      ext: { width: 75, height: 75 }
-    });
-  }
+  // Draw Official College Header
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `EXAMCELL LEGAL STATEMENT — ${sessionLabel === 'internal2' ? 'INTERNAL ASSESSMENT 2' : 'INTERNAL ASSESSMENT 1'} (${withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS'})`,
+    formatNo: 'NAC/TLP-07a.20',
+    numCols: totalColumns
+  });
 
-  // Titles
-  worksheet.mergeCells('B1:N1');
-  const t1 = worksheet.getCell('B1');
-  t1.value = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY, THENI';
-  t1.font = { name: 'Arial', size: 13, bold: true, color: { argb: '1E3A8A' } };
-  t1.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.mergeCells('B2:N2');
-  const t2 = worksheet.getCell('B2');
-  t2.value = 'Approved by AICTE, New Delhi & Affiliated to Anna University, Chennai';
-  t2.font = { name: 'Arial', size: 9, italic: true, color: { argb: '475569' } };
-  t2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.mergeCells('B3:N3');
-  const t3 = worksheet.getCell('B3');
-  t3.value = `EXAMCELL LEGAL STATEMENT — ${sessionLabel === 'internal2' ? 'INTERNAL ASSESSMENT 2' : 'INTERNAL ASSESSMENT 1'} (${withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS'})`;
-  t3.font = { name: 'Arial', size: 11, bold: true, color: { argb: '0F172A' } };
-  t3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  worksheet.getRow(1).height = 24;
-  worksheet.getRow(2).height = 18;
-  worksheet.getRow(3).height = 22;
-  worksheet.getRow(4).height = 10;
-
-  // Metadata
+  // Metadata Block (Rows 7-9)
   const meta = [
     ['Class / Year / Sem:', `${classObj?.name || 'Class'} (${classObj?.year_label || 'II'} / Sem ${classObj?.semester || '4'})`, '', '', 'Department:', classObj?.department || 'Information Technology'],
     ['Regulation:', is2021 ? '2021 Regulation' : '2025 Regulation', '', '', 'Academic Year:', '2026 - 2027'],
@@ -604,7 +572,7 @@ export const exportOverallMarksExcel = async ({
   ];
 
   meta.forEach((row, idx) => {
-    const r = worksheet.getRow(5 + idx);
+    const r = worksheet.getRow(7 + idx);
     r.values = row;
     r.font = { name: 'Arial', size: 9 };
     r.getCell(1).font = { bold: true };
@@ -612,72 +580,70 @@ export const exportOverallMarksExcel = async ({
     r.height = 18;
   });
 
-  worksheet.getRow(8).height = 8;
+  worksheet.getRow(10).height = 8; // spacer
 
-  // Header Rows (Row 9: Top Subject Codes, Row 10: Subcolumns)
-  const row9 = worksheet.getRow(9);
-  const row10 = worksheet.getRow(10);
-  row9.height = 24;
-  row10.height = 24;
+  // Header Rows (Row 11: Top Subject Codes, Row 12: Subcolumns)
+  const row11 = worksheet.getRow(11);
+  const row12 = worksheet.getRow(12);
+  row11.height = 24;
+  row12.height = 24;
 
   let colIdx = 1;
   // S.No
-  worksheet.mergeCells(9, colIdx, 10, colIdx);
-  worksheet.getCell(9, colIdx).value = 'S.No';
+  worksheet.mergeCells(11, colIdx, 12, colIdx);
+  worksheet.getCell(11, colIdx).value = 'S.No';
   colIdx++;
 
   // Roll No
-  worksheet.mergeCells(9, colIdx, 10, colIdx);
-  worksheet.getCell(9, colIdx).value = 'Roll No';
+  worksheet.mergeCells(11, colIdx, 12, colIdx);
+  worksheet.getCell(11, colIdx).value = 'Roll No';
   colIdx++;
 
   // Name
-  worksheet.mergeCells(9, colIdx, 10, colIdx);
-  worksheet.getCell(9, colIdx).value = 'Student Name';
+  worksheet.mergeCells(11, colIdx, 12, colIdx);
+  worksheet.getCell(11, colIdx).value = 'Student Name';
   colIdx++;
 
   // Subjects
   targetSubjects.forEach((sub) => {
     const startCol = colIdx;
     if (is2021) {
-      // 2 columns: Attd Hrs & Int Marks
-      worksheet.mergeCells(9, startCol, 9, startCol + 1);
-      worksheet.getCell(9, startCol).value = sub.code;
-      worksheet.getCell(10, startCol).value = 'Attd Hrs';
-      worksheet.getCell(10, startCol + 1).value = 'Int Marks';
+      worksheet.mergeCells(11, startCol, 11, startCol + 1);
+      worksheet.getCell(11, startCol).value = sub.code;
+      worksheet.getCell(12, startCol).value = 'Attd Hrs';
+      worksheet.getCell(12, startCol + 1).value = 'Int Marks';
       colIdx += 2;
     } else {
-      // 3 columns: Attd Hrs, Attd %, Int Mark
-      worksheet.mergeCells(9, startCol, 9, startCol + 2);
-      worksheet.getCell(9, startCol).value = sub.code;
-      worksheet.getCell(10, startCol).value = 'Attd Hrs';
-      worksheet.getCell(10, startCol + 1).value = 'Attd %';
-      worksheet.getCell(10, startCol + 2).value = 'Int Mark';
+      worksheet.mergeCells(11, startCol, 11, startCol + 2);
+      worksheet.getCell(11, startCol).value = sub.code;
+      worksheet.getCell(12, startCol).value = 'Attd Hrs';
+      worksheet.getCell(12, startCol + 1).value = 'Attd %';
+      worksheet.getCell(12, startCol + 2).value = 'Int Mark';
       colIdx += 3;
     }
   });
 
   // Overall Attd %
-  worksheet.mergeCells(9, colIdx, 10, colIdx);
-  worksheet.getCell(9, colIdx).value = 'Overall Attd %';
+  worksheet.mergeCells(11, colIdx, 12, colIdx);
+  worksheet.getCell(11, colIdx).value = 'Overall Attd %';
 
-  // Apply styling to Header Rows 9 and 10
+  // Apply styling to Header Rows 11 and 12
   for (let c = 1; c <= colIdx; c++) {
-    const c9 = worksheet.getCell(9, c);
-    const c10 = worksheet.getCell(10, c);
-    c9.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
-    c9.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
-    c9.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    applyThinBorders(c9);
+    const c11 = worksheet.getCell(11, c);
+    const c12 = worksheet.getCell(12, c);
+    c11.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+    c11.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    c11.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    applyThinBorders(c11);
 
-    c10.font = { name: 'Arial', size: 8.5, bold: true, color: { argb: 'FFFFFF' } };
-    c10.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E40AF' } };
-    c10.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    applyThinBorders(c10);
+    c12.font = { name: 'Arial', size: 8.5, bold: true, color: { argb: 'FFFFFF' } };
+    c12.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E40AF' } };
+    c12.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    applyThinBorders(c12);
   }
 
-  // Populate Student Rows
-  let currentRow = 11;
+  // Populate Student Rows (Starting Row 13)
+  let currentRow = 13;
   students.forEach((st, sIdx) => {
     const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
     const rowValues = [sIdx + 1, st.roll_no || st.rollNo || '-', cleanName];
@@ -703,7 +669,7 @@ export const exportOverallMarksExcel = async ({
         }
       }
 
-      const subPrescribed = parseInt(sess?.total_hours || sub.total_hours || 30, 10);
+      const subPrescribed = parseInt(sess?.total_hours || (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || 30, 10);
       totalAttendedHoursAll += attHrs;
       totalPrescribedHoursAll += subPrescribed;
 
@@ -766,4 +732,3 @@ export default {
   exportLaboratoryMarksExcel,
   exportOverallMarksExcel
 };
-
