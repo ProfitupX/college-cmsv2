@@ -3,6 +3,20 @@ import db from '../db.js';
 
 const router = express.Router();
 
+// Ensure int1_hours, int2_hours, lab_hours columns exist in subjects table
+const ensureSubjectColumns = async () => {
+  try {
+    await db.query('ALTER TABLE subjects ADD COLUMN int1_hours INT DEFAULT NULL AFTER total_hours');
+  } catch (e) {}
+  try {
+    await db.query('ALTER TABLE subjects ADD COLUMN int2_hours INT DEFAULT NULL AFTER int1_hours');
+  } catch (e) {}
+  try {
+    await db.query('ALTER TABLE subjects ADD COLUMN lab_hours INT DEFAULT NULL AFTER int2_hours');
+  } catch (e) {}
+};
+ensureSubjectColumns().catch(console.error);
+
 // GET /api/subjects?classId=CL001
 // GET /api/subjects?facultyId=FAC001
 router.get('/', async (req, res) => {
@@ -10,7 +24,8 @@ router.get('/', async (req, res) => {
     const { classId, facultyId } = req.query;
     let sql = `
       SELECT s.id, s.code, s.name, s.acronym, s.type, s.department,
-             s.semester, s.ltpc, s.total_hours, s.faculty_id, s.class_id,
+             s.semester, s.ltpc, s.total_hours, s.int1_hours, s.int2_hours, s.lab_hours,
+             s.faculty_id, s.class_id,
              f.name AS faculty_name, f.designation AS faculty_designation,
              f.department AS faculty_department
       FROM subjects s
@@ -41,16 +56,26 @@ router.post('/', async (req, res) => {
 
     await conn.beginTransaction();
     for (const item of data) {
-      const { id, code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id } = item;
+      const { id, code, name, acronym, type, department, semester, ltpc, total_hours, int1_hours, int2_hours, lab_hours, faculty_id, class_id } = item;
       if (!id || !code || !name) throw new Error(`Missing required fields for subject ${id || 'unknown'}`);
       
       await conn.execute(
-        `INSERT INTO subjects (id, code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO subjects (id, code, name, acronym, type, department, semester, ltpc, total_hours, int1_hours, int2_hours, lab_hours, faculty_id, class_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE 
            code=VALUES(code), name=VALUES(name), acronym=VALUES(acronym), type=VALUES(type), 
-           department=VALUES(department), semester=VALUES(semester), ltpc=VALUES(ltpc), total_hours=VALUES(total_hours), faculty_id=VALUES(faculty_id), class_id=VALUES(class_id)`,
-        [id, code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null, total_hours || null, faculty_id || null, class_id || null]
+           department=VALUES(department), semester=VALUES(semester), ltpc=VALUES(ltpc), 
+           total_hours=VALUES(total_hours), int1_hours=VALUES(int1_hours), int2_hours=VALUES(int2_hours), lab_hours=VALUES(lab_hours),
+           faculty_id=VALUES(faculty_id), class_id=VALUES(class_id)`,
+        [
+          id, code, name, acronym || null, type || 'Theory', department || null, semester || null,
+          ltpc || null,
+          total_hours !== undefined && total_hours !== '' ? parseInt(total_hours, 10) : null,
+          int1_hours !== undefined && int1_hours !== '' ? parseInt(int1_hours, 10) : null,
+          int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null,
+          lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null,
+          faculty_id || null, class_id || null
+        ]
       );
     }
     await conn.commit();
@@ -67,10 +92,20 @@ router.post('/', async (req, res) => {
 // PUT /api/subjects/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { code, name, acronym, type, department, semester, ltpc, total_hours, faculty_id, class_id } = req.body;
+    const { code, name, acronym, type, department, semester, ltpc, total_hours, int1_hours, int2_hours, lab_hours, faculty_id, class_id } = req.body;
     await db.execute(
-      `UPDATE subjects SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, total_hours=?, faculty_id=?, class_id=? WHERE id = ?`,
-      [code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null, total_hours || null, faculty_id || null, class_id || null, req.params.id]
+      `UPDATE subjects 
+       SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
+           total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
+       WHERE id = ?`,
+      [
+        code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
+        total_hours !== undefined && total_hours !== '' ? parseInt(total_hours, 10) : null,
+        int1_hours !== undefined && int1_hours !== '' ? parseInt(int1_hours, 10) : null,
+        int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null,
+        lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null,
+        faculty_id || null, class_id || null, req.params.id
+      ]
     );
     res.json({ success: true });
   } catch (err) {

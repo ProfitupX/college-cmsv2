@@ -305,10 +305,16 @@ export default function MarksEntryPage() {
     return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
   };
 
-  const hourSplits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, totalHours) : { int1: 0, int2: 0, lab: 0 };
-  const int1Hours = hourSplits.int1;
-  const int2Hours = hourSplits.int2;
-  const labHours  = hourSplits.lab;
+  const defaultSplits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, totalHours) : { int1: 30, int2: 30, lab: 0 };
+  const int1Hours = (selectedSubject?.int1_hours !== null && selectedSubject?.int1_hours !== undefined && selectedSubject?.int1_hours !== '')
+    ? parseInt(selectedSubject.int1_hours, 10)
+    : (defaultSplits.int1 || 30);
+  const int2Hours = (selectedSubject?.int2_hours !== null && selectedSubject?.int2_hours !== undefined && selectedSubject?.int2_hours !== '')
+    ? parseInt(selectedSubject.int2_hours, 10)
+    : (defaultSplits.int2 || 30);
+  const labHours  = (selectedSubject?.lab_hours !== null && selectedSubject?.lab_hours !== undefined && selectedSubject?.lab_hours !== '')
+    ? parseInt(selectedSubject.lab_hours, 10)
+    : (defaultSplits.lab || 0);
 
   const handleSave = async (actionType = 'draft') => {
     setSaving(true);
