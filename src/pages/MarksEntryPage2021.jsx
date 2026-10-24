@@ -15,7 +15,14 @@ import {
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import ReportPreviewModal from '../components/Common/ReportPreviewModal';
-import { exportSubjectMarksExcel, exportLaboratoryMarksExcel, exportOverallMarksExcel } from '../services/excelReportGenerator';
+import { 
+  exportSubjectMarksExcel, 
+  exportLaboratoryMarksExcel, 
+  exportOverallMarksExcel, 
+  exportSubjectAnalysisExcel, 
+  exportConsolidatedMarksExcel, 
+  exportClassAnalysisExcel 
+} from '../services/excelReportGenerator';
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, FileText, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
@@ -580,6 +587,58 @@ export default function MarksEntryPage2021() {
         return;
       }
 
+      if (reportType === 'subject_analysis') {
+        await exportSubjectAnalysisExcel({
+          subject: selectedSubject,
+          classObj: selectedClass,
+          staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
+          session: currentSession,
+          remedialAction,
+          students,
+          marksData,
+          components: assessmentComponents,
+          attendanceData,
+          internalExamData,
+          labData,
+          assessmentMode,
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'class_analysis') {
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        await exportClassAnalysisExcel({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allMarks: summary.allMarks || [],
+          allAttendance: summary.allAttendance || [],
+          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'consolidated_statement') {
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        await exportConsolidatedMarksExcel({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || [],
+          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+          user
+        });
+        return;
+      }
+
       if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
         const withInternal = reportType === 'examcell_legal_with_internal';
         const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
@@ -1082,6 +1141,7 @@ export default function MarksEntryPage2021() {
         labHours={40}
         int1AttendanceData={{}}
         regulation="2021"
+        reportType={reportType}
         isLabOnly={reportType === 'lab_marks_only'}
       />
     </div>

@@ -800,8 +800,650 @@ export const exportOverallMarksExcel = async ({
   await triggerDownload(workbook, `${classObj?.name || 'Class'}_ExamCell_Legal_Statement.xlsx`);
 };
 
+/**
+ * 4. Export Subject Test Analysis Report (NAC/TLP-07a.21)
+ */
+export const exportSubjectAnalysisExcel = async ({
+  subject,
+  classObj,
+  staff,
+  session,
+  remedialAction = '',
+  students = [],
+  marksData = {},
+  allMarks = [],
+  components = [],
+  attendanceData = {},
+  internalExamData = {},
+  labData = {},
+  assessmentMode = 'internal1',
+  declarationData = {},
+  user
+}) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Subject Analysis');
+
+  const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || user?.name || 'Faculty Staff';
+  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
+  const ciaMax = isLabType ? 50 : 40;
+  const examConvertedMax = isLabType ? 50 : 60;
+  const analysisPrescribedHrs = (assessmentMode === 'internal2')
+    ? (parseInt(subject?.int2_hours, 10) || 30)
+    : (parseInt(subject?.int1_hours, 10) || 30);
+
+  const gradeCounts = { U: 0, E: 0, D: 0, C: 0, B: 0, A: 0, S: 0 };
+  let appeared = 0;
+  let passed = 0;
+  let failed = 0;
+  let absent = 0;
+  let maxMark = 0;
+  let minMark = 100;
+  let totalScore = 0;
+
+  const studentRows = students.map((st, idx) => {
+    let mark = 0;
+    let isAbsent = false;
+
+    if (is2021) {
+      let rawCIA = 0;
+      if (components && (marksData || allMarks)) {
+        const isArray = Array.isArray(marksData) || Array.isArray(allMarks);
+        const dataArr = Array.isArray(marksData) ? marksData : (Array.isArray(allMarks) ? allMarks : []);
+        components.forEach(comp => {
+          let val = 0;
+          if (isArray) {
+            const markObj = dataArr.find(m => m.component_id === comp.id && m.student_id === st.id);
+            val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          } else {
+            val = (marksData[st.id] && marksData[st.id][comp.uid || comp.id]) ? parseFloat(marksData[st.id][comp.uid || comp.id]) : 0;
+          }
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+      }
+      const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+      const examRaw = parseFloat(internalExamData[st.id]) || 0;
+      const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+      const labExamRaw = labData[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
+      const labExamConverted = Math.round((labExamRaw / 100) * 50);
+
+      if (isLabType && assessmentMode === 'internal2') {
+        mark = Math.min(ciaTotal + labExamConverted, 100);
+      } else {
+        mark = Math.min(ciaTotal + examConverted, 100);
+      }
+
+      const rawVal = internalExamData[st.id];
+      if ((rawVal === '' || rawVal === undefined || rawVal === null) && (!isLabType || assessmentMode !== 'internal2')) {
+        isAbsent = true;
+      }
+    } else {
+      const rawVal = internalExamData[st.id];
+      if (rawVal === '' || rawVal === undefined || rawVal === null) {
+        isAbsent = true;
+      } else {
+        mark = parseFloat(rawVal) || 0;
+      }
+    }
+
+    if (isAbsent) {
+      absent++;
+      return {
+        sNo: idx + 1,
+        rollNo: st.roll_no || st.rollNo || '-',
+        name: String(st.name || '').replace(/ð[^\s]*/g, '').trim(),
+        markStr: 'AB',
+        result: 'AB'
+      };
+    }
+
+    appeared++;
+    totalScore += mark;
+    if (mark > maxMark) maxMark = mark;
+    if (mark < minMark) minMark = mark;
+
+    const passMarkThreshold = (isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) ? 50 : 60;
+    const isPass = mark >= passMarkThreshold;
+    if (isPass) passed++;
+    else failed++;
+
+    if (mark < 50) gradeCounts.U++;
+    else if (mark <= 55) gradeCounts.E++;
+    else if (mark <= 59) gradeCounts.D++;
+    else if (mark <= 69) gradeCounts.C++;
+    else if (mark <= 79) gradeCounts.B++;
+    else if (mark <= 89) gradeCounts.A++;
+    else gradeCounts.S++;
+
+    return {
+      sNo: idx + 1,
+      rollNo: st.roll_no || st.rollNo || '-',
+      name: String(st.name || '').replace(/ð[^\s]*/g, '').trim(),
+      markStr: Math.round(mark),
+      result: isPass ? 'PASS' : 'FAIL'
+    };
+  });
+
+  if (appeared === 0) minMark = 0;
+  const passPct = appeared > 0 ? ((passed / appeared) * 100).toFixed(1) : '100.0';
+  const avgMark = appeared > 0 ? (totalScore / appeared).toFixed(1) : '0.0';
+
+  // Draw Official College Header
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `TEST ANALYSIS REPORT (SUBJECT WISE) — ${assessmentMode === 'internal1' ? 'INTERNAL TEST 1' : 'INTERNAL TEST 2'}`,
+    formatNo: 'NAC/TLP-07a.21',
+    numCols: 8
+  });
+
+  // Metadata Block
+  const meta = [
+    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
+    ['Staff In-Charge:', staffName, '', 'Academic Year:', '2026 - 2027'],
+    ['Subject Code / Name:', `${subject?.code || ''} — ${subject?.name || ''}`, '', 'Prescribed Hrs:', `${analysisPrescribedHrs} Hours`],
+    ['Internal Assessment:', assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+  ];
+
+  meta.forEach((row, i) => {
+    const r = worksheet.getRow(7 + i);
+    r.values = row;
+    r.font = { name: 'Arial', size: 9 };
+    r.getCell(1).font = { bold: true };
+    r.getCell(4).font = { bold: true };
+    r.height = 18;
+  });
+
+  worksheet.getRow(11).height = 8; // spacer
+
+  // Grade Distribution Table (Rows 12-14)
+  const gTitle = worksheet.getRow(12);
+  gTitle.values = ['1. Grade & Performance Analysis:'];
+  gTitle.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '1E3A8A' } };
+
+  const gHead = worksheet.getRow(13);
+  gHead.values = ['Description', '0-49 (U)', '50-55 (E)', '56-59 (D)', '60-69 (C)', '70-79 (B)', '80-89 (A)', '90-100 (S)'];
+  gHead.height = 22;
+  gHead.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  });
+
+  const gRow1 = worksheet.getRow(14);
+  gRow1.values = ['No. of Students', gradeCounts.U, gradeCounts.E, gradeCounts.D, gradeCounts.C, gradeCounts.B, gradeCounts.A, gradeCounts.S];
+  gRow1.height = 20;
+  gRow1.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9, bold: true };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  });
+
+  const gRow2 = worksheet.getRow(15);
+  gRow2.values = [
+    '% of Students',
+    appeared > 0 ? `${((gradeCounts.U / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.E / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.D / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.C / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.B / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.A / appeared) * 100).toFixed(0)}%` : '0%',
+    appeared > 0 ? `${((gradeCounts.S / appeared) * 100).toFixed(0)}%` : '0%'
+  ];
+  gRow2.height = 20;
+  gRow2.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  });
+
+  // KPI Summary Row (Row 17)
+  const kpiRow = worksheet.getRow(17);
+  kpiRow.values = [
+    `Total Strength: ${students.length}`,
+    `Appeared: ${appeared}`,
+    `Passed: ${passed}`,
+    `Failed: ${failed}`,
+    `Pass %: ${passPct}%`,
+    `Average: ${avgMark}`,
+    `Highest: ${maxMark}`,
+    `Lowest: ${minMark}`
+  ];
+  kpiRow.height = 22;
+  kpiRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 8.5, bold: true, color: { argb: '1E3A8A' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  });
+
+  worksheet.getRow(18).height = 10; // spacer
+
+  // Student Marks Table
+  const sTitle = worksheet.getRow(19);
+  sTitle.values = ['2. Student Mark List:'];
+  sTitle.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '1E3A8A' } };
+
+  const sHead = worksheet.getRow(20);
+  sHead.values = ['S.No', 'Roll No', 'Student Name', 'Marks Obtained (/ 100)', 'Result', '', '', ''];
+  sHead.height = 24;
+  sHead.eachCell((cell, col) => {
+    if (col <= 5) {
+      cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      applyThinBorders(cell);
+    }
+  });
+
+  let curRow = 21;
+  studentRows.forEach((r, idx) => {
+    const row = worksheet.getRow(curRow);
+    row.values = [r.sNo, r.rollNo, r.name, r.markStr, r.result];
+    row.height = 20;
+
+    const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+    for (let c = 1; c <= 5; c++) {
+      const cell = row.getCell(c);
+      cell.font = { name: 'Arial', size: 9 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      applyThinBorders(cell);
+
+      if (c === 3) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+
+      if (c === 5) {
+        if (cell.value === 'PASS') {
+          cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
+        } else if (cell.value === 'FAIL') {
+          cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '991B1B' } };
+        } else {
+          cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '64748B' } };
+        }
+      }
+    }
+    curRow++;
+  });
+
+  curRow += 2;
+  // Signatures
+  const sigRow = worksheet.getRow(curRow);
+  sigRow.values = ['', 'FACULTY IN-CHARGE', '', 'HOD', '', '', 'PRINCIPAL'];
+  sigRow.height = 24;
+  sigRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+
+  worksheet.columns = [
+    { width: 8 },
+    { width: 18 },
+    { width: 34 },
+    { width: 22 },
+    { width: 16 },
+    { width: 14 },
+    { width: 14 },
+    { width: 14 }
+  ];
+
+  await triggerDownload(workbook, `${subject?.code || 'SUB'}_Test_Analysis_Report.xlsx`);
+};
+
+/**
+ * 5. Export Consolidated Mark Statement (NAC/TLP-07a.20)
+ */
+export const exportConsolidatedMarksExcel = async ({
+  classObj,
+  sessionLabel = 'internal1',
+  subjects = [],
+  students = [],
+  allSessions = [],
+  allAttendance = [],
+  allMarks = [],
+  allComponents = [],
+  selectedSubjectIds,
+  inchargeNameParam = '',
+  user
+}) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Consolidated Marks');
+
+  let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
+
+  const numCols = 3 + filteredSubjects.length + 3;
+
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `CONSOLIDATED MARK STATEMENT — ${sessionLabel === 'internal1' ? 'INTERNAL TEST 1' : 'INTERNAL TEST 2'}`,
+    formatNo: 'NAC/TLP-07a.20',
+    numCols
+  });
+
+  // Metadata Block
+  const meta = [
+    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', classObj?.department || 'Information Technology'],
+    ['Class In-Charge:', inchargeNameParam || user?.name || 'Class In-charge', '', 'Academic Year:', '2026 - 2027'],
+    ['Internal Assessment:', sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+  ];
+
+  meta.forEach((row, i) => {
+    const r = worksheet.getRow(7 + i);
+    r.values = row;
+    r.font = { name: 'Arial', size: 9 };
+    r.getCell(1).font = { bold: true };
+    r.getCell(4).font = { bold: true };
+    r.height = 18;
+  });
+
+  worksheet.getRow(10).height = 8; // spacer
+
+  // Table Header (Row 11)
+  const headCols = ['S.No', 'Roll No', 'Student Name', ...filteredSubjects.map(s => s.code), 'Failed', 'Passed', 'Absent'];
+  const hRow = worksheet.getRow(11);
+  hRow.values = headCols;
+  hRow.height = 26;
+  hRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    applyThinBorders(cell);
+  });
+
+  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+
+  let curRow = 12;
+  students.forEach((st, idx) => {
+    let failedCount = 0;
+    let passedCount = 0;
+    let absentCount = 0;
+
+    const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
+    const rowVals = [idx + 1, st.roll_no || st.rollNo || '-', cleanName];
+
+    filteredSubjects.forEach(sub => {
+      const sess = allSessions.find(s => s.subject_id === sub.id && s.session_label === sessionLabel);
+      if (!sess) {
+        absentCount++;
+        rowVals.push('-');
+        return;
+      }
+
+      let score = '-';
+      if (is2021) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let rawCIA = 0;
+        sessionComps.forEach(comp => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
+        const ciaMax = isLabType ? 50 : 40;
+        const examConvertedMax = isLabType ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+        const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const rawExam = attRec?.internal_exam_mark;
+        const labRaw = attRec?.lab_mark;
+
+        if (isLabType && sessionLabel === 'internal2') {
+          const labExamConverted = Math.round(((parseFloat(labRaw) || 0) / 100) * 50);
+          score = Math.min(ciaTotal + labExamConverted, 100);
+        } else {
+          const examConverted = Math.round(((parseFloat(rawExam) || 0) / 100) * examConvertedMax);
+          score = Math.min(ciaTotal + examConverted, 100);
+        }
+
+        if ((rawExam === null || rawExam === undefined || rawExam === '') && (!isLabType || sessionLabel !== 'internal2')) {
+          score = 'AB';
+        }
+      } else {
+        const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const rawExam = attRec?.internal_exam_mark;
+        if (rawExam !== null && rawExam !== undefined && rawExam !== '') {
+          score = Math.round(parseFloat(rawExam));
+        } else {
+          score = 'AB';
+        }
+      }
+
+      if (score === 'AB' || score === '-') {
+        absentCount++;
+      } else if (typeof score === 'number' && score >= 50) {
+        passedCount++;
+      } else {
+        failedCount++;
+      }
+
+      rowVals.push(score);
+    });
+
+    rowVals.push(failedCount, passedCount, absentCount);
+
+    const dRow = worksheet.getRow(curRow);
+    dRow.values = rowVals;
+    dRow.height = 20;
+
+    const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+    for (let c = 1; c <= numCols; c++) {
+      const cell = dRow.getCell(c);
+      cell.font = { name: 'Arial', size: 9 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      applyThinBorders(cell);
+
+      if (c === 3) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+    curRow++;
+  });
+
+  curRow += 2;
+  // Signatures
+  const sigRow = worksheet.getRow(curRow);
+  sigRow.values = ['', 'CLASS IN-CHARGE', '', 'HOD', '', '', 'PRINCIPAL'];
+  sigRow.height = 24;
+  sigRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+
+  worksheet.getColumn(1).width = 7;
+  worksheet.getColumn(2).width = 16;
+  worksheet.getColumn(3).width = 30;
+  for (let c = 4; c <= numCols; c++) {
+    worksheet.getColumn(c).width = 12;
+  }
+
+  await triggerDownload(workbook, `${classObj?.name || 'Class'}_Consolidated_Mark_Statement.xlsx`);
+};
+
+/**
+ * 6. Export Class Performance Report (NAC/TLP-20)
+ */
+export const exportClassAnalysisExcel = async ({
+  classObj,
+  sessionLabel = 'internal1',
+  subjects = [],
+  students = [],
+  allSessions = [],
+  allMarks = [],
+  allAttendance = [],
+  remarks = '',
+  remedialAction = '',
+  selectedSubjectIds,
+  inchargeNameParam = '',
+  user
+}) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Class Performance');
+
+  let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
+
+  await drawExcelCollegeHeader({
+    workbook,
+    worksheet,
+    title: `TEST ANALYSIS REPORT (CLASS WISE / PERFORMANCE ANALYSIS) — ${sessionLabel === 'internal1' ? 'INTERNAL TEST 1' : 'INTERNAL TEST 2'}`,
+    formatNo: 'NAC/TLP-20',
+    numCols: 9
+  });
+
+  // Metadata Block
+  const meta = [
+    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', classObj?.department || 'Information Technology'],
+    ['Class In-Charge:', inchargeNameParam || user?.name || 'Class In-charge', '', 'Academic Year:', '2026 - 2027'],
+    ['Internal Test:', sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+  ];
+
+  meta.forEach((row, i) => {
+    const r = worksheet.getRow(7 + i);
+    r.values = row;
+    r.font = { name: 'Arial', size: 9 };
+    r.getCell(1).font = { bold: true };
+    r.getCell(4).font = { bold: true };
+    r.height = 18;
+  });
+
+  worksheet.getRow(10).height = 8; // spacer
+
+  // Table Header (Row 11)
+  const hRow = worksheet.getRow(11);
+  hRow.values = ['S.No', 'Subject Code', 'Subject Name', 'Staff In-Charge', 'Total Strength', 'Appeared', 'Passed', 'Failed', 'Pass %'];
+  hRow.height = 24;
+  hRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  });
+
+  let curRow = 12;
+  filteredSubjects.forEach((sub, idx) => {
+    const sess = allSessions.find(s => s.subject_id === sub.id && s.session_label === sessionLabel);
+    let passed = students.length;
+    let failed = 0;
+    let appeared = students.length;
+    let passPct = '100.00';
+
+    if (sess) {
+      const attRows = allAttendance.filter(a => a.session_id === sess.id);
+      let p = 0;
+      let f = 0;
+      attRows.forEach(r => {
+        const mark = parseFloat(r.internal_exam_mark);
+        if (!isNaN(mark)) {
+          if (mark >= 50) p++;
+          else f++;
+        }
+      });
+      if (p + f > 0) {
+        passed = p;
+        failed = f;
+        appeared = p + f;
+        passPct = ((p / appeared) * 100).toFixed(2);
+      }
+    }
+
+    const faculty = sub.faculty_name || sub.staff_name || 'Faculty Staff';
+    const rowVals = [
+      idx + 1,
+      sub.code,
+      sub.name,
+      faculty,
+      students.length,
+      appeared,
+      passed,
+      failed,
+      `${passPct}%`
+    ];
+
+    const dRow = worksheet.getRow(curRow);
+    dRow.values = rowVals;
+    dRow.height = 20;
+
+    const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+    for (let c = 1; c <= 9; c++) {
+      const cell = dRow.getCell(c);
+      cell.font = { name: 'Arial', size: 9 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      applyThinBorders(cell);
+
+      if (c === 3 || c === 4) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+
+      if (c === 9) {
+        cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
+      }
+    }
+    curRow++;
+  });
+
+  if (remarks || remedialAction) {
+    curRow += 1;
+    if (remarks) {
+      const remRow = worksheet.getRow(curRow);
+      remRow.values = ['Remarks:', remarks];
+      remRow.getCell(1).font = { bold: true };
+      curRow++;
+    }
+    if (remedialAction) {
+      const actRow = worksheet.getRow(curRow);
+      actRow.values = ['Remedial Action:', remedialAction];
+      actRow.getCell(1).font = { bold: true };
+      curRow++;
+    }
+  }
+
+  curRow += 2;
+  // Signatures
+  const sigRow = worksheet.getRow(curRow);
+  sigRow.values = ['', 'CLASS IN-CHARGE', '', 'HOD', '', '', 'PRINCIPAL'];
+  sigRow.height = 24;
+  sigRow.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+
+  worksheet.columns = [
+    { width: 7 },
+    { width: 14 },
+    { width: 32 },
+    { width: 24 },
+    { width: 14 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 14 }
+  ];
+
+  await triggerDownload(workbook, `${classObj?.name || 'Class'}_Class_Performance_Report.xlsx`);
+};
+
 export default {
   exportSubjectMarksExcel,
   exportLaboratoryMarksExcel,
-  exportOverallMarksExcel
+  exportOverallMarksExcel,
+  exportSubjectAnalysisExcel,
+  exportConsolidatedMarksExcel,
+  exportClassAnalysisExcel
 };
+

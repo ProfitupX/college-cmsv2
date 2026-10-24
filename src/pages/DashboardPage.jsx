@@ -23,7 +23,14 @@ import {
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import ReportPreviewModal from '../components/Common/ReportPreviewModal';
-import { exportSubjectMarksExcel } from '../services/excelReportGenerator';
+import { 
+  exportSubjectMarksExcel, 
+  exportLaboratoryMarksExcel, 
+  exportOverallMarksExcel, 
+  exportSubjectAnalysisExcel, 
+  exportConsolidatedMarksExcel, 
+  exportClassAnalysisExcel 
+} from '../services/excelReportGenerator';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -256,29 +263,39 @@ export default function DashboardPage() {
       const inchargeNameParam = isCoordOfThis ? user?.name : '';
 
       if (type === 'subject_marks_statement') {
-        for (const subId of selectedSubjectIds) {
-          await handleDownloadSubjectMarksPDF(subId, classId, period, subjectMarksMode);
-          if (selectedSubjectIds.length > 1) {
-            await new Promise(r => setTimeout(r, 350));
-          }
-        }
+        setPreviewPayload({
+          reportType: 'batch_subject_marks',
+          classObj: summary.classObj,
+          subjects: summary.subjects.filter(s => selectedSubjectIds.includes(s.id)),
+          selectedSubjectIds,
+          students: summary.students,
+          assessmentMode: period,
+          summary,
+          user
+        });
+        setPreviewModalOpen(true);
         return;
       }
 
       if (type === 'class_analysis') {
-        await generateClassAnalysisPDF({
+        setPreviewPayload({
+          reportType: 'class_analysis',
           classObj: summary.classObj,
           sessionLabel: period,
           subjects: summary.subjects,
           students: summary.students,
           allSessions: summary.sessions,
           allAttendance: summary.allAttendance,
+          allMarks: summary.allMarks,
           selectedSubjectIds,
           inchargeNameParam,
+          assessmentMode: period,
           user
         });
+        setPreviewModalOpen(true);
       } else if (type === 'examcell_legal' || type === 'overall_statement') {
-        await generateOverallMarksAndAttendancePDF({
+        setPreviewPayload({
+          reportType: 'examcell_legal',
           classObj: summary.classObj,
           sessionLabel: period,
           subjects: summary.subjects,
@@ -292,10 +309,13 @@ export default function DashboardPage() {
           selectedSubjectIds,
           withInternal: legalMarksMode === 'with_internal',
           inchargeNameParam,
+          assessmentMode: period,
           user
         });
+        setPreviewModalOpen(true);
       } else {
-        await generateConsolidatedMarksPDF({
+        setPreviewPayload({
+          reportType: 'consolidated_statement',
           classObj: summary.classObj,
           sessionLabel: period,
           subjects: summary.subjects,
@@ -306,11 +326,13 @@ export default function DashboardPage() {
           allComponents: summary.allComponents,
           selectedSubjectIds,
           inchargeNameParam,
+          assessmentMode: period,
           user
         });
+        setPreviewModalOpen(true);
       }
     } catch (err) {
-      alert('Failed to generate PDF: ' + err.message);
+      alert('Failed to load class report data: ' + err.message);
     } finally {
       setGenLoading(false);
     }
@@ -414,12 +436,48 @@ export default function DashboardPage() {
     setGenLoading(true);
     try {
       const {
-        is2021, subject, classObj, staff, session, students, marksData, attendanceData,
+        reportType, is2021, subject, classObj, staff, session, students, marksData, attendanceData,
         attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
-        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal,
+        subjects, allSessions, allAttendance, allMarks, allComponents, selectedSubjectIds,
+        inchargeNameParam, fromDate, toDate, declarationData
       } = previewPayload;
 
-      if (is2021) {
+      if (reportType === 'subject_analysis') {
+        await generateSubjectAnalysisPDF({
+          subject, classObj, staff, session, students,
+          allMarks: marksData || allMarks,
+          marksData: marksData || allMarks,
+          components, attendanceData, internalExamData, labData,
+          assessmentMode, declarationData, user
+        });
+      } else if (reportType === 'class_analysis') {
+        await generateClassAnalysisPDF({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allAttendance,
+          selectedSubjectIds, inchargeNameParam, user
+        });
+      } else if (reportType === 'examcell_legal' || reportType === 'overall_statement') {
+        await generateOverallMarksAndAttendancePDF({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allAttendance, allMarks, allComponents,
+          fromDate, toDate, selectedSubjectIds,
+          withInternal, inchargeNameParam, user
+        });
+      } else if (reportType === 'consolidated_statement') {
+        await generateConsolidatedMarksPDF({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allAttendance, allMarks, allComponents,
+          selectedSubjectIds, inchargeNameParam, user
+        });
+      } else if (reportType === 'batch_subject_marks') {
+        for (const subId of (selectedSubjectIds || [])) {
+          await handleDownloadSubjectMarksPDF(subId, classObj?.id, assessmentMode, subjectMarksMode);
+          if (selectedSubjectIds.length > 1) {
+            await new Promise(r => setTimeout(r, 350));
+          }
+        }
+      } else if (is2021) {
         await generateSubjectMarksListPDF2021({
           subject, classObj, staff, session, students, marksData, attendanceData,
           totalHours, internalExamData, labData, assessmentMode, components,
@@ -443,24 +501,64 @@ export default function DashboardPage() {
     }
   };
 
-  const executePreviewExcel = (options = {}) => {
+  const executePreviewExcel = async (options = {}) => {
     if (!previewPayload) return;
     try {
       const {
-        subject, classObj, staff, session, students, marksData, attendanceData,
+        reportType, subject, classObj, staff, session, students, marksData, attendanceData,
         attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
-        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal,
+        subjects, allSessions, allAttendance, allMarks, allComponents, selectedSubjectIds,
+        inchargeNameParam, declarationData
       } = previewPayload;
 
-      exportSubjectMarksExcel({
-        subject, classObj, staff, session, students, marksData, attendanceData,
-        attendanceMarks, internalExamData, labData, assessmentMode, components,
-        totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
-        withInternal,
-        theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
-        showWrittenExamInPdf: !!options.showWrittenExamInPdf,
-        user
-      });
+      if (reportType === 'subject_analysis') {
+        await exportSubjectAnalysisExcel({
+          subject, classObj, staff, session, students,
+          marksData, allMarks, components, attendanceData, internalExamData, labData,
+          assessmentMode, declarationData, user
+        });
+      } else if (reportType === 'class_analysis') {
+        await exportClassAnalysisExcel({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allMarks, allAttendance,
+          selectedSubjectIds, inchargeNameParam, user
+        });
+      } else if (reportType === 'examcell_legal' || reportType === 'overall_statement') {
+        await exportOverallMarksExcel({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allAttendance, allMarks, allComponents,
+          withInternal, user
+        });
+      } else if (reportType === 'consolidated_statement') {
+        await exportConsolidatedMarksExcel({
+          classObj, sessionLabel: assessmentMode || 'internal1',
+          subjects, students, allSessions, allAttendance, allMarks, allComponents,
+          selectedSubjectIds, inchargeNameParam, user
+        });
+      } else if (reportType === 'batch_subject_marks') {
+        for (const subId of (selectedSubjectIds || [])) {
+          const sub = (subjects || []).find(s => s.id === subId);
+          if (sub) {
+            await exportSubjectMarksExcel({
+              subject: sub, classObj, staff: { name: sub.faculty_name || sub.staff_name || 'Faculty Staff' },
+              session, students, marksData: {}, attendanceData: {},
+              assessmentMode, withInternal, user
+            });
+            await new Promise(r => setTimeout(r, 300));
+          }
+        }
+      } else {
+        await exportSubjectMarksExcel({
+          subject, classObj, staff, session, students, marksData, attendanceData,
+          attendanceMarks, internalExamData, labData, assessmentMode, components,
+          totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          withInternal,
+          theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
+          showWrittenExamInPdf: !!options.showWrittenExamInPdf,
+          user
+        });
+      }
     } catch (err) {
       alert('Failed to generate Excel: ' + err.message);
     }
@@ -521,16 +619,17 @@ export default function DashboardPage() {
     setDeclarationModalOpen(false);
     setGenLoading(true);
     try {
-      await generateSubjectAnalysisPDF({
+      setPreviewPayload({
+        reportType: 'subject_analysis',
         ...pdfPayload,
         declarationData,
         user
       });
+      setPreviewModalOpen(true);
     } catch (err) {
-      alert('Failed to generate Subject Analysis PDF: ' + err.message);
+      alert('Failed to preview Subject Analysis: ' + err.message);
     } finally {
       setGenLoading(false);
-      setPdfPayload(null);
     }
   };
 
@@ -1423,12 +1522,20 @@ export default function DashboardPage() {
           executePreviewExcel(opts);
           setPreviewModalOpen(false);
         }}
-        title={`Report Preview — ${previewPayload?.subject?.code || ''} ${previewPayload?.subject?.name || ''}`}
+        reportType={previewPayload?.reportType || 'subject_marks'}
+        title={
+          previewPayload?.reportType === 'subject_analysis' ? `Subject Test Analysis (NAC/TLP-07a.21) — ${previewPayload?.subject?.code || ''}` :
+          previewPayload?.reportType === 'examcell_legal' ? `ExamCell Legal Statement — ${previewPayload?.classObj?.name || ''}` :
+          previewPayload?.reportType === 'consolidated_statement' ? `Consolidated Mark Statement (TLP-07a.20) — ${previewPayload?.classObj?.name || ''}` :
+          previewPayload?.reportType === 'class_analysis' ? `Class Performance Report (TLP-20) — ${previewPayload?.classObj?.name || ''}` :
+          previewPayload?.reportType === 'batch_subject_marks' ? `Batch Subject Statements Preview — ${previewPayload?.classObj?.name || ''}` :
+          `Report Preview — ${previewPayload?.subject?.code || ''} ${previewPayload?.subject?.name || ''}`
+        }
         subject={previewPayload?.subject}
         classObj={previewPayload?.classObj}
         staff={previewPayload?.staff}
-        assessmentMode={previewPayload?.assessmentMode}
-        withInternal={previewPayload?.withInternal}
+        assessmentMode={previewPayload?.assessmentMode || quickSession}
+        withInternal={previewPayload?.withInternal !== undefined ? previewPayload?.withInternal : (subjectMarksMode === 'with_internal')}
         students={previewPayload?.students || []}
         marksData={previewPayload?.marksData || {}}
         attendanceData={previewPayload?.attendanceData || {}}
@@ -1442,6 +1549,13 @@ export default function DashboardPage() {
         labHours={previewPayload?.labHours || 0}
         int1AttendanceData={previewPayload?.int1AttendanceData || {}}
         regulation={previewPayload?.is2021 ? '2021' : '2025'}
+        subjects={previewPayload?.subjects || []}
+        allSessions={previewPayload?.allSessions || []}
+        allAttendance={previewPayload?.allAttendance || []}
+        allMarks={previewPayload?.allMarks || []}
+        allComponents={previewPayload?.allComponents || []}
+        selectedSubjectIds={previewPayload?.selectedSubjectIds || []}
+        declarationData={previewPayload?.declarationData || {}}
       />
     </div>
   );
