@@ -668,3 +668,24 @@
   to   { transform: rotate(360deg); }
 }
 
+.liveSaveIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary, #2563eb);
+  background: var(--primary-light, #eff6ff);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-solid, #bfdbfe);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.liveSaveSuccess {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+

@@ -17,6 +17,8 @@ export async function initPool() {
   dotenv.config();
   dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
   dotenv.config({ path: path.resolve(process.cwd(), 'server', '.env'), override: true });
+  dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+  dotenv.config({ path: path.resolve(process.cwd(), 'server', '.env.local'), override: true });
 
   const candidates = [
     // 1. Primary from environment variables

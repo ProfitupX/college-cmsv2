@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
@@ -12,7 +12,9 @@ import {
   generateConsolidatedMarksPDF 
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
-import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
+import ReportPreviewModal from '../components/Common/ReportPreviewModal';
+import { exportSubjectMarksExcel, exportLaboratoryMarksExcel, exportOverallMarksExcel } from '../services/excelReportGenerator';
+import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
 export default function MarksEntryPage() {
@@ -70,6 +72,7 @@ export default function MarksEntryPage() {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockReason, setUnlockReason] = useState('');
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
@@ -316,8 +319,36 @@ export default function MarksEntryPage() {
     ? parseInt(selectedSubject.lab_hours, 10)
     : (defaultSplits.lab || 0);
 
-  const handleSave = async (actionType = 'draft') => {
-    setSaving(true);
+  const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
+  const autoSaveTimerRef = useRef(null);
+
+  // Debounced Real-Time Auto-Save
+  useEffect(() => {
+    if (!isDirty || isLocked || !effectiveClassId || !effectiveSubjectId || assessmentComponents.length === 0 || students.length === 0) {
+      return;
+    }
+
+    setLiveSaveStatus('saving');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await handleSave('draft', true);
+        setLiveSaveStatus('saved');
+        setTimeout(() => setLiveSaveStatus(''), 2500);
+      } catch (err) {
+        console.error('Real-time auto-save error:', err);
+        setLiveSaveStatus('error');
+      }
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [marksData, attendanceData, internalExamData, labData, totalHours, remedialAction, isDirty]);
+
+  const handleSave = async (actionType = 'draft', isAutoSave = false) => {
+    if (!isAutoSave) setSaving(true);
     setSaveErr('');
     try {
       const marksPayload = [];
@@ -375,23 +406,46 @@ export default function MarksEntryPage() {
       setSaved(true);
       setSessionStatus(actionType === 'frozen' ? 'locked' : 'draft');
       setIsComponentsDirty(false);
+      if (actionType === 'frozen') {
+        alert('Marks have been frozen and locked successfully.');
+      }
     } catch (err) {
       setSaveErr(err.message || 'Failed to save marks.');
+      if (isAutoSave) throw err;
     } finally {
-      setSaving(false);
+      if (!isAutoSave) setSaving(false);
     }
   };
 
-  const handleReset = () => { 
-    clearMarks(); 
-    setSaved(false); 
-    setSaveErr(''); 
-    if (selectedSubject && selectedSubject.total_hours) {
-      setTotalHours(selectedSubject.total_hours);
-    } else {
-      setTotalHours('');
+  const handleReset = async () => { 
+    if (!window.confirm('Are you sure you want to completely clear all marks for this subject? This will permanently delete any saved or fake marks in the database and give you a fresh, clean sheet.')) {
+      return;
     }
-    setAssessmentMode('internal1');
+    setSaving(true);
+    try {
+      await marksAPI.resetSession({
+        classId: effectiveClassId,
+        subjectId: effectiveSubjectId,
+        sessionLabel: assessmentMode,
+        sessionId: currentSession?.id
+      });
+      clearMarks(); 
+      setCurrentSession(null);
+      setSessionStatus('draft');
+      setSaved(false); 
+      setSaveErr(''); 
+      setIsComponentsDirty(false);
+      if (selectedSubject && selectedSubject.total_hours) {
+        setTotalHours(selectedSubject.total_hours);
+      } else {
+        setTotalHours('');
+      }
+      alert('Marks have been completely cleared and reset in the database.');
+    } catch (err) {
+      alert('Failed to reset marks: ' + (err.message || 'Server error'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Submit Unlock Request to HOD
@@ -428,27 +482,126 @@ export default function MarksEntryPage() {
     }
   };
 
-  // Official PDF Generation
+  // All PDF/Excel generation opens full-screen preview first
   const handleDownloadPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
+    setReportPreviewOpen(true);
+  };
 
-    if (reportType === 'subject_analysis') {
-      setPdfPayload({
-        subject: selectedSubject,
-        classObj: selectedClass,
-        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-        session: currentSession,
-        remedialAction, // Pass state
-        students,
-        allMarks: marksData,
-        components: assessmentComponents,
-        attendanceData,
-        internalExamData,
-        labData,
-        assessmentMode
+  const handleGenerateSubjectPDF = async (declarationData) => {
+    setDeclarationModalOpen(false);
+    try {
+      await generateSubjectAnalysisPDF({
+        ...pdfPayload,
+        marksData: pdfPayload.allMarks, // Because pdfReportGenerator uses marksData (although we'll also pass allMarks)
+        declarationData,
+        user
       });
-      setDeclarationModalOpen(true);
-    } else if (reportType === 'subject_marks_list' || reportType === 'subject_marks_with_internal' || reportType === 'subject_marks_without_internal') {
+    } catch (err) {
+      alert('Failed to generate Subject Analysis PDF: ' + err.message);
+    } finally {
+      setPdfPayload(null);
+    }
+  };
+
+  const executeSubjectPDF = async (options = {}) => {
+    try {
+      if (reportType === 'lab_marks_only') {
+        const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
+        await generateLaboratoryMarksOnlyPDF({
+          subject: selectedSubject,
+          classObj: selectedClass,
+          staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
+          session: currentSession,
+          students,
+          attendanceData,
+          labData,
+          internalExamData,
+          totalHours,
+          labHours,
+          assessmentMode,
+          targetPages: options?.targetPages || 'auto',
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'subject_analysis') {
+        const { generateSubjectAnalysisPDF } = await import('../services/pdfReportGenerator');
+        await generateSubjectAnalysisPDF({
+          subject: selectedSubject,
+          classObj: selectedClass,
+          staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
+          session: currentSession,
+          remedialAction,
+          students,
+          allMarks: marksData,
+          marksData,
+          components: assessmentComponents,
+          attendanceData,
+          internalExamData,
+          labData,
+          assessmentMode,
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+        const withInternal = reportType === 'examcell_legal_with_internal';
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        const { generateOverallMarksAndAttendancePDF } = await import('../services/pdfReportGenerator');
+        await generateOverallMarksAndAttendancePDF({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || [],
+          withInternal,
+          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'class_analysis') {
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        const { generateClassAnalysisPDF } = await import('../services/pdfReportGenerator');
+        await generateClassAnalysisPDF({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allMarks: summary.allMarks || [],
+          allAttendance: summary.allAttendance || [],
+          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'consolidated_statement') {
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        const { generateConsolidatedMarksPDF } = await import('../services/pdfReportGenerator');
+        await generateConsolidatedMarksPDF({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || [],
+          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
+          user
+        });
+        return;
+      }
+
       const withInternal = reportType !== 'subject_marks_without_internal';
       const { generateSubjectMarksListPDF } = await import('../services/pdfReportGenerator');
       await generateSubjectMarksListPDF({
@@ -470,68 +623,76 @@ export default function MarksEntryPage() {
         labHours,
         int1AttendanceData,
         withInternal,
+        targetPages: options?.targetPages || 'auto',
         user
       });
-    } else if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
-      const withInternal = reportType === 'examcell_legal_with_internal';
-      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-      const { generateOverallMarksAndAttendancePDF } = await import('../services/pdfReportGenerator');
-      await generateOverallMarksAndAttendancePDF({
-        classObj: selectedClass,
-        sessionLabel: assessmentMode,
-        subjects: summary.subjects || subjects,
-        students,
-        allSessions: summary.sessions || [],
-        allAttendance: summary.allAttendance || [],
-        allMarks: summary.allMarks || [],
-        allComponents: summary.allComponents || [],
-        withInternal,
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-        user
-      });
-    } else if (reportType === 'class_analysis') {
-      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-      await generateClassAnalysisPDF({
-        classObj: selectedClass,
-        sessionLabel: assessmentMode,
-        subjects: summary.subjects || subjects,
-        students,
-        allSessions: summary.sessions || [],
-        allMarks: summary.allMarks || [],
-        allAttendance: summary.allAttendance || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-        user
-      });
-    } else if (reportType === 'consolidated_statement') {
-      const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-      await generateConsolidatedMarksPDF({
-        classObj: selectedClass,
-        sessionLabel: assessmentMode,
-        subjects: summary.subjects || subjects,
-        students,
-        allSessions: summary.sessions || [],
-        allAttendance: summary.allAttendance || [],
-        allMarks: summary.allMarks || [],
-        allComponents: summary.allComponents || [],
-        inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-        user
-      });
+    } catch (e) {
+      alert('Failed to generate PDF: ' + e.message);
     }
   };
 
-  const handleGenerateSubjectPDF = async (declarationData) => {
-    setDeclarationModalOpen(false);
+  const executeSubjectExcel = async () => {
     try {
-      await generateSubjectAnalysisPDF({
-        ...pdfPayload,
-        marksData: pdfPayload.allMarks, // Because pdfReportGenerator uses marksData (although we'll also pass allMarks)
-        declarationData,
+      if (reportType === 'lab_marks_only') {
+        await exportLaboratoryMarksExcel({
+          subject: selectedSubject,
+          classObj: selectedClass,
+          staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
+          session: currentSession,
+          students,
+          attendanceData,
+          labData,
+          internalExamData,
+          totalHours,
+          labHours,
+          assessmentMode,
+          user
+        });
+        return;
+      }
+
+      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+        const withInternal = reportType === 'examcell_legal_with_internal';
+        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
+        await exportOverallMarksExcel({
+          classObj: selectedClass,
+          sessionLabel: assessmentMode,
+          subjects: summary.subjects || subjects,
+          students,
+          allSessions: summary.sessions || [],
+          allAttendance: summary.allAttendance || [],
+          allMarks: summary.allMarks || [],
+          allComponents: summary.allComponents || [],
+          withInternal,
+          user
+        });
+        return;
+      }
+
+      const withInternal = reportType !== 'subject_marks_without_internal';
+      exportSubjectMarksExcel({
+        subject: selectedSubject,
+        classObj: selectedClass,
+        staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
+        session: currentSession,
+        students,
+        marksData,
+        attendanceData,
+        attendanceMarks,
+        internalExamData,
+        labData,
+        assessmentMode,
+        components: assessmentComponents,
+        totalHours,
+        int1Hours,
+        int2Hours,
+        labHours,
+        int1AttendanceData,
+        withInternal,
         user
       });
-    } catch (err) {
-      alert('Failed to generate Subject Analysis PDF: ' + err.message);
-    } finally {
-      setPdfPayload(null);
+    } catch (e) {
+      alert('Failed to generate Excel: ' + e.message);
     }
   };
 
@@ -784,7 +945,19 @@ export default function MarksEntryPage() {
       {selectedSubject && (
         <div className={styles.actionBar}>
           <div className={styles.actionLeft}>
-            {saved && !isPrincipal && (
+            {liveSaveStatus === 'saving' && (
+              <div className={styles.liveSaveIndicator}>
+                <Loader size={14} className={styles.spinner} />
+                Saving marks in real-time…
+              </div>
+            )}
+            {liveSaveStatus === 'saved' && (
+              <div className={`${styles.liveSaveIndicator} ${styles.liveSaveSuccess}`}>
+                <CheckCircle2 size={14} color="#047857" />
+                Real-time data saved &amp; synced!
+              </div>
+            )}
+            {saved && !liveSaveStatus && !isPrincipal && (
               <div className={styles.savedMsg}>
                 <CheckCircle size={16} />
                 Marks saved to database!
@@ -796,10 +969,10 @@ export default function MarksEntryPage() {
                 {saveErr}
               </div>
             )}
-            {(isDirty || isComponentsDirty) && !saved && !saveErr && !isPrincipal && (
+            {(isDirty || isComponentsDirty) && !saved && !saveErr && !liveSaveStatus && !isPrincipal && (
               <div className={styles.dirtyMsg}>
                 <AlertTriangle size={16} />
-                Unsaved changes — don't forget to submit
+                Unsaved changes — auto-saving in real time…
               </div>
             )}
           </div>
@@ -812,6 +985,9 @@ export default function MarksEntryPage() {
               >
                 <option value="subject_marks_with_internal">Subject Marks List (With Assignment Marks)</option>
                 <option value="subject_marks_without_internal">Subject Marks List (Without Assignment Marks)</option>
+                {['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory'].includes(selectedSubject?.type) && (
+                  <option value="lab_marks_only">🔬 Laboratory Marks Statement (Lab Marks & Attended Hrs Only)</option>
+                )}
                 <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
                 {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
                   <>
@@ -898,6 +1074,41 @@ export default function MarksEntryPage() {
         onClose={() => setDeclarationModalOpen(false)} 
         onSubmit={handleGenerateSubjectPDF}
         session={currentSession}
+      />
+
+      <ReportPreviewModal
+        isOpen={reportPreviewOpen}
+        onClose={() => setReportPreviewOpen(false)}
+        onDownloadPDF={(options) => {
+          executeSubjectPDF(options);
+          setReportPreviewOpen(false);
+        }}
+        onDownloadExcel={(options) => {
+          executeSubjectExcel(options);
+          setReportPreviewOpen(false);
+        }}
+        title={reportType === 'lab_marks_only'
+          ? `Laboratory Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+          : `Report Preview — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
+        subject={selectedSubject}
+        classObj={selectedClass}
+        staff={{ name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' }}
+        assessmentMode={assessmentMode}
+        withInternal={reportType !== 'subject_marks_without_internal'}
+        students={students}
+        marksData={marksData}
+        attendanceData={attendanceData}
+        attendanceMarks={attendanceMarks}
+        internalExamData={internalExamData}
+        labData={labData}
+        components={assessmentComponents}
+        totalHours={totalHours}
+        int1Hours={int1Hours}
+        int2Hours={int2Hours}
+        labHours={labHours}
+        int1AttendanceData={int1AttendanceData}
+        regulation="2025"
+        isLabOnly={reportType === 'lab_marks_only'}
       />
     </div>
   );

@@ -22,6 +22,8 @@ import {
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
+import ReportPreviewModal from '../components/Common/ReportPreviewModal';
+import { exportSubjectMarksExcel } from '../services/excelReportGenerator';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -38,6 +40,8 @@ export default function DashboardPage() {
   const [genLoading, setGenLoading] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPayload, setPreviewPayload] = useState(null);
   
   const [subjectModalOpen, setSubjectModalOpen] = useState(false);
   const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
@@ -362,63 +366,103 @@ export default function DashboardPage() {
         color: c.color,
       }));
 
+      let int1Attd = {};
+      if (period === 'internal2') {
+        try {
+          const int1Sess = await marksAPI.getSessions({ classId: clsId, subjectId: subId, sessionLabel: 'internal1' });
+          if (int1Sess.length > 0) {
+            const int1Det = await marksAPI.getSessionDetail(int1Sess[0].id);
+            int1Attd = int1Det?.attendance || {};
+          }
+        } catch (e) {
+          console.warn('Could not load IA1 attendance', e);
+        }
+      }
+
+      setPreviewPayload({
+        is2021,
+        subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
+        classObj: cls,
+        staff: staffObj,
+        session: currentSession,
+        students: stds,
+        marksData: marksObj,
+        attendanceData: detail?.attendance || {},
+        attendanceMarks: detail?.attendanceMarks || {},
+        internalExamData: detail?.internalExam || {},
+        labData: detail?.labData || {},
+        assessmentMode: period,
+        components: componentsList,
+        totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
+        int1Hours: currentSession?.int1_hours || 0,
+        int2Hours: currentSession?.int2_hours || 0,
+        labHours: currentSession?.lab_hours || 0,
+        int1AttendanceData: int1Attd,
+        withInternal,
+        user
+      });
+      setPreviewModalOpen(true);
+    } catch (err) {
+      alert('Failed to load marks for statement: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const executePreviewPDF = async (options = {}) => {
+    if (!previewPayload) return;
+    setGenLoading(true);
+    try {
+      const {
+        is2021, subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+      } = previewPayload;
+
       if (is2021) {
         await generateSubjectMarksListPDF2021({
-          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
-          classObj: cls,
-          staff: staffObj,
-          session: currentSession,
-          students: stds,
-          marksData: marksObj,
-          attendanceData: detail?.attendance || {},
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
-          internalExamData: detail?.internalExam || {},
-          labData: detail?.labData || {},
-          assessmentMode: period,
-          components: componentsList,
+          subject, classObj, staff, session, students, marksData, attendanceData,
+          totalHours, internalExamData, labData, assessmentMode, components,
           withInternal,
+          theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
+          showWrittenExamInPdf: !!options.showWrittenExamInPdf,
           user
         });
       } else {
-        let int1Attd = {};
-        if (period === 'internal2') {
-          try {
-            const int1Sess = await marksAPI.getSessions({ classId: clsId, subjectId: subId, sessionLabel: 'internal1' });
-            if (int1Sess.length > 0) {
-              const int1Det = await marksAPI.getSessionDetail(int1Sess[0].id);
-              int1Attd = int1Det?.attendance || {};
-            }
-          } catch (e) {
-            console.warn('Could not load IA1 attendance', e);
-          }
-        }
-
         await generateSubjectMarksListPDF({
-          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
-          classObj: cls,
-          staff: staffObj,
-          session: currentSession,
-          students: stds,
-          marksData: marksObj,
-          attendanceData: detail?.attendance || {},
-          attendanceMarks: detail?.attendanceMarks || {},
-          internalExamData: detail?.internalExam || {},
-          labData: detail?.labData || {},
-          assessmentMode: period,
-          components: componentsList,
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
-          int1Hours: currentSession?.int1_hours || 0,
-          int2Hours: currentSession?.int2_hours || 0,
-          labHours: currentSession?.lab_hours || 0,
-          int1AttendanceData: int1Attd,
-          withInternal,
-          user
+          subject, classObj, staff, session, students, marksData, attendanceData,
+          attendanceMarks, internalExamData, labData, assessmentMode, components,
+          totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          withInternal, user
         });
       }
     } catch (err) {
-      alert('Failed to generate Subject Marks Statement: ' + err.message);
+      alert('Failed to generate PDF: ' + err.message);
     } finally {
       setGenLoading(false);
+    }
+  };
+
+  const executePreviewExcel = (options = {}) => {
+    if (!previewPayload) return;
+    try {
+      const {
+        subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+      } = previewPayload;
+
+      exportSubjectMarksExcel({
+        subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components,
+        totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+        withInternal,
+        theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
+        showWrittenExamInPdf: !!options.showWrittenExamInPdf,
+        user
+      });
+    } catch (err) {
+      alert('Failed to generate Excel: ' + err.message);
     }
   };
 
@@ -1103,180 +1147,206 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Category 1: Subject Mark Statements & Analysis */}
-        <div style={{ marginBottom: '22px', paddingBottom: '18px', borderBottom: '1px solid var(--border-solid)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#3B82F6', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 1</span>
-              Subject Mark Statements &amp; Analysis
-            </h4>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Access: Assigned Faculty, HOD &amp; Leadership
-            </span>
-          </div>
+        {/* Category Download Cards: Responsive 2-Column Grid utilizing side space */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
+          gap: '20px',
+          marginTop: '18px'
+        }}>
+          {/* Column 1: CAT 1 — Subject Mark Statements & Analysis */}
+          <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border-solid)',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid var(--border-solid)' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.98rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <BookOpen size={18} color="#3B82F6" />
+                  Subject Mark Statements &amp; Analysis
+                </h4>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Assigned Faculty &amp; HOD
+                </span>
+              </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
-            {/* Subject Marks Statement Card with 2 Options */}
-            <div style={{
-              display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
-              padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)'
-            }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Subject Marks Statement:
-              </span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <select
-                  value={subjectMarksMode}
-                  onChange={(e) => setSubjectMarksMode(e.target.value)}
-                  style={{
-                    padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-solid)',
-                    fontSize: '0.8rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
-                  }}
-                >
-                  <option value="with_internal">With Assignment Marks</option>
-                  <option value="without_internal">Without Assignment Marks</option>
-                </select>
+              {/* Subject Marks Statement with Interactive Preview */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                  Statement Format &amp; Scope:
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={subjectMarksMode}
+                    onChange={(e) => setSubjectMarksMode(e.target.value)}
+                    style={{
+                      flex: '1', minWidth: '180px', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)',
+                      fontSize: '0.82rem', fontWeight: 600, background: 'var(--surface)', color: 'var(--text-primary)'
+                    }}
+                  >
+                    <option value="with_internal">With Assignment Marks</option>
+                    <option value="without_internal">Without Assignment Marks</option>
+                  </select>
+
+                  <button
+                    style={{
+                      background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
+                      padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                    }}
+                    onClick={() => handleDownloadSubjectMarksPDF(selectedSubjectId, selectedClassId, quickSession, subjectMarksMode)}
+                    disabled={genLoading || !selectedSubjectId}
+                  >
+                    <Download size={15} /> Preview &amp; Download Statement
+                  </button>
+                </div>
+              </div>
+
+              {/* Batch / Multi-Subject Download */}
+              <div style={{ marginBottom: '16px' }}>
                 <button
                   style={{
-                    background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
-                    padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px'
-                  }}
-                  onClick={() => handleDownloadSubjectMarksPDF(selectedSubjectId, selectedClassId, quickSession, subjectMarksMode)}
-                  disabled={genLoading || !selectedSubjectId}
-                >
-                  <Download size={14} /> Download Statement
-                </button>
-                <button
-                  style={{
-                    background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
-                    padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px'
+                    width: '100%', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
+                    padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                   }}
                   onClick={() => openSubjectSelectionModal('subject_marks_statement', selectedClassId, quickSession)}
                   disabled={genLoading || classSubjects.length === 0}
-                  title="Select multiple subjects or Select All to download"
                 >
-                  <FileText size={14} color="var(--primary)" /> Select All / Multiple Subjects
+                  <FileText size={15} color="var(--primary)" /> Select All / Multiple Subjects Statement
                 </button>
               </div>
             </div>
 
             {/* Subject Test Analysis Report */}
-            <div style={{
-              display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
-              padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)', justifyContent: 'space-between'
-            }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Subject Performance Analysis:
-              </span>
+            <div style={{ paddingTop: '14px', borderTop: '1px dashed var(--border-solid)' }}>
               <button 
                 style={{
-                  background: 'linear-gradient(135deg, #6C63FF 0%, #4F46E5 100%)', color: '#fff', border: 'none',
-                  padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '6px'
+                  width: '100%', background: 'linear-gradient(135deg, #6C63FF 0%, #4F46E5 100%)', color: '#fff', border: 'none',
+                  padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 6px rgba(108, 99, 255, 0.25)'
                 }}
                 onClick={() => handleDownloadSubjectPDF(selectedSubjectId, quickSession)}
                 disabled={genLoading || !selectedSubjectId}
               >
-                <Download size={14} /> Subject Test Analysis Report (NAC/TLP-07a.21)
+                <Download size={15} /> Subject Test Analysis Report (NAC/TLP-07a.21)
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Category 2: Class Reports & ExamCell Statements */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#059669', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', fontWeight: 800 }}>CAT 2</span>
-              Class Reports &amp; ExamCell Statements
-            </h4>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Access: Class In-charge, HOD &amp; Leadership
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-start' }}>
-            {canDownloadClassReports ? (
-              <>
-                <button 
-                  style={{
-                    background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)', color: '#fff', border: 'none',
-                    padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px', height: 'fit-content', marginTop: 'auto'
-                  }}
-                  onClick={() => openSubjectSelectionModal('consolidated_statement', selectedClassId, quickSession)}
-                  disabled={genLoading || !selectedClassId}
-                >
-                  <Download size={15} /> Consolidated Mark Statement (NAC/TLP-07a.20)
-                </button>
-
-                <button 
-                  style={{
-                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
-                    padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px', height: 'fit-content', marginTop: 'auto'
-                  }}
-                  onClick={() => openSubjectSelectionModal('class_analysis', selectedClassId, quickSession)}
-                  disabled={genLoading || !selectedClassId}
-                >
-                  <Download size={15} /> Class Performance Report (NAC/TLP-20)
-                </button>
-
-                {/* ExamCell Legal Statement Box */}
-                <div style={{
-                  display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg)',
-                  padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-solid)'
-                }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                    ExamCell Legal Statement (Official Legal Size):
-                  </span>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select
-                      value={legalMarksMode}
-                      onChange={(e) => setLegalMarksMode(e.target.value)}
-                      style={{
-                        padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)',
-                        fontSize: '0.75rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
-                      }}
-                    >
-                      <option value="with_internal">With Assignment Marks</option>
-                      <option value="without_internal">Without Assignment Marks</option>
-                    </select>
-
-                    <input 
-                      type="date" 
-                      value={overallFromDate} 
-                      onChange={e => setOverallFromDate(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>to</span>
-                    <input 
-                      type="date" 
-                      value={overallToDate} 
-                      onChange={e => setOverallToDate(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
-                    />
-                  </div>
-                  <button 
-                    style={{
-                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
-                      padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', justifyContent: 'center'
-                    }}
-                    onClick={() => openSubjectSelectionModal('examcell_legal', selectedClassId, quickSession)}
-                    disabled={genLoading || !selectedClassId}
-                  >
-                    <FileText size={14} /> Generate ExamCell Legal Statement
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-                🔒 Class Performance, Consolidated, &amp; ExamCell Legal Statements are generated by the Class In-charge &amp; HOD.
+          {/* Column 2: CAT 2 — Class Reports & ExamCell Statements */}
+          <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border-solid)',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid var(--border-solid)' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.98rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Award size={18} color="#059669" />
+                  Class Performance &amp; Legal Statements
+                </h4>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Class In-charge &amp; HOD
+                </span>
               </div>
-            )}
+
+              {canDownloadClassReports ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                    <button 
+                      style={{
+                        background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)', color: '#fff', border: 'none',
+                        padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textAlign: 'center'
+                      }}
+                      onClick={() => openSubjectSelectionModal('consolidated_statement', selectedClassId, quickSession)}
+                      disabled={genLoading || !selectedClassId}
+                    >
+                      <Download size={14} /> Consolidated Mark (TLP-07a.20)
+                    </button>
+
+                    <button 
+                      style={{
+                        background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
+                        padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textAlign: 'center'
+                      }}
+                      onClick={() => openSubjectSelectionModal('class_analysis', selectedClassId, quickSession)}
+                      disabled={genLoading || !selectedClassId}
+                    >
+                      <Download size={14} /> Class Performance (TLP-20)
+                    </button>
+                  </div>
+
+                  {/* ExamCell Legal Statement Box */}
+                  <div style={{
+                    background: 'var(--surface)', padding: '12px 14px', borderRadius: '10px',
+                    border: '1px solid var(--border-solid)', marginBottom: '10px'
+                  }}>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                      Official ExamCell Legal Statement (Legal Landscape):
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      <select
+                        value={legalMarksMode}
+                        onChange={(e) => setLegalMarksMode(e.target.value)}
+                        style={{
+                          flex: '1', minWidth: '150px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border-solid)',
+                          fontSize: '0.78rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)'
+                        }}
+                      >
+                        <option value="with_internal">With Assignment Marks</option>
+                        <option value="without_internal">Without Assignment Marks</option>
+                      </select>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input 
+                          type="date" 
+                          value={overallFromDate} 
+                          onChange={e => setOverallFromDate(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+                        />
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>to</span>
+                        <input 
+                          type="date" 
+                          value={overallToDate} 
+                          onChange={e => setOverallToDate(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      style={{
+                        width: '100%', background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
+                        padding: '9px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                      }}
+                      onClick={() => openSubjectSelectionModal('examcell_legal', selectedClassId, quickSession)}
+                      disabled={genLoading || !selectedClassId}
+                    >
+                      <FileText size={15} /> Generate ExamCell Legal Statement
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0' }}>
+                  🔒 Class Performance, Consolidated, &amp; ExamCell Legal Statements are generated by the Class In-charge &amp; HOD.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1334,6 +1404,38 @@ export default function DashboardPage() {
         onClose={() => setSubjectModalOpen(false)}
         onSubmit={handleDownloadClassPDF}
         subjects={availableSubjects}
+      />
+
+      <ReportPreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        onDownloadPDF={(opts) => {
+          executePreviewPDF(opts);
+          setPreviewModalOpen(false);
+        }}
+        onDownloadExcel={(opts) => {
+          executePreviewExcel(opts);
+          setPreviewModalOpen(false);
+        }}
+        title={`Report Preview — ${previewPayload?.subject?.code || ''} ${previewPayload?.subject?.name || ''}`}
+        subject={previewPayload?.subject}
+        classObj={previewPayload?.classObj}
+        staff={previewPayload?.staff}
+        assessmentMode={previewPayload?.assessmentMode}
+        withInternal={previewPayload?.withInternal}
+        students={previewPayload?.students || []}
+        marksData={previewPayload?.marksData || {}}
+        attendanceData={previewPayload?.attendanceData || {}}
+        attendanceMarks={previewPayload?.attendanceMarks || {}}
+        internalExamData={previewPayload?.internalExamData || {}}
+        labData={previewPayload?.labData || {}}
+        components={previewPayload?.components || []}
+        totalHours={previewPayload?.totalHours || 30}
+        int1Hours={previewPayload?.int1Hours || 30}
+        int2Hours={previewPayload?.int2Hours || 30}
+        labHours={previewPayload?.labHours || 0}
+        int1AttendanceData={previewPayload?.int1AttendanceData || {}}
+        regulation={previewPayload?.is2021 ? '2021' : '2025'}
       />
     </div>
   );

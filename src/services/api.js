@@ -114,6 +114,10 @@ export const marksAPI = {
 
   getClassSummary: (classId, sessionLabel = 'internal1') => 
     get(`/marks/class-summary?classId=${classId}&sessionLabel=${sessionLabel}`),
+
+  resetSession: (payload) => post('/marks/reset-session', payload),
+
+  deleteSession: (id) => remove(`/marks/sessions/${id}`),
 };
 
 // ─────────────────────────────────────────

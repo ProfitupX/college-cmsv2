@@ -22,16 +22,31 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
 
-    // 1.5 Delete any existing session for this subject/class/label so it acts as an UPDATE or CLEAR
-    await conn.execute(
-      `DELETE FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ?`,
+    // 1.5 Find existing session to perform safe in-place UPDATE (avoids foreign-key CASCADE wipe)
+    const [existingSessions] = await conn.execute(
+      `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ?`,
       [String(subjectId), String(classId), String(sessionLabel)]
     );
+    const existingSession = existingSessions.length > 0 ? existingSessions[0] : null;
 
-    // If no components, it means the user deleted all components and wants to clear the marksheet
+    // Guard locked session against accidental draft overwrites
+    if (existingSession && existingSession.status === 'locked' && actionType === 'draft') {
+      await conn.rollback();
+      return res.status(403).json({ error: 'This marks sheet is locked. Please request edit permission from HOD before saving changes.' });
+    }
+
+    // If components is empty and user explicitly requests clear
     if (components.length === 0) {
+      if (existingSession && actionType === 'clear') {
+        await conn.execute(`DELETE FROM marks WHERE session_id = ?`, [existingSession.id]);
+        await conn.execute(`DELETE FROM session_attendance WHERE session_id = ?`, [existingSession.id]);
+        await conn.execute(`DELETE FROM assessment_components WHERE session_id = ?`, [existingSession.id]);
+        await conn.execute(`UPDATE marks_sessions SET status = 'draft', avg_score = 0, updated_at = NOW() WHERE id = ?`, [existingSession.id]);
+        await conn.commit();
+        return res.json({ success: true, message: 'Marks sheet cleared successfully.' });
+      }
       await conn.commit();
-      return res.json({ success: true, message: 'Marks sheet cleared successfully.' });
+      return res.json({ success: true, message: 'No changes made.' });
     }
 
     // 1. Calculate total max and avg score
@@ -106,42 +121,88 @@ router.post('/submit', async (req, res) => {
 
     const avgScore = (Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1)) || 0;
 
-    // 2. Insert marks_session
-    const statusVal = actionType === 'frozen' ? 'locked' : 'draft';
-    const [sessionResult] = await conn.execute(
-      `INSERT INTO marks_sessions
-         (subject_id, class_id, staff_id, session_label, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        String(subjectId), 
-        String(classId), 
-        String(staffId), 
-        sessionLabel || 'Internal Assessment', 
-        totalMax, 
-        parseInt(totalHours, 10) || 0, 
-        parseInt(internal2TotalHours, 10) || 0, 
-        statusVal, 
-        avgScore, 
-        studentCount, 
-        remedialAction || ''
-      ]
-    );
-    const sessionId = sessionResult.insertId;
+    // 2. Safe Session Upsert (never wipe or change sessionId if it already exists)
+    const statusVal = actionType === 'frozen' ? 'locked' : (existingSession?.status === 'locked' ? 'locked' : 'draft');
+    let sessionId;
 
-    // 3. Insert assessment_components and collect their DB IDs
+    if (existingSession) {
+      sessionId = existingSession.id;
+      await conn.execute(
+        `UPDATE marks_sessions
+         SET staff_id = ?, total_max = ?, total_hours = ?, internal2_total_hours = ?, 
+             status = ?, avg_score = ?, student_count = ?, remedial_action = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [
+          String(staffId),
+          totalMax,
+          parseInt(totalHours, 10) || 0,
+          parseInt(internal2TotalHours, 10) || 0,
+          statusVal,
+          avgScore,
+          studentCount,
+          remedialAction || '',
+          sessionId
+        ]
+      );
+    } else {
+      const [sessionResult] = await conn.execute(
+        `INSERT INTO marks_sessions
+           (subject_id, class_id, staff_id, session_label, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          String(subjectId), 
+          String(classId), 
+          String(staffId), 
+          sessionLabel || 'Internal Assessment', 
+          totalMax, 
+          parseInt(totalHours, 10) || 0, 
+          parseInt(internal2TotalHours, 10) || 0, 
+          statusVal, 
+          avgScore, 
+          studentCount, 
+          remedialAction || ''
+        ]
+      );
+      sessionId = sessionResult.insertId;
+    }
+
+    // 3. Safe Component In-Place Update (keeps existing component IDs stable)
+    const [existingComps] = await conn.execute(
+      `SELECT id, type_id, sort_order FROM assessment_components WHERE session_id = ? ORDER BY sort_order`,
+      [sessionId]
+    );
+
     const componentIdMap = {}; // index → DB id
     for (let i = 0; i < components.length; i++) {
       const c = components[i];
-      const [compResult] = await conn.execute(
-        `INSERT INTO assessment_components
-           (session_id, type_id, label, conducted_max, max_marks, icon, color, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [sessionId, c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i]
-      );
-      componentIdMap[i] = compResult.insertId;
+      if (existingComps[i]) {
+        const compId = existingComps[i].id;
+        await conn.execute(
+          `UPDATE assessment_components
+           SET type_id = ?, label = ?, conducted_max = ?, max_marks = ?, icon = ?, color = ?, sort_order = ?
+           WHERE id = ?`,
+          [c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i, compId]
+        );
+        componentIdMap[i] = compId;
+      } else {
+        const [compResult] = await conn.execute(
+          `INSERT INTO assessment_components
+             (session_id, type_id, label, conducted_max, max_marks, icon, color, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [sessionId, c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i]
+        );
+        componentIdMap[i] = compResult.insertId;
+      }
     }
 
-    // 4. Insert marks
+    // Clean up trailing components only if components array explicitly shrank
+    if (existingComps.length > components.length) {
+      for (let i = components.length; i < existingComps.length; i++) {
+        await conn.execute(`DELETE FROM assessment_components WHERE id = ?`, [existingComps[i].id]);
+      }
+    }
+
+    // 4. Safe Marks Upsert (ON DUPLICATE KEY UPDATE)
     for (const m of marks) {
       const compDbId = componentIdMap[m.componentIndex];
       if (compDbId === undefined) continue;
@@ -212,6 +273,31 @@ router.post('/submit', async (req, res) => {
           ]
         );
       }
+    }
+
+    // 5.5 Record safe audit snapshot in marks_history for recovery
+    try {
+      await conn.execute(
+        `INSERT INTO marks_history (session_id, subject_id, class_id, session_label, staff_id, action_type, snapshot)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sessionId,
+          String(subjectId),
+          String(classId),
+          String(sessionLabel),
+          String(staffId),
+          actionType || 'save',
+          JSON.stringify({
+            studentCount,
+            marksCount: marks.length,
+            avgScore,
+            totalMax,
+            savedAt: new Date().toISOString()
+          })
+        ]
+      );
+    } catch (histErr) {
+      console.warn('marks_history audit log notice:', histErr.message);
     }
 
     await conn.commit();
@@ -421,6 +507,68 @@ router.get('/sessions/:id', async (req, res) => {
 // POST /api/marks/unlock-session
 // Instant unlock for HOD/Admin (bypasses request queue)
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// POST /api/marks/reset-session
+// Cleanly purges/resets all marks, attendance, and components for a session
+// ─────────────────────────────────────────────────────────────
+router.post('/reset-session', async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const { sessionId, classId, subjectId, sessionLabel } = req.body;
+    let sId = sessionId;
+
+    if (!sId && classId && subjectId) {
+      const [sess] = await conn.execute(
+        'SELECT id FROM marks_sessions WHERE class_id = ? AND subject_id = ? AND session_label = ? LIMIT 1',
+        [classId, subjectId, sessionLabel || 'internal1']
+      );
+      if (sess.length > 0) sId = sess[0].id;
+    }
+
+    if (sId) {
+      await conn.execute('DELETE FROM marks WHERE session_id = ?', [sId]);
+      await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [sId]);
+      await conn.execute('DELETE FROM mark_unlock_requests WHERE session_id = ?', [sId]);
+      await conn.execute('DELETE FROM assessment_components WHERE session_id = ?', [sId]);
+      await conn.execute('DELETE FROM marks_sessions WHERE id = ?', [sId]);
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Marks session completely reset and cleared.' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('POST /marks/reset-session error:', err);
+    res.status(500).json({ error: 'Failed to reset marks session: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// DELETE /api/marks/sessions/:id
+// ─────────────────────────────────────────────────────────────
+router.delete('/sessions/:id', async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const sId = req.params.id;
+    await conn.execute('DELETE FROM marks WHERE session_id = ?', [sId]);
+    await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [sId]);
+    await conn.execute('DELETE FROM mark_unlock_requests WHERE session_id = ?', [sId]);
+    await conn.execute('DELETE FROM assessment_components WHERE session_id = ?', [sId]);
+    await conn.execute('DELETE FROM marks_sessions WHERE id = ?', [sId]);
+    await conn.commit();
+    res.json({ success: true, message: 'Session deleted successfully.' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('DELETE /marks/sessions/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete session: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 router.post('/unlock-session', async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -432,6 +580,7 @@ router.post('/unlock-session', async (req, res) => {
     res.status(500).json({ error: 'Failed to unlock sheet: ' + err.message });
   }
 });
+
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/marks/request-unlock

@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 staging
 staging/
+.env
+.env.*
+server/.env
+server/.env.*

@@ -51,6 +51,7 @@ router.post('/login', async (req, res) => {
     }
 
     const staff = rows[0];
+    const isDrChithra = cleanEmail === 'c.chithra@nscet.org' || cleanEmail === 'chithra.c@nscet.org' || staff.id === 'S_CHITRA' || staff.id === 'FAC002';
 
     // Resolve all faculty ID aliases (handles cross-department seeding and legacy IDs)
     const [aliasRows] = await db.query(

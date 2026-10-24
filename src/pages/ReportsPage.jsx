@@ -20,6 +20,8 @@ import {
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
+import ReportPreviewModal from '../components/Common/ReportPreviewModal';
+import { exportSubjectMarksExcel } from '../services/excelReportGenerator';
 import styles from './ReportsPage.module.css';
 
 const PIE_COLORS = ['#6C63FF', '#A78BFA', '#22D3EE', '#F472B6', '#FB923C'];
@@ -60,6 +62,8 @@ export default function ReportsPage() {
   const [genLoading, setGenLoading] = useState(false);
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPayload, setPreviewPayload] = useState(null);
   
   // New Subject Selection Modal state for multi-subject PDFs
   const [subjectModalOpen, setSubjectModalOpen] = useState(false);
@@ -365,63 +369,103 @@ export default function ReportsPage() {
         color: c.color,
       }));
 
+      let int1Attd = {};
+      if (sessionLabel === 'internal2') {
+        try {
+          const int1Sess = await marksAPI.getSessions({ classId: selectedClassId, subjectId: selectedSubjectId, sessionLabel: 'internal1' });
+          if (int1Sess.length > 0) {
+            const int1Det = await marksAPI.getSessionDetail(int1Sess[0].id);
+            int1Attd = int1Det?.attendance || {};
+          }
+        } catch (e) {
+          console.warn('Could not load IA1 attendance', e);
+        }
+      }
+
+      setPreviewPayload({
+        is2021,
+        subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
+        classObj: cls,
+        staff: staffObj,
+        session: currentSession,
+        students,
+        marksData: marksObj,
+        attendanceData: detail?.attendance || {},
+        attendanceMarks: detail?.attendanceMarks || {},
+        internalExamData: detail?.internalExam || {},
+        labData: detail?.labData || {},
+        assessmentMode: sessionLabel,
+        components: componentsList,
+        totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
+        int1Hours: currentSession?.int1_hours || 0,
+        int2Hours: currentSession?.int2_hours || 0,
+        labHours: currentSession?.lab_hours || 0,
+        int1AttendanceData: int1Attd,
+        withInternal,
+        user
+      });
+      setPreviewModalOpen(true);
+    } catch (err) {
+      alert('Failed to load marks for statement: ' + err.message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const executePreviewPDF = async (options = {}) => {
+    if (!previewPayload) return;
+    setGenLoading(true);
+    try {
+      const {
+        is2021, subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+      } = previewPayload;
+
       if (is2021) {
         await generateSubjectMarksListPDF2021({
-          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
-          classObj: cls,
-          staff: staffObj,
-          session: currentSession,
-          students,
-          marksData: marksObj,
-          attendanceData: detail?.attendance || {},
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
-          internalExamData: detail?.internalExam || {},
-          labData: detail?.labData || {},
-          assessmentMode: sessionLabel,
-          components: componentsList,
+          subject, classObj, staff, session, students, marksData, attendanceData,
+          totalHours, internalExamData, labData, assessmentMode, components,
           withInternal,
+          theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
+          showWrittenExamInPdf: !!options.showWrittenExamInPdf,
           user
         });
       } else {
-        let int1Attd = {};
-        if (sessionLabel === 'internal2') {
-          try {
-            const int1Sess = await marksAPI.getSessions({ classId: selectedClassId, subjectId: selectedSubjectId, sessionLabel: 'internal1' });
-            if (int1Sess.length > 0) {
-              const int1Det = await marksAPI.getSessionDetail(int1Sess[0].id);
-              int1Attd = int1Det?.attendance || {};
-            }
-          } catch (e) {
-            console.warn('Could not load IA1 attendance', e);
-          }
-        }
-
         await generateSubjectMarksListPDF({
-          subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
-          classObj: cls,
-          staff: staffObj,
-          session: currentSession,
-          students,
-          marksData: marksObj,
-          attendanceData: detail?.attendance || {},
-          attendanceMarks: detail?.attendanceMarks || {},
-          internalExamData: detail?.internalExam || {},
-          labData: detail?.labData || {},
-          assessmentMode: sessionLabel,
-          components: componentsList,
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
-          int1Hours: currentSession?.int1_hours || 0,
-          int2Hours: currentSession?.int2_hours || 0,
-          labHours: currentSession?.lab_hours || 0,
-          int1AttendanceData: int1Attd,
-          withInternal,
-          user
+          subject, classObj, staff, session, students, marksData, attendanceData,
+          attendanceMarks, internalExamData, labData, assessmentMode, components,
+          totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          withInternal, user
         });
       }
     } catch (err) {
-      alert('Failed to generate Subject Marks Statement: ' + err.message);
+      alert('Failed to generate PDF: ' + err.message);
     } finally {
       setGenLoading(false);
+    }
+  };
+
+  const executePreviewExcel = (options = {}) => {
+    if (!previewPayload) return;
+    try {
+      const {
+        subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components, totalHours,
+        int1Hours, int2Hours, labHours, int1AttendanceData, withInternal
+      } = previewPayload;
+
+      exportSubjectMarksExcel({
+        subject, classObj, staff, session, students, marksData, attendanceData,
+        attendanceMarks, internalExamData, labData, assessmentMode, components,
+        totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+        withInternal,
+        theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
+        showWrittenExamInPdf: !!options.showWrittenExamInPdf,
+        user
+      });
+    } catch (err) {
+      alert('Failed to generate Excel: ' + err.message);
     }
   };
 
@@ -1183,6 +1227,38 @@ export default function ReportsPage() {
           </table>
         )}
       </div>
+
+      <ReportPreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        onDownloadPDF={(opts) => {
+          executePreviewPDF(opts);
+          setPreviewModalOpen(false);
+        }}
+        onDownloadExcel={(opts) => {
+          executePreviewExcel(opts);
+          setPreviewModalOpen(false);
+        }}
+        title={`Report Preview — ${previewPayload?.subject?.code || ''} ${previewPayload?.subject?.name || ''}`}
+        subject={previewPayload?.subject}
+        classObj={previewPayload?.classObj}
+        staff={previewPayload?.staff}
+        assessmentMode={previewPayload?.assessmentMode}
+        withInternal={previewPayload?.withInternal}
+        students={previewPayload?.students || []}
+        marksData={previewPayload?.marksData || {}}
+        attendanceData={previewPayload?.attendanceData || {}}
+        attendanceMarks={previewPayload?.attendanceMarks || {}}
+        internalExamData={previewPayload?.internalExamData || {}}
+        labData={previewPayload?.labData || {}}
+        components={previewPayload?.components || []}
+        totalHours={previewPayload?.totalHours || 30}
+        int1Hours={previewPayload?.int1Hours || 30}
+        int2Hours={previewPayload?.int2Hours || 30}
+        labHours={previewPayload?.labHours || 0}
+        int1AttendanceData={previewPayload?.int1AttendanceData || {}}
+        regulation={previewPayload?.is2021 ? '2021' : '2025'}
+      />
     </div>
   );
 }
