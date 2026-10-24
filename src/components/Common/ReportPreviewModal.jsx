@@ -36,10 +36,10 @@ export default function ReportPreviewModal({
   const [showWrittenExamInPdf, setShowWrittenExamInPdf] = useState(false);
   const [targetPages, setTargetPages] = useState('auto');
 
-  // Total prescribed hours: strictly int1Hours for Internal 1; int2Hours for Internal 2 (default 30)
+  // Total prescribed hours: strictly int1Hours for Internal 1; int2Hours for Internal 2 (from Admin Manage Subjects or default 30)
   const tHours = isInternal2
-    ? (parseInt(int2Hours, 10) || 30)
-    : (parseInt(int1Hours, 10) || 30);
+    ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
+    : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
   const getAttendanceMark = (pct) => {
     if (pct >= 95) return 5;

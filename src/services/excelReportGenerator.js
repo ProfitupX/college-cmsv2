@@ -158,10 +158,10 @@ export const exportSubjectMarksExcel = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
 
-  // Strictly assessment specific hours (int1Hours/30 for Int 1, int2Hours/30 for Int 2)
+  // Strictly assessment specific hours (from Admin Manage Subjects int1_hours/int2_hours or default 30)
   const tHours = isInternal2
-    ? (parseInt(int2Hours, 10) || 30)
-    : (parseInt(int1Hours, 10) || 30);
+    ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
+    : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
   const getAttendanceMark = (pct) => {
     if (pct >= 95) return 5;

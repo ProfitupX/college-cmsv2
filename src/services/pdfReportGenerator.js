@@ -156,7 +156,10 @@ export const generateSubjectAnalysisPDF = async ({
   doc.text(`Staff Name            : ${staffName}`, 14, y);
   doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
-  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}`, 14, y);
+  const analysisPrescribedHrs = (assessmentMode === 'internal2')
+    ? (parseInt(subject?.int2_hours, 10) || 30)
+    : (parseInt(subject?.int1_hours, 10) || 30);
+  doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${analysisPrescribedHrs}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
   doc.text(`Internal / Model Test : ${assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
@@ -375,8 +378,8 @@ export const generateSubjectMarksListPDF = async ({
   // Internal 2: strictly int2Hours (default 30 hrs)
   // (Laboratory hours are never added here; Lab has its own Laboratory Marks Statement)
   const tHours = isInternal2
-    ? (parseInt(int2Hours, 10) || 30)
-    : (parseInt(int1Hours, 10) || 30);
+    ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
+    : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
   const totHoursDisplay = tHours;
 
