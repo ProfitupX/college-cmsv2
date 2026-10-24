@@ -35,9 +35,10 @@ export default function MarksEntryPage() {
 
   useEffect(() => {
     setRegulation('2025');
-    const targetClassId = location.state?.classId || location.state?.class_id;
-    const targetSubjectId = location.state?.subjectId || location.state?.subject_id;
-    const targetSession = location.state?.sessionLabel || location.state?.session_label;
+    const searchParams = new URLSearchParams(location.search);
+    const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
+    const targetSubjectId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id');
+    const targetSession = location.state?.sessionLabel || location.state?.session_label || searchParams.get('session') || searchParams.get('sessionLabel');
 
     if (targetClassId && targetSubjectId) {
       setClassAndSubject(targetClassId, targetSubjectId);
@@ -47,7 +48,7 @@ export default function MarksEntryPage() {
     if (targetSession) {
       setAssessmentMode(targetSession);
     }
-  }, [location.state]);
+  }, [location.state, location.search]);
 
   // Remote data
   const [classes,   setClasses]   = useState([]);
@@ -114,10 +115,11 @@ export default function MarksEntryPage() {
         }
 
         // Guarantee target class from redirect is available in classes list for HoD/Staff
-        const targetClassId = location.state?.classId || location.state?.class_id;
+        const searchParams = new URLSearchParams(location.search);
+        const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
         if (targetClassId) {
-          const matchedTarget = allClasses.find(c => c.id === targetClassId);
-          if (matchedTarget && !filtered.some(c => c.id === targetClassId)) {
+          const matchedTarget = allClasses.find(c => String(c.id) === String(targetClassId));
+          if (matchedTarget && !filtered.some(c => String(c.id) === String(targetClassId))) {
             filtered.push(matchedTarget);
           }
         }
@@ -126,18 +128,19 @@ export default function MarksEntryPage() {
       })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
-  }, [user, location.state]);
+  }, [user, location.state, location.search]);
 
   // Ensure stale 2021 classes are cleanly removed on regulation switch without refresh
   useEffect(() => {
     if (classes.length > 0 && effectiveClassId) {
       const isValid = classes.some(c => c.id === effectiveClassId);
-      const targetClassId = location.state?.classId || location.state?.class_id;
+      const searchParams = new URLSearchParams(location.search);
+      const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
       if (!isValid && !targetClassId) {
         clearSelection();
       }
     }
-  }, [classes, effectiveClassId]);
+  }, [classes, effectiveClassId, location.state, location.search]);
 
   // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
@@ -153,15 +156,24 @@ export default function MarksEntryPage() {
       if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
         visibleSubs = allSubs.filter(s => user.assignedSubjectIds.includes(s.id));
       }
+
+      // Restore target subject reliably from incoming state, query params, or existing selection
+      const searchParams = new URLSearchParams(location.search);
+      const targetSubId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || effectiveSubjectId;
+      if (targetSubId) {
+        const matched = allSubs.find(s => String(s.id) === String(targetSubId));
+        if (matched && !visibleSubs.some(s => String(s.id) === String(targetSubId))) {
+          visibleSubs.push(matched);
+        }
+      }
+
       setSubjects(visibleSubs);
 
-      // Restore target subject reliably from incoming state or existing selection
-      const targetSubId = location.state?.subjectId || location.state?.subject_id || effectiveSubjectId;
-      if (targetSubId && visibleSubs.some(s => s.id === targetSubId)) {
+      if (targetSubId && visibleSubs.some(s => String(s.id) === String(targetSubId))) {
         setSubject(targetSubId);
       }
     }).catch(() => setSubjects([]));
-  }, [effectiveClassId, user]);
+  }, [effectiveClassId, user, location.state, location.search]);
 
   // ── Load students when class changes ──────────────────
   useEffect(() => {

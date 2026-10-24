@@ -1007,7 +1007,13 @@ export default function DashboardPage() {
                   <div className={styles.subjectActions} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     <button 
                       className={styles.enterMarksBtn}
-                      onClick={() => navigate(targetRoute)}
+                      onClick={() => navigate(`${targetRoute}?classId=${sub.class_id}&subjectId=${sub.id}`, {
+                        state: {
+                          classId: sub.class_id,
+                          subjectId: sub.id,
+                          sessionLabel: 'internal1'
+                        }
+                      })}
                     >
                       <ClipboardCheck size={14} /> Enter Marks
                     </button>
