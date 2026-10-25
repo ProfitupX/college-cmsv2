@@ -66,7 +66,7 @@ export default function YearPerformanceChart({ data = [], user }) {
     .filter(y => allowedYearNames.includes(y.name))
     .map(y => ({ ...y, value: 0 }));
 
-  const defaultBenchmarks = { 'I': 78.5, 'II': 76.2, 'III': 83.3, 'IV': 81.4 };
+  const defaultBenchmarks = { 'I': 78.5, 'II': 68.85, 'III': 67.44, 'IV': 59.26 };
 
   if (Array.isArray(data)) {
     data.forEach(d => {

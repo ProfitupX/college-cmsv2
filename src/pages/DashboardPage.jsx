@@ -109,9 +109,9 @@ export default function DashboardPage() {
 
         const defaultYearBenchmarks = {
           'I': 78.5,
-          'II': 76.2,
-          'III': 83.3,
-          'IV': 81.4
+          'II': 68.85,
+          'III': 67.44,
+          'IV': 59.26
         };
 
         const isSHHod = user?.role === 'hod' && (
@@ -137,8 +137,10 @@ export default function DashboardPage() {
           if (!existing || isNaN(val) || val <= 0) {
             let fallbackVal = 0;
             if (backupData?.years && Array.isArray(backupData.years)) {
-              const bYr = backupData.years.find(y => y.year === yr);
-              if (bYr && parseFloat(bYr.passPct) > 0) fallbackVal = parseFloat(bYr.passPct);
+              const bYr = backupData.years.find(y => y.year === yr || y.name === yr);
+              if (bYr) {
+                fallbackVal = parseFloat(bYr.passPct) || parseFloat(bYr.percentage) || parseFloat(bYr.value) || 0;
+              }
             }
             if (fallbackVal <= 0 && backupData?.summary) {
               if (yr === 'I' && backupData.summary.firstYear?.percentage) {
@@ -148,7 +150,7 @@ export default function DashboardPage() {
               }
             }
             if (fallbackVal <= 0) {
-              fallbackVal = defaultYearBenchmarks[yr] || 75.0;
+              fallbackVal = defaultYearBenchmarks[yr] || 70.0;
             }
 
             if (existing) {
