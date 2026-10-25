@@ -426,7 +426,8 @@ export default function MarksEntryPage2021() {
         classId: effectiveClassId,
         subjectId: effectiveSubjectId,
         sessionLabel: assessmentMode,
-        sessionId: currentSession?.id
+        sessionId: currentSession?.id,
+        staffId: user?.id || currentSession?.staff_id || 'staff'
       });
       clearMarks();
       setCurrentSession(null);
@@ -707,7 +708,7 @@ export default function MarksEntryPage2021() {
       }
 
       const withInternal = reportType !== 'subject_marks_without_internal_2021';
-      exportSubjectMarksExcel({
+      await exportSubjectMarksExcel({
         subject: selectedSubject,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },

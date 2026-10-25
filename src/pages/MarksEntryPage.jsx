@@ -496,7 +496,8 @@ export default function MarksEntryPage() {
         classId: effectiveClassId,
         subjectId: effectiveSubjectId,
         sessionLabel: assessmentMode,
-        sessionId: currentSession?.id
+        sessionId: currentSession?.id,
+        staffId: user?.id || currentSession?.staff_id || 'staff'
       });
       clearMarks(); 
       setCurrentSession(null);
@@ -700,7 +701,7 @@ export default function MarksEntryPage() {
     }
   };
 
-  const executeSubjectExcel = async () => {
+  const executeSubjectExcel = async (options = {}) => {
     try {
       if (reportType === 'lab_marks_only') {
         await exportLaboratoryMarksExcel({
@@ -791,7 +792,7 @@ export default function MarksEntryPage() {
       }
 
       const withInternal = reportType !== 'subject_marks_without_internal';
-      exportSubjectMarksExcel({
+      await exportSubjectMarksExcel({
         subject: selectedSubject,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },

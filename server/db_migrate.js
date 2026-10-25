@@ -38,13 +38,8 @@ async function runMigration(shouldExit = false) {
       console.warn('⚠️ Staff deduplication during migration warning:', dedupErr.message);
     }
 
-    // 4. Ensure marks sessions for All Academic Years (I, II, III, IV) are seeded
-    try {
-      const { seedAllYearsMarks } = await import('./seed_all_years_marks.js');
-      await seedAllYearsMarks(false);
-    } catch (seedMarksErr) {
-      console.warn('⚠️ All years marks seeding during migration warning:', seedMarksErr.message);
-    }
+    // 4. Seeding marks sessions removed to protect real staff data
+    // (Preserve live staff marks without injecting demo/test records)
 
 
 

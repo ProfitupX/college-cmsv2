@@ -39,8 +39,16 @@ const triggerDownload = async (workbook, filename) => {
   link.download = filename;
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
+  setTimeout(() => {
+    try {
+      if (link.parentNode) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(link.href);
+    } catch (e) {
+      // ignore
+    }
+  }, 1500);
 };
 
 const applyThinBorders = (cell) => {
@@ -67,10 +75,10 @@ const drawExcelCollegeHeader = async ({
   numCols = 10,
 }) => {
   // Set row heights for rows 1 to 4 to host logo and format box cleanly
-  worksheet.getRow(1).height = 20;
-  worksheet.getRow(2).height = 20;
-  worksheet.getRow(3).height = 20;
-  worksheet.getRow(4).height = 20;
+  worksheet.getRow(1).height = 23;
+  worksheet.getRow(2).height = 23;
+  worksheet.getRow(3).height = 23;
+  worksheet.getRow(4).height = 23;
 
   // Format Info Box column position
   const startFormatCol = Math.max(numCols - 2, 4);
@@ -85,16 +93,15 @@ const drawExcelCollegeHeader = async ({
 
     if (numCols > 12) {
       // Wide layout (ExamCell Legal Statement):
-      // Center the logo across columns nicely with ample width
       const centerCol = Math.max(0.5, Math.floor((startFormatCol - 7) / 2));
       worksheet.addImage(imageId, {
-        tl: { col: centerCol, row: 0.15 },
-        ext: { width: 560, height: 100 }
+        tl: { col: centerCol, row: 0.1 },
+        ext: { width: 500, height: 82 }
       });
     } else {
       worksheet.addImage(imageId, {
-        tl: { col: 0.1, row: 0.15 },
-        ext: { width: 440, height: 95 }
+        tl: { col: 0.1, row: 0.1 },
+        ext: { width: 380, height: 80 }
       });
     }
   }
@@ -225,32 +232,70 @@ export const exportSubjectMarksExcel = async ({
     const rowNum = 7 + i;
     worksheet.getRow(rowNum).height = 20;
 
-    worksheet.mergeCells(rowNum, 1, rowNum, 2);
-    const l1 = worksheet.getCell(rowNum, 1);
-    l1.value = item.label1;
-    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
-    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
-    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    if (withInternal) {
+      // 6 columns total: col 1 = label1, cols 2-3 = val1, col 4 = label2, cols 5-6 = val2
+      const l1 = worksheet.getCell(rowNum, 1);
+      l1.value = item.label1;
+      l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    worksheet.getCell(rowNum, 3).value = item.val1;
-    worksheet.getCell(rowNum, 3).font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
-    worksheet.getCell(rowNum, 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
-    worksheet.getCell(rowNum, 3).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      worksheet.mergeCells(rowNum, 2, rowNum, 3);
+      const v1 = worksheet.getCell(rowNum, 2);
+      v1.value = item.val1;
+      v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    worksheet.mergeCells(rowNum, 4, rowNum, 5);
-    const l2 = worksheet.getCell(rowNum, 4);
-    l2.value = item.label2;
-    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
-    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
-    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      const l2 = worksheet.getCell(rowNum, 4);
+      l2.value = item.label2;
+      l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    worksheet.getCell(rowNum, 6).value = item.val2;
-    worksheet.getCell(rowNum, 6).font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
-    worksheet.getCell(rowNum, 6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
-    worksheet.getCell(rowNum, 6).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      worksheet.mergeCells(rowNum, 5, rowNum, 6);
+      const v2 = worksheet.getCell(rowNum, 5);
+      v2.value = item.val2;
+      v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    for (let c = 1; c <= 6; c++) {
-      applyThinBorders(worksheet.getCell(rowNum, c));
+      for (let c = 1; c <= 6; c++) {
+        applyThinBorders(worksheet.getCell(rowNum, c));
+      }
+    } else {
+      // 8 columns total
+      worksheet.mergeCells(rowNum, 1, rowNum, 2);
+      const l1 = worksheet.getCell(rowNum, 1);
+      l1.value = item.label1;
+      l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      worksheet.mergeCells(rowNum, 3, rowNum, 4);
+      const v1 = worksheet.getCell(rowNum, 3);
+      v1.value = item.val1;
+      v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      worksheet.mergeCells(rowNum, 5, rowNum, 6);
+      const l2 = worksheet.getCell(rowNum, 5);
+      l2.value = item.label2;
+      l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      worksheet.mergeCells(rowNum, 7, rowNum, 8);
+      const v2 = worksheet.getCell(rowNum, 7);
+      v2.value = item.val2;
+      v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      for (let c = 1; c <= 8; c++) {
+        applyThinBorders(worksheet.getCell(rowNum, c));
+      }
     }
   });
 
@@ -391,19 +436,31 @@ export const exportSubjectMarksExcel = async ({
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
-  // Column Widths
+  // Print & Page Setup (Ensures table fits A4 width perfectly without clipping)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: withInternal ? 'portrait' : 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
+    printTitlesRow: '11:11'
+  };
+
+  // Column Widths with ample space
   if (withInternal) {
     worksheet.columns = [
-      { width: 8 },   // S.No
+      { width: 7 },   // S.No
       { width: 18 },  // Roll No
       { width: 34 },  // Student Name
       { width: 18 },  // Attd Mark (Max: 5)
-      { width: 26 },  // Activities (Max: 95)
-      { width: 24 }   // Total Internal (Max: 100)
+      { width: 34 },  // Activities / Assignment Marks (Max: 95)
+      { width: 26 }   // Total Internal (Max: 100)
     ];
   } else {
     worksheet.columns = [
-      { width: 8 },   // S.No
+      { width: 7 },   // S.No
       { width: 18 },  // Roll No
       { width: 34 },  // Student Name
       { width: 16 },  // Actual Attd
@@ -547,6 +604,18 @@ export const exportLaboratoryMarksExcel = async ({
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
+
+  // Print & Page Setup (Ensures table fits A4 width perfectly without clipping)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
+    printTitlesRow: '11:11'
+  };
 
   worksheet.columns = [
     { width: 7 },
@@ -825,6 +894,18 @@ export const exportOverallMarksExcel = async ({
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
+
+  // Print & Page Setup (Landscape A4, fit to width)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 },
+    printTitlesRow: '11:12'
+  };
 
   // Set Column Widths
   worksheet.getColumn(1).width = 7;
@@ -1117,8 +1198,20 @@ export const exportSubjectAnalysisExcel = async ({
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
+  // Print & Page Setup (Ensures table fits A4 width cleanly)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
+    printTitlesRow: '20:20'
+  };
+
   worksheet.columns = [
-    { width: 8 },
+    { width: 7 },
     { width: 18 },
     { width: 34 },
     { width: 22 },
@@ -1303,6 +1396,18 @@ export const exportConsolidatedMarksExcel = async ({
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
+
+  // Print & Page Setup (Landscape A4, fit to width)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 },
+    printTitlesRow: '11:11'
+  };
 
   worksheet.getColumn(1).width = 7;
   worksheet.getColumn(2).width = 16;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAPI, settingsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Search, Loader, AlertCircle, Save, Settings, BookMarked, Eye, EyeOff } from 'lucide-react';
+import { Shield, Key, Search, Loader, AlertCircle, Save, Settings, BookMarked } from 'lucide-react';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -11,7 +11,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [visiblePasswords, setVisiblePasswords] = useState({});
   const [resettingId, setResettingId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
 
@@ -145,7 +144,7 @@ export default function AdminPage() {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Staff Password & Credential Management</h3>
+                <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Staff Account & Security Management</h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => setStatusFilter('all')}
@@ -167,18 +166,7 @@ export default function AdminPage() {
                       color: statusFilter === 'changed' ? '#fff' : '#15803D'
                     }}
                   >
-                    ● Changed by User ({changedCount})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('default')}
-                    style={{
-                      padding: '4px 10px', borderRadius: '16px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                      border: '1px solid #CBD5E1',
-                      background: statusFilter === 'default' ? '#64748B' : '#F1F5F9',
-                      color: statusFilter === 'default' ? '#fff' : '#475569'
-                    }}
-                  >
-                    ○ Default Password ({defaultCount})
+                    ● Password Updated ({changedCount})
                   </button>
                 </div>
               </div>
@@ -207,7 +195,7 @@ export default function AdminPage() {
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Email</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Department</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Role</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Password / Status</th>
+                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Account Status</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
@@ -227,37 +215,23 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <code style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
-                            {visiblePasswords[staff.id] ? (staff.password || 'faculty123') : '••••••••'}
-                          </code>
-                          <button
-                            onClick={() => setVisiblePasswords(p => ({ ...p, [staff.id]: !p[staff.id] }))}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '2px' }}
-                            title={visiblePasswords[staff.id] ? "Hide password" : "Show password"}
-                          >
-                            {visiblePasswords[staff.id] ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
-                        </div>
-                        <div style={{ marginTop: '4px' }}>
-                          {staff.is_password_changed ? (
-                            <span style={{ 
-                              padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
-                              background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC',
-                              display: 'inline-flex', alignItems: 'center', gap: '4px'
-                            }}>
-                              ● Changed by User
-                            </span>
-                          ) : (
-                            <span style={{ 
-                              padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
-                              background: '#F1F5F9', color: '#64748B', border: '1px solid #CBD5E1',
-                              display: 'inline-flex', alignItems: 'center', gap: '4px'
-                            }}>
-                              ○ Default (faculty123)
-                            </span>
-                          )}
-                        </div>
+                        {staff.is_password_changed ? (
+                          <span style={{ 
+                            padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
+                            background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px'
+                          }}>
+                            ● Password Customized
+                          </span>
+                        ) : (
+                          <span style={{ 
+                            padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
+                            background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px'
+                          }}>
+                            ○ Active Account
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                         {resettingId === staff.id ? (

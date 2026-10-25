@@ -342,8 +342,15 @@ export const generateSubjectAnalysisPDF = async ({
   doc.setFont('helvetica', 'bold');
   doc.text(`8. Principal's suggestions to improve the pass percentage: ${declarationData?.principalSuggestions || '-'}`, 14, y);
   
-  // Signature Block: Subject Faculty & HOD
-  y = doc.internal.pageSize.getHeight() - 30; // 30mm from the bottom of the page
+  // Signature Block: Subject Faculty & HOD (dynamically positioned to avoid overlapping text)
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const neededY = y + 16;
+  if (neededY > pageHeight - 20) {
+    doc.addPage();
+    y = pageHeight - 30;
+  } else {
+    y = Math.max(neededY, pageHeight - 30);
+  }
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
@@ -504,21 +511,21 @@ export const generateSubjectMarksListPDF = async ({
   ];
 
   const colStyles = withInternal ? {
-    0: { cellWidth: 14, halign: 'center' },
-    1: { cellWidth: 32, halign: 'center' },
-    2: { cellWidth: 64, halign: 'left' },
-    3: { cellWidth: 22, halign: 'center' },
-    4: { cellWidth: 26, halign: 'center' },
-    5: { cellWidth: 24, halign: 'center' }
+    0: { cellWidth: 12, halign: 'center' },
+    1: { cellWidth: 28, halign: 'center' },
+    2: { cellWidth: 58, halign: 'left' },
+    3: { cellWidth: 24, halign: 'center' },
+    4: { cellWidth: 38, halign: 'center' },
+    5: { cellWidth: 30, halign: 'center' }
   } : {
     0: { cellWidth: 10, halign: 'center' },
     1: { cellWidth: 26, halign: 'center' },
-    2: { cellWidth: 52, halign: 'left' },
-    3: { cellWidth: 20, halign: 'center' },
-    4: { cellWidth: 24, halign: 'center' },
-    5: { cellWidth: 18, halign: 'center' },
-    6: { cellWidth: 22, halign: 'center' },
-    7: { cellWidth: 18, halign: 'center' }
+    2: { cellWidth: 50, halign: 'left' },
+    3: { cellWidth: 18, halign: 'center' },
+    4: { cellWidth: 22, halign: 'center' },
+    5: { cellWidth: 16, halign: 'center' },
+    6: { cellWidth: 28, halign: 'center' },
+    7: { cellWidth: 20, halign: 'center' }
   };
 
   const sCount = students.length;
@@ -543,7 +550,7 @@ export const generateSubjectMarksListPDF = async ({
     foot: [footRow],
     theme: 'grid',
     margin: { top: 15, bottom: 22, left: 10, right: 10 },
-    styles: { fontSize: tableFontSize, cellPadding: tableCellPadding, halign: 'center' },
+    styles: { fontSize: tableFontSize, cellPadding: tableCellPadding, halign: 'center', overflow: 'linebreak' },
     headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold' },
     footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
     columnStyles: colStyles
@@ -1331,20 +1338,46 @@ export const generateSubjectMarksListPDF2021 = async ({
     }
   });
 
-  // Column widths
-  const colStyles = withInternal ? {
-    0: { cellWidth: 8, halign: 'center' },
-    1: { cellWidth: 26, halign: 'center' },
-    2: { cellWidth: 44, halign: 'left' },
-    3: { cellWidth: 20, halign: 'center' },
-  } : {
-    0: { cellWidth: 10, halign: 'center' },
-    1: { cellWidth: 28, halign: 'center' },
-    2: { cellWidth: 56, halign: 'left' },
-    3: { cellWidth: 24, halign: 'center' },
-    4: { cellWidth: 44, halign: 'center' },
-    5: { cellWidth: 28, halign: 'center' }
-  };
+  // Column widths (exact 190mm usable width)
+  const numCols = headRow.length;
+  let colStyles = {};
+  if (withInternal) {
+    if (numCols === 9) {
+      colStyles = {
+        0: { cellWidth: 9, halign: 'center' },
+        1: { cellWidth: 24, halign: 'center' },
+        2: { cellWidth: 43, halign: 'left' },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 20, halign: 'center' },
+        6: { cellWidth: 20, halign: 'center' },
+        7: { cellWidth: 20, halign: 'center' },
+        8: { cellWidth: 20, halign: 'center' },
+      };
+    } else {
+      // 8 columns (9 + 26 + 47 + 18 + 20 + 22 + 24 + 24 = 190mm)
+      colStyles = {
+        0: { cellWidth: 9, halign: 'center' },
+        1: { cellWidth: 26, halign: 'center' },
+        2: { cellWidth: 47, halign: 'left' },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 20, halign: 'center' },
+        5: { cellWidth: 22, halign: 'center' },
+        6: { cellWidth: 24, halign: 'center' },
+        7: { cellWidth: 24, halign: 'center' },
+      };
+    }
+  } else {
+    // 6 columns without internal (10 + 26 + 56 + 22 + 46 + 30 = 190mm)
+    colStyles = {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 26, halign: 'center' },
+      2: { cellWidth: 56, halign: 'left' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 46, halign: 'center' },
+      5: { cellWidth: 30, halign: 'center' },
+    };
+  }
 
   const sCount = students.length;
   let tableFontSize = 8;
@@ -1367,7 +1400,7 @@ export const generateSubjectMarksListPDF2021 = async ({
     body: bodyRows,
     theme: 'grid',
     margin: { top: 15, bottom: 22, left: 10, right: 10 },
-    styles: { fontSize: tableFontSize, cellPadding: tableCellPadding, halign: 'center', valign: 'middle' },
+    styles: { fontSize: tableFontSize, cellPadding: tableCellPadding, halign: 'center', valign: 'middle', overflow: 'linebreak' },
     headStyles: {
       fillColor: [124, 58, 237],
       textColor: [255, 255, 255],

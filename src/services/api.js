@@ -128,7 +128,25 @@ export const marksAPI = {
   getClassSummary: (classId, sessionLabel = 'internal1') => 
     get(`/marks/class-summary?classId=${classId}&sessionLabel=${sessionLabel}`),
 
-  resetSession: (payload) => post('/marks/reset-session', payload),
+  resetSession: async (payload) => {
+    try {
+      return await post('/marks/reset-session', payload);
+    } catch (err) {
+      if (err.message && (err.message.includes('404') || err.message.includes('Not Found'))) {
+        return await post('/marks/submit', {
+          subjectId: payload.subjectId,
+          classId: payload.classId,
+          staffId: payload.staffId || 'staff',
+          sessionLabel: payload.sessionLabel || 'internal1',
+          components: [],
+          marks: [],
+          attendance: [],
+          actionType: 'clear'
+        });
+      }
+      throw err;
+    }
+  },
 
   deleteSession: (id) => remove(`/marks/sessions/${id}`),
 };
