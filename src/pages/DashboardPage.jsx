@@ -150,6 +150,14 @@ export default function DashboardPage() {
           allowed = allClasses.filter(c => teachIds.includes(c.id));
         }
 
+        const yearWeight = { 'IV': 1, 'III': 2, 'II': 3, 'I': 4 };
+        allowed.sort((a, b) => {
+          const wA = yearWeight[a.year_label] || (a.name?.includes('IV') ? 1 : a.name?.includes('III') ? 2 : a.name?.includes('II') ? 3 : 4);
+          const wB = yearWeight[b.year_label] || (b.name?.includes('IV') ? 1 : b.name?.includes('III') ? 2 : b.name?.includes('II') ? 3 : 4);
+          if (wA !== wB) return wA - wB;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+
         setClasses(allowed);
         const initialClsId = user?.coordinatedClassId || (allowed.length > 0 ? allowed[0].id : '');
         setSelectedClassId(initialClsId);

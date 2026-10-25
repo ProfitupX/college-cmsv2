@@ -288,6 +288,7 @@ export const statsAPI = {
 export const adminAPI = {
   getStaffs: () => get('/admin/staffs'),
   getCredentials: () => get('/admin/credentials'),
+  getStaffClasses: () => get('/admin/staff-classes'),
   createCredential: (data) => post('/admin/credentials', data),
   updateCredential: (id, data) => put(`/admin/credentials/${id}`, data),
   deleteCredential: (id) => remove(`/admin/credentials/${id}`),

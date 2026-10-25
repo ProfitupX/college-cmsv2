@@ -34,6 +34,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onMobileClose
         { to: '/admin/classes', icon: BookOpen, label: 'Manage Classes' },
         { to: '/admin/subjects', icon: ClipboardEdit, label: 'Manage Subjects' },
         { to: '/admin/staffs', icon: Users, label: 'Manage Staffs' },
+        { to: '/admin/staff-classes', icon: BookMarked, label: 'Staff Classes' },
         { to: '/admin/students', icon: GraduationCap, label: 'Manage Students' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
         { to: '/admin', icon: Shield, label: 'Admin Panel' },

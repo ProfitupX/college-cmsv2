@@ -13,6 +13,7 @@ import ManageClasses from './pages/Admin/ManageClasses';
 import ManageStaffs from './pages/Admin/ManageStaffs';
 import ManageSubjects from './pages/Admin/ManageSubjects';
 import ManageStudents from './pages/Admin/ManageStudents';
+import StaffClasses from './pages/Admin/StaffClasses';
 import MarksEntryPage2021 from './pages/MarksEntryPage2021';
 
 // Protected Route wrapper
@@ -95,6 +96,7 @@ function AppRoutes() {
       <Route path="/admin/credentials" element={<Navigate to="/admin/staffs" replace />} />
       <Route path="/admin/subjects" element={<AdminRoute><ManageSubjects /></AdminRoute>} />
       <Route path="/admin/students" element={<AdminRoute><ManageStudents /></AdminRoute>} />
+      <Route path="/admin/staff-classes" element={<AdminRoute><StaffClasses /></AdminRoute>} />
       
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/login" replace />} />

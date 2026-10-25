@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
       FROM classes c
       LEFT JOIN students s ON s.class_id = c.id
       GROUP BY c.id
-      ORDER BY c.id
+      ORDER BY FIELD(c.year_label, 'IV', 'III', 'II', 'I'), c.name ASC
     `);
     res.json(rows);
   } catch (err) {

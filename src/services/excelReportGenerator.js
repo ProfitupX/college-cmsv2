@@ -732,13 +732,50 @@ export const exportOverallMarksExcel = async ({
       if (sess) {
         const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
         if (attRec) {
-          attHrs = parseInt(attRec.hours_attended || 0, 10);
+          attHrs = parseInt(
+            attRec.actual_taken_hours !== undefined && attRec.actual_taken_hours !== null && attRec.actual_taken_hours !== ''
+              ? attRec.actual_taken_hours
+              : (attRec.hours_attended || attRec.attendance_days || attRec.lab_attendance || 0),
+            10
+          );
         }
+
+        // Marks calculation: assignment marks + internal written exam mark
+        let sumAssignment = 0;
         const markRecs = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         if (markRecs.length > 0) {
-          let sum = 0;
-          markRecs.forEach(m => sum += parseFloat(m.marks_obtained || 0));
-          markVal = Math.round(sum);
+          markRecs.forEach(m => sumAssignment += parseFloat(m.marks_obtained || 0));
+        }
+
+        let examMark = null;
+        if (attRec) {
+          const isLab = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
+          if (isLab && attRec.lab_mark !== null && attRec.lab_mark !== undefined && attRec.lab_mark !== '') {
+            examMark = parseFloat(attRec.lab_mark);
+          } else if (attRec.internal_exam_mark !== null && attRec.internal_exam_mark !== undefined && attRec.internal_exam_mark !== '') {
+            examMark = parseFloat(attRec.internal_exam_mark);
+          }
+        }
+
+        if (is2021) {
+          const isLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
+          const ciaMax = isLab ? 50 : 40;
+          const examMax = isLab ? 50 : 60;
+          const ciaTotal = Math.min(Math.round(sumAssignment), ciaMax);
+          const examConverted = (examMark !== null && !isNaN(examMark)) ? Math.round((examMark / 100) * examMax) : 0;
+          if (examMark === null && markRecs.length === 0) {
+            markVal = '-';
+          } else {
+            markVal = Math.min(100, ciaTotal + examConverted);
+          }
+        } else {
+          if (examMark !== null && !isNaN(examMark)) {
+            markVal = Math.round(examMark);
+          } else if (markRecs.length > 0) {
+            markVal = Math.round(sumAssignment);
+          } else {
+            markVal = '-';
+          }
         }
       }
 
@@ -1211,8 +1248,14 @@ export const exportConsolidatedMarksExcel = async ({
       } else {
         const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
         const rawExam = attRec?.internal_exam_mark;
-        if (rawExam !== null && rawExam !== undefined && rawExam !== '') {
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let sumAssignment = 0;
+        studentMarks.forEach(m => sumAssignment += parseFloat(m.marks_obtained || 0));
+
+        if (rawExam !== null && rawExam !== undefined && rawExam !== '' && !isNaN(parseFloat(rawExam))) {
           score = Math.round(parseFloat(rawExam));
+        } else if (studentMarks.length > 0) {
+          score = Math.round(sumAssignment);
         } else {
           score = 'AB';
         }

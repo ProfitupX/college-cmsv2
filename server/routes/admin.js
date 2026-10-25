@@ -28,7 +28,22 @@ router.get('/credentials', async (req, res) => {
     const [rows] = await db.execute(
       'SELECT id, name, short_name, designation, role, email, password, employee_id, department FROM staffs ORDER BY name ASC'
     );
-    res.json(rows);
+    // Deduplicate by email so Manage Staffs displays a single unified entry per person
+    const seen = new Map();
+    rows.forEach(r => {
+      const key = (r.email || '').toLowerCase().trim() || r.id;
+      if (!seen.has(key)) {
+        seen.set(key, r);
+      } else {
+        const prev = seen.get(key);
+        if (r.role === 'hod' && prev.role !== 'hod') {
+          seen.set(key, r);
+        } else if (r.employee_id && !prev.employee_id) {
+          seen.set(key, r);
+        }
+      }
+    });
+    res.json(Array.from(seen.values()));
   } catch (err) {
     console.error('GET /admin/credentials error:', err);
     res.status(500).json({ error: 'Failed to fetch staff credentials.' });
@@ -166,6 +181,93 @@ router.put('/reset-password', async (req, res) => {
   } catch (err) {
     console.error('PUT /admin/reset-password error:', err);
     res.status(500).json({ error: 'Failed to reset password.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/staff-classes
+// Returns all staff members and all classes and subjects they teach / coordinate
+// ─────────────────────────────────────────────────────────────
+router.get('/staff-classes', async (req, res) => {
+  try {
+    const [staffs] = await db.query(`
+      SELECT id, name, designation, department, email, employee_id, role
+      FROM staffs
+      ORDER BY name ASC
+    `);
+
+    const [subjects] = await db.query(`
+      SELECT s.id, s.code, s.name, s.type, s.ltpc, s.total_hours, s.faculty_id,
+             c.id AS class_id, c.name AS class_name, c.year_label, c.semester, c.department AS class_department
+      FROM subjects s
+      JOIN classes c ON c.id = s.class_id
+      ORDER BY FIELD(c.year_label, 'IV', 'III', 'II', 'I'), c.name ASC, s.code ASC
+    `);
+
+    const [classes] = await db.query(`
+      SELECT id, name, year_label, semester, department, class_coordinator, asst_coordinator
+      FROM classes
+      ORDER BY FIELD(year_label, 'IV', 'III', 'II', 'I'), name ASC
+    `);
+
+    // Unified deduplication by email or normalized name
+    const unifiedStaffMap = new Map();
+
+    staffs.forEach(st => {
+      const emailKey = (st.email || '').toLowerCase().trim();
+      const nameKey = (st.name || '').toLowerCase().trim();
+      const key = emailKey || nameKey || st.id;
+
+      if (!unifiedStaffMap.has(key)) {
+        unifiedStaffMap.set(key, {
+          ...st,
+          aliasIds: [st.id],
+          teachingSubjects: [],
+          coordinatedClasses: []
+        });
+      } else {
+        const existing = unifiedStaffMap.get(key);
+        existing.aliasIds.push(st.id);
+        if (st.designation && !existing.designation) existing.designation = st.designation;
+        if (st.role === 'hod' && existing.role !== 'hod') existing.role = st.role;
+      }
+    });
+
+    const unifiedList = Array.from(unifiedStaffMap.values());
+
+    // Map teaching subjects
+    subjects.forEach(sub => {
+      const match = unifiedList.find(st => 
+        st.aliasIds.includes(sub.faculty_id) || 
+        (sub.faculty_id && st.id === sub.faculty_id)
+      );
+      if (match) {
+        match.teachingSubjects.push(sub);
+      }
+    });
+
+    // Map coordinated classes
+    classes.forEach(cls => {
+      unifiedList.forEach(st => {
+        const isCoord = cls.class_coordinator && cls.class_coordinator.toLowerCase().includes(st.name.toLowerCase());
+        const isAsst = cls.asst_coordinator && cls.asst_coordinator.toLowerCase().includes(st.name.toLowerCase());
+        if (isCoord || isAsst) {
+          st.coordinatedClasses.push({
+            id: cls.id,
+            name: cls.name,
+            year_label: cls.year_label,
+            semester: cls.semester,
+            department: cls.department,
+            roleType: isCoord ? 'Class In-charge' : 'Assistant Coordinator'
+          });
+        }
+      });
+    });
+
+    res.json(unifiedList);
+  } catch (err) {
+    console.error('GET /admin/staff-classes error:', err);
+    res.status(500).json({ error: 'Failed to fetch staff classes.' });
   }
 });
 

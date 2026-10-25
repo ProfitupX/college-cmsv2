@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { adminAPI, settingsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Search, Loader, AlertCircle, Save, Settings } from 'lucide-react';
+import { Shield, Key, Search, Loader, AlertCircle, Save, Settings, BookMarked } from 'lucide-react';
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [staffs, setStaffs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -109,6 +111,18 @@ export default function AdminPage() {
           }}
         >
           <Settings size={16} /> Environment Settings (.env)
+        </button>
+        <button 
+          onClick={() => navigate('/admin/staff-classes')}
+          style={{ 
+            background: 'var(--surface)', 
+            color: 'var(--text-primary)', 
+            border: '1px solid var(--border-solid)', borderRadius: '8px', padding: '10px 16px', 
+            cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px',
+            marginLeft: 'auto'
+          }}
+        >
+          <BookMarked size={16} color="#6366f1" /> Go to Staff Classes Directory →
         </button>
       </div>
 

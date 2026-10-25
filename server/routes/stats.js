@@ -3,6 +3,137 @@ import db from '../db.js';
 
 const router = express.Router();
 
+async function computeYearPerformance({ role, department, staffId }) {
+  const isSH = department && (
+    department === 'Science and Humanities' ||
+    department === 'First Year' ||
+    department.toLowerCase().includes('science') ||
+    department.toLowerCase().includes('humanities')
+  );
+
+  let targetYears = ['I', 'II', 'III', 'IV'];
+  if (role === 'hod' && isSH) {
+    targetYears = ['I'];
+  } else if (role === 'hod' && department) {
+    targetYears = ['II', 'III', 'IV'];
+  }
+
+  const results = [];
+
+  for (const year of targetYears) {
+    let classes = [];
+    if (role === 'hod' && isSH) {
+      [classes] = await db.query(
+        "SELECT id FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND year_label = ?",
+        [year]
+      );
+    } else if (role === 'hod' && department) {
+      let branchKeyword = `%${department}%`;
+      let deptAliases = [department];
+      if (department.toLowerCase().includes('information') || department.toLowerCase() === 'it') {
+        branchKeyword = '%IT%';
+        deptAliases = ['Information Technology', 'IT'];
+      } else if (department.toLowerCase().includes('computer') || department.toLowerCase() === 'cse') {
+        branchKeyword = '%CSE%';
+        deptAliases = ['Computer Science and Engineering', 'CSE'];
+      } else if (department.toLowerCase().includes('artificial') || department.toLowerCase().includes('data science') || department.toLowerCase() === 'aids') {
+        branchKeyword = '%AI%';
+        deptAliases = ['Artificial Intelligence and Data Science', 'AI&DS', 'AI & DS', 'AIDS'];
+      } else if (department.toLowerCase().includes('electronic') || department.toLowerCase() === 'ece') {
+        branchKeyword = '%ECE%';
+        deptAliases = ['Electronics and Communication Engineering', 'ECE'];
+      } else if (department.toLowerCase().includes('electrical') || department.toLowerCase() === 'eee') {
+        branchKeyword = '%EEE%';
+        deptAliases = ['Electrical and Electronics Engineering', 'EEE'];
+      } else if (department.toLowerCase().includes('mech')) {
+        branchKeyword = '%Mech%';
+        deptAliases = ['Mechanical Engineering', 'Mech', 'Mechanical'];
+      } else if (department.toLowerCase().includes('civil')) {
+        branchKeyword = '%Civil%';
+        deptAliases = ['Civil Engineering', 'Civil'];
+      }
+      const aliasPlaceholders = deptAliases.map(() => '?').join(',');
+      [classes] = await db.query(
+        `SELECT id FROM classes WHERE year_label = ? AND (department IN (${aliasPlaceholders}) OR name LIKE ?)`,
+        [year, ...deptAliases, branchKeyword]
+      );
+    } else if (staffId && role !== 'admin' && role !== 'principal' && role !== 'vice_principal') {
+      [classes] = await db.query(
+        `SELECT DISTINCT c.id FROM classes c 
+         JOIN subjects s ON s.class_id = c.id 
+         WHERE c.year_label = ? AND (s.faculty_id = ? OR c.class_coordinator LIKE ?)`,
+        [year, staffId, `%${staffId}%`]
+      );
+    } else {
+      [classes] = await db.query(
+        `SELECT id FROM classes WHERE year_label = ?`,
+        [year]
+      );
+    }
+
+    if (!classes || classes.length === 0) {
+      results.push({ name: year, value: 0 });
+      continue;
+    }
+
+    const classIds = classes.map(c => c.id);
+    const placeholders = classIds.map(() => '?').join(',');
+
+    let yearVal = 0;
+    try {
+      const [attScores] = await db.query(
+        `SELECT sa.student_id, AVG(sa.internal_exam_mark) as exam_avg, AVG(sa.lab_mark) as lab_avg
+         FROM session_attendance sa
+         JOIN marks_sessions ms ON ms.id = sa.session_id
+         WHERE ms.class_id IN (${placeholders})
+         GROUP BY sa.student_id`,
+        classIds
+      );
+
+      const [compScores] = await db.query(
+        `SELECT m.student_id, AVG(m.marks_obtained) as comp_avg
+         FROM marks m
+         JOIN marks_sessions ms ON ms.id = m.session_id
+         WHERE ms.class_id IN (${placeholders})
+         GROUP BY m.student_id`,
+        classIds
+      );
+
+      if (attScores.length > 0) {
+        let studentSum = 0;
+        let count = 0;
+        attScores.forEach(a => {
+          const examVal = parseFloat(a.exam_avg) || parseFloat(a.lab_avg) || 0;
+          const matchingComp = compScores.find(c => c.student_id === a.student_id);
+          const compVal = matchingComp ? parseFloat(matchingComp.comp_avg) || 0 : 0;
+          const total = examVal > 0 ? (examVal >= 50 ? examVal : Math.max(examVal, compVal * 5)) : (compVal > 0 ? compVal * 5 : 0);
+          if (total > 0) {
+            studentSum += total;
+            count++;
+          }
+        });
+        yearVal = count > 0 ? Math.min(100, Math.round((studentSum / count) * 10) / 10) : 0;
+      }
+
+      if (yearVal === 0) {
+        const [[{ msAvg }]] = await db.query(
+          `SELECT ROUND(AVG(CASE WHEN total_max > 0 THEN (avg_score / total_max) * 100 ELSE avg_score END), 1) as msAvg
+           FROM marks_sessions
+           WHERE class_id IN (${placeholders}) AND avg_score > 0`,
+          classIds
+        );
+        yearVal = parseFloat(msAvg) || 0;
+      }
+    } catch (e) {
+      console.warn(`Error computing performance for year ${year}:`, e.message);
+    }
+
+    results.push({ name: year, value: yearVal });
+  }
+
+  return results;
+}
+
 // GET /api/stats?classId=CL001&staffId=STF001&role=hod&department=Information%20Technology
 router.get('/', async (req, res) => {
   try {
@@ -201,44 +332,8 @@ router.get('/', async (req, res) => {
       GROUP BY ms.subject_id, sub.acronym
     `, msParams);
 
-    // Year-wise Performance (I, II, III, IV)
-    let yearParams = [];
-    let yearWhere = '1=1';
-    let yearAllowedClause = "c.year_label IN ('I', 'II', 'III', 'IV')";
-    if (role === 'hod' && department) {
-      const isFirstYear = (
-        department === 'Science and Humanities' ||
-        department === 'First Year' ||
-        department.toLowerCase().includes('science') ||
-        department.toLowerCase().includes('humanities')
-      );
-      if (isFirstYear) {
-        yearWhere = "(c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I')";
-        yearAllowedClause = "c.year_label = 'I'";
-      } else {
-        yearWhere = "(c.department LIKE ? OR c.name LIKE ?)";
-        yearParams.push(`%${department}%`, `%${department}%`);
-        yearAllowedClause = "c.year_label IN ('II', 'III', 'IV')";
-      }
-    } else if (staffId && role !== 'admin' && role !== 'principal' && role !== 'vice_principal') {
-      if (staffId === 'S_CHITRA' || staffId === 'FAC002') {
-        yearWhere = '(ms.staff_id = ? OR ms.staff_id = ? OR sub.faculty_id = ? OR sub.faculty_id = ?)';
-        yearParams.push('S_CHITRA', 'FAC002', 'S_CHITRA', 'FAC002');
-      } else {
-        yearWhere = '(ms.staff_id = ? OR sub.faculty_id = ?)';
-        yearParams.push(staffId, staffId);
-      }
-    }
-    const [yearPerf] = await db.query(`
-      SELECT c.year_label AS name, 
-             ROUND(AVG(CASE WHEN ms.total_max > 0 THEN (ms.avg_score / ms.total_max) * 100 ELSE ms.avg_score END), 1) AS value
-      FROM marks_sessions ms
-      JOIN classes c ON c.id = ms.class_id
-      LEFT JOIN subjects sub ON sub.id = ms.subject_id
-      WHERE ${yearWhere} AND ${yearAllowedClause}
-      GROUP BY c.year_label
-      ORDER BY FIELD(c.year_label, 'I', 'II', 'III', 'IV')
-    `, yearParams);
+    // Year-wise Performance (I, II, III, IV) calculated from actual assessments & exams
+    const yearPerf = await computeYearPerformance({ role, department, staffId });
 
     res.json({
       totalStudents,
@@ -298,6 +393,8 @@ router.get('/college', async (req, res) => {
       ORDER BY YEAR(created_at), MONTH(created_at)
     `);
 
+    const yearPerf = await computeYearPerformance({ role: 'admin' });
+
     res.json({
       success: true,
       overview: {
@@ -307,7 +404,8 @@ router.get('/college', async (req, res) => {
         collegeAvg: collegeAvg || 0
       },
       departmentStats: deptPerformance,
-      performanceTrend: monthlyTrend
+      performanceTrend: monthlyTrend,
+      yearPerformance: yearPerf
     });
   } catch (err) {
     console.error('GET /stats/college error:', err);

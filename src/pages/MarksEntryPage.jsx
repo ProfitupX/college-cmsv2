@@ -131,6 +131,14 @@ export default function MarksEntryPage() {
           }
         }
 
+        const yearWeight = { 'IV': 1, 'III': 2, 'II': 3, 'I': 4 };
+        filtered.sort((a, b) => {
+          const wA = yearWeight[a.year_label] || (a.name?.includes('IV') ? 1 : a.name?.includes('III') ? 2 : a.name?.includes('II') ? 3 : 4);
+          const wB = yearWeight[b.year_label] || (b.name?.includes('IV') ? 1 : b.name?.includes('III') ? 2 : b.name?.includes('II') ? 3 : 4);
+          if (wA !== wB) return wA - wB;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+
         setClasses(filtered);
       })
       .catch(() => setClasses([]))
