@@ -70,10 +70,6 @@ jobs:
               if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}/server" ]; then
                 cp -rf /tmp/markhub_dist/server/* "${{ secrets.VPS_PATH }}/server/" >> "$LOG_FILE" 2>&1 || true
               fi
-            elif [ -f "/tmp/markhub_dist/index.js" ]; then
-              echo "=== SYNCING SERVER CODE DIRECTLY FROM SCP TARGET ===" >> "$LOG_FILE"
-              mkdir -p /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
-              cp -rf /tmp/markhub_dist/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
             fi
 
             # 3. Install production dependencies and run database migrations
@@ -91,10 +87,6 @@ jobs:
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
             echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
-
-            # Kill any port 5000 occupant or running node backend before starting
-            fuser -k -9 5000/tcp 2>/dev/null || true
-            pkill -9 -f "node.*index.js" 2>/dev/null || true
 
             # If sudo is available, kill port 5000 occupant or restart systemd
             if sudo -n true 2>/dev/null; then
