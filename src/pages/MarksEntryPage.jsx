@@ -1083,7 +1083,7 @@ export default function MarksEntryPage() {
             </div>
             {!isPrincipal && (
               <>
-                <button className={styles.clearBtn} onClick={handleReset} id="clear-marks-btn" disabled={isLocked}>
+                <button className={styles.clearBtn} onClick={handleReset} id="clear-marks-btn" disabled={isLocked && user?.role !== 'hod' && user?.role !== 'admin'}>
                   <RotateCcw size={15} /> Clear Marks
                 </button>
                 <button

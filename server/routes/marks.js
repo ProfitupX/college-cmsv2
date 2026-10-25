@@ -516,26 +516,35 @@ router.post('/reset-session', async (req, res) => {
   try {
     await conn.beginTransaction();
     const { sessionId, classId, subjectId, sessionLabel } = req.body;
-    let sId = sessionId;
+    let sIds = [];
 
-    if (!sId && classId && subjectId) {
-      const [sess] = await conn.execute(
-        'SELECT id FROM marks_sessions WHERE class_id = ? AND subject_id = ? AND session_label = ? LIMIT 1',
-        [classId, subjectId, sessionLabel || 'internal1']
-      );
-      if (sess.length > 0) sId = sess[0].id;
+    if (sessionId) {
+      sIds.push(sessionId);
     }
 
-    if (sId) {
-      await conn.execute('DELETE FROM marks WHERE session_id = ?', [sId]);
-      await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [sId]);
-      await conn.execute('DELETE FROM mark_unlock_requests WHERE session_id = ?', [sId]);
-      await conn.execute('DELETE FROM assessment_components WHERE session_id = ?', [sId]);
-      await conn.execute('DELETE FROM marks_sessions WHERE id = ?', [sId]);
+    if (classId && subjectId) {
+      const query = sessionLabel && sessionLabel !== 'all'
+        ? 'SELECT id FROM marks_sessions WHERE class_id = ? AND subject_id = ? AND session_label = ?'
+        : 'SELECT id FROM marks_sessions WHERE class_id = ? AND subject_id = ?';
+      const params = sessionLabel && sessionLabel !== 'all'
+        ? [classId, subjectId, sessionLabel]
+        : [classId, subjectId];
+      const [sess] = await conn.execute(query, params);
+      for (const s of sess) {
+        if (!sIds.includes(s.id)) sIds.push(s.id);
+      }
+    }
+
+    for (const id of sIds) {
+      await conn.execute('DELETE FROM marks WHERE session_id = ?', [id]);
+      await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [id]);
+      await conn.execute('DELETE FROM mark_unlock_requests WHERE session_id = ?', [id]);
+      await conn.execute('DELETE FROM assessment_components WHERE session_id = ?', [id]);
+      await conn.execute('DELETE FROM marks_sessions WHERE id = ?', [id]);
     }
 
     await conn.commit();
-    res.json({ success: true, message: 'Marks session completely reset and cleared.' });
+    res.json({ success: true, message: `Marks session(s) completely reset and cleared (${sIds.length} sessions).` });
   } catch (err) {
     await conn.rollback();
     console.error('POST /marks/reset-session error:', err);

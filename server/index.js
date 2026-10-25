@@ -18,6 +18,7 @@ import remarkRoutes   from './routes/remarks.js';
 
 import { execSync } from 'child_process';
 import fs from 'fs';
+import { runMigration } from './db_migrate.js';
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -79,9 +80,14 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 College CMS API running on http://0.0.0.0:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
+  try {
+    await runMigration(false);
+  } catch (migErr) {
+    console.error('⚠️ Startup migration warning:', migErr.message);
+  }
 });
 
 server.on('error', (err) => {

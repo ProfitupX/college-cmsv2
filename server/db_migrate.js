@@ -1,6 +1,6 @@
 import db from './db.js';
 
-async function runMigration() {
+async function runMigration(shouldExit = false) {
   console.log('=== STARTING DATABASE MIGRATION ===');
   try {
     // 1. Check notifications table for target_department column
@@ -46,12 +46,43 @@ async function runMigration() {
       console.warn('⚠️ All years marks seeding during migration warning:', seedMarksErr.message);
     }
 
+    // 5. Purge any fake/seeded marks for CS25C07 / SUB004 / FAC001 (Mr. C. Prathap - OOP)
+    try {
+      const [cs25Sessions] = await db.query(
+        "SELECT id FROM marks_sessions WHERE subject_id = 'SUB004' OR (class_id = 'CL001' AND staff_id = 'FAC001') OR subject_id IN (SELECT id FROM subjects WHERE code = 'CS25C07')"
+      );
+      if (cs25Sessions.length > 0) {
+        const sIds = cs25Sessions.map(s => s.id);
+        console.log(`Purging ${sIds.length} fake marks session(s) for CS25C07 / Prathap:`, sIds);
+        await db.query(`DELETE FROM mark_unlock_requests WHERE session_id IN (${sIds.map(() => '?').join(',')})`, sIds);
+        await db.query(`DELETE FROM marks WHERE session_id IN (${sIds.map(() => '?').join(',')})`, sIds);
+        await db.query(`DELETE FROM session_attendance WHERE session_id IN (${sIds.map(() => '?').join(',')})`, sIds);
+        await db.query(`DELETE FROM assessment_components WHERE session_id IN (${sIds.map(() => '?').join(',')})`, sIds);
+        await db.query(`DELETE FROM marks_sessions WHERE id IN (${sIds.map(() => '?').join(',')})`, sIds);
+        console.log('✅ Successfully purged fake marks for CS25C07 / Prathap.');
+      } else {
+        console.log('✅ No fake marks sessions found for CS25C07 / Prathap.');
+      }
+    } catch (purgeErr) {
+      console.warn('⚠️ CS25C07 purge warning:', purgeErr.message);
+    }
+
     console.log('=== DATABASE MIGRATION COMPLETE ===');
-    process.exit(0);
+    if (shouldExit) process.exit(0);
   } catch (err) {
     console.error('❌ Migration failed:', err.message);
-    process.exit(1);
+    if (shouldExit) process.exit(1);
+    throw err;
   }
 }
 
-runMigration();
+export { runMigration };
+
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('db_migrate.js') || process.argv[1].endsWith('db_migrate'));
+if (isDirectRun) {
+  runMigration(true).catch(err => {
+    console.error('Migration error:', err);
+    process.exit(1);
+  });
+}
+

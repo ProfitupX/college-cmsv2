@@ -72,10 +72,12 @@ jobs:
               fi
             fi
 
-            # 3. Install production dependencies if needed
+            # 3. Install production dependencies and run database migrations
             if [ -d "/var/www/markhub/server" ]; then
               cd /var/www/markhub/server
               npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
+              echo "=== RUNNING DB MIGRATION & CLEANUP ===" >> "$LOG_FILE"
+              node db_migrate.js >> "$LOG_FILE" 2>&1 || true
             fi
 
             # 4. Restart PM2 backend cleanly with latest code
