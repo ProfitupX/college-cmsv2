@@ -268,16 +268,8 @@ export default function MarksEntryPage() {
             } else {
               setCurrentSession(null);
               setSessionStatus('draft');
-              // Auto-populate 4 standard Anna University 2025 assessment components (Test 1/2: 25, Assignment: 25, Seminar: 25, Quiz: 20 summing to 95)
-              const testLabel = assessmentMode === 'internal2' ? 'Test 2' : 'Test 1';
-              const defaultComponents2025 = [
-                { uid: 'comp_test', typeId: 'test', label: testLabel, conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
-                { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 25, icon: '📋', color: '#22D3EE' },
-                { uid: 'comp_seminar', typeId: 'seminar', label: 'Seminar', conductedMax: 100, max: 25, icon: '📢', color: '#8B5CF6' },
-                { uid: 'comp_quiz', typeId: 'quiz', label: 'Quiz', conductedMax: 100, max: 20, icon: '❓', color: '#10B981' },
-              ];
-              setAssessmentComponents(defaultComponents2025);
-              setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, totalHours: 0 });
+              setAssessmentComponents([]);
+              setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: 0 });
               setRemedialAction('');
               setSaved(false);
               setIsComponentsDirty(false);
@@ -392,10 +384,11 @@ export default function MarksEntryPage() {
       students.forEach((st) => {
         const m = marksData[st.id] || {};
         assessmentComponents.forEach((comp, idx) => {
+          const val = m[comp.uid];
           marksPayload.push({
             studentId:       st.id,
             componentIndex:  idx,
-            marksObtained:   parseFloat(m[comp.uid]) || 0,
+            marksObtained:   (val !== undefined && val !== '' && !isNaN(parseFloat(val))) ? parseFloat(val) : null,
           });
         });
       });
@@ -501,6 +494,7 @@ export default function MarksEntryPage() {
       });
       clearMarks(); 
       setCurrentSession(null);
+      setAssessmentComponents([]);
       setSessionStatus('draft');
       setSaved(false); 
       setSaveErr(''); 

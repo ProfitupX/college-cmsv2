@@ -71,8 +71,12 @@ async function cleanPrathapMarks() {
     console.error('❌ Failed to clean Prathap marks:', err);
   } finally {
     conn.release();
-    process.exit(0);
+    if (shouldExit) process.exit(0);
   }
 }
 
-cleanPrathapMarks();
+export { cleanPrathapMarks };
+
+if (process.argv[1] && process.argv[1].endsWith('clean_prathap_fake_marks.js')) {
+  cleanPrathapMarks(true);
+}

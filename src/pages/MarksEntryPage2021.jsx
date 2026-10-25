@@ -258,16 +258,7 @@ export default function MarksEntryPage2021() {
         } else {
           setCurrentSession(null);
           setSessionStatus('draft');
-          const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-          const defaultComponents2021 = isLabCumTheory ? [
-            { uid: 'comp_test', typeId: 'test', label: 'Test 1', conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
-            { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 15, icon: '📋', color: '#22D3EE' },
-            { uid: 'comp_lab', typeId: 'practical', label: 'Lab Assessment', conductedMax: 100, max: 10, icon: '🔬', color: '#F472B6' },
-          ] : [
-            { uid: 'comp_test', typeId: 'test', label: 'Test 1', conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
-            { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 15, icon: '📋', color: '#22D3EE' },
-          ];
-          setAssessmentComponents(defaultComponents2021);
+          setAssessmentComponents([]);
           setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: 0 });
           setRemedialAction('');
           setSaved(false);
@@ -328,10 +319,11 @@ export default function MarksEntryPage2021() {
       students.forEach((st) => {
         const m = marksData[st.id] || {};
         assessmentComponents.forEach((comp, idx) => {
+          const val = m[comp.uid];
           marksPayload.push({
             studentId:      st.id,
             componentIndex: idx,
-            marksObtained:  parseFloat(m[comp.uid]) || 0,
+            marksObtained:  (val !== undefined && val !== '' && !isNaN(parseFloat(val))) ? parseFloat(val) : null,
           });
         });
       });
@@ -431,6 +423,7 @@ export default function MarksEntryPage2021() {
       });
       clearMarks();
       setCurrentSession(null);
+      setAssessmentComponents([]);
       setSessionStatus('draft');
       setSaved(false);
       setSaveErr('');

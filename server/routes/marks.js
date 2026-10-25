@@ -209,12 +209,19 @@ router.post('/submit', async (req, res) => {
     for (const m of marks) {
       const compDbId = componentIdMap[m.componentIndex];
       if (compDbId === undefined) continue;
-      await conn.execute(
-        `INSERT INTO marks (session_id, component_id, student_id, marks_obtained)
-         VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE marks_obtained = VALUES(marks_obtained)`,
-        [sessionId, compDbId, String(m.studentId), parseFloat(m.marksObtained) || 0]
-      );
+      if (m.marksObtained === null || m.marksObtained === '' || m.marksObtained === undefined) {
+        await conn.execute(
+          `DELETE FROM marks WHERE session_id = ? AND component_id = ? AND student_id = ?`,
+          [sessionId, compDbId, String(m.studentId)]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO marks (session_id, component_id, student_id, marks_obtained)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE marks_obtained = VALUES(marks_obtained)`,
+          [sessionId, compDbId, String(m.studentId), parseFloat(m.marksObtained)]
+        );
+      }
     }
 
     // 5. Insert Attendance & Internal Exam
