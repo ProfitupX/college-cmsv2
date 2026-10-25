@@ -50,14 +50,15 @@
 
 .row {
   display: grid;
-  grid-template-columns: 2fr 1.8fr 1.2fr 0.8fr 1fr 1fr;
+  grid-template-columns: 2fr 1.6fr 1.1fr 0.7fr 0.9fr 1fr 1fr;
   align-items: center;
-  padding: 12px 8px;
+  padding: 12px 10px;
   border-bottom: 1px solid var(--border-solid);
   font-size: 0.82rem;
   gap: 8px;
   animation: fadeInUp 0.4s ease both;
-  min-width: 600px;
+  min-width: 650px;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .row:last-child { border-bottom: none; }
@@ -75,6 +76,25 @@
 .row:not(.head):hover {
   background: var(--surface-hover);
   border-radius: var(--radius-sm);
+  transform: translateX(2px);
+}
+
+.enterLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-glow, rgba(99, 102, 241, 0.1));
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.row:hover .enterLink {
+  background: var(--primary);
+  color: #fff;
 }
 
 .subject {

@@ -32,6 +32,21 @@ function marksReducer(state, action) {
         isDirty: false
       };
     }
+    case 'SET_SELECTION_WITH_REGULATION': {
+      const { regulation, classId, subjectId } = action.payload;
+      return {
+        ...state,
+        activeRegulation: regulation,
+        selectedClassId: classId || '',
+        selectedSubjectId: subjectId || '',
+        marksData: {},
+        attendanceData: {},
+        internalExamData: {},
+        labData: {},
+        totalHours: 0,
+        isDirty: false
+      };
+    }
     case 'SET_CLASS':
       if (state.selectedClassId === action.payload) return state;
       return { ...state, selectedClassId: action.payload, selectedSubjectId: '', marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
@@ -119,6 +134,7 @@ export function MarksProvider({ children }) {
   const [state, dispatch] = useReducer(marksReducer, initialState);
 
   const setRegulation = (reg) => dispatch({ type: 'SET_REGULATION', payload: reg });
+  const setSelectionWithRegulation = (payload) => dispatch({ type: 'SET_SELECTION_WITH_REGULATION', payload });
   const setClass      = (id)  => dispatch({ type: 'SET_CLASS',   payload: id });
   const setSubject    = (id)  => dispatch({ type: 'SET_SUBJECT', payload: id });
   const setClassAndSubject = (classId, subjectId) => dispatch({ type: 'SET_CLASS_AND_SUBJECT', payload: { classId, subjectId } });
@@ -135,7 +151,7 @@ export function MarksProvider({ children }) {
 
   return (
     <MarksContext.Provider value={{ 
-      ...state, setRegulation, setClass, setSubject, setClassAndSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks, clearSelection 
+      ...state, setRegulation, setSelectionWithRegulation, setClass, setSubject, setClassAndSubject, setTotalHours, setAttendance, setInternalExam, setLabData, setMark, setSessionBulk, markSaved, clearMarks, clearSelection 
     }}>
       {children}
     </MarksContext.Provider>

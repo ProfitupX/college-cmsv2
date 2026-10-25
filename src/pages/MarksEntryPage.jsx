@@ -30,7 +30,7 @@ export default function MarksEntryPage() {
     activeRegulation,
     selectedClassId, selectedSubjectId,
     marksData, attendanceData, attendanceMarks, internalExamData, labData, totalHours, isDirty,
-    setRegulation, setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
+    setRegulation, setSelectionWithRegulation, setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
   } = useMarks();
 
   const isCorrectReg = activeRegulation === '2025';
@@ -41,16 +41,25 @@ export default function MarksEntryPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setRegulation('2025');
     const searchParams = new URLSearchParams(location.search);
-    const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
-    const targetSubjectId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id');
+    const rawClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
+    const rawSubjectId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id');
     const targetSession = location.state?.sessionLabel || location.state?.session_label || searchParams.get('session') || searchParams.get('sessionLabel');
 
+    const targetClassId = (rawClassId && rawClassId !== 'undefined' && rawClassId !== 'null') ? String(rawClassId) : '';
+    const targetSubjectId = (rawSubjectId && rawSubjectId !== 'undefined' && rawSubjectId !== 'null') ? String(rawSubjectId) : '';
+
     if (targetClassId && targetSubjectId) {
-      setClassAndSubject(targetClassId, targetSubjectId);
-    } else if (targetClassId) {
-      setClass(targetClassId);
+      if (setSelectionWithRegulation) {
+        setSelectionWithRegulation({ regulation: '2025', classId: targetClassId, subjectId: targetSubjectId });
+      } else {
+        setRegulation('2025');
+        setClassAndSubject(targetClassId, targetSubjectId);
+      }
+    } else {
+      setRegulation('2025');
+      if (targetClassId) setClass(targetClassId);
+      if (targetSubjectId) setSubject(targetSubjectId);
     }
     if (targetSession) {
       setAssessmentMode(targetSession);
@@ -287,8 +296,8 @@ export default function MarksEntryPage() {
       .finally(() => setLoading(false));
   }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode]);
 
-  const selectedClass   = classes.find((c) => c.id === effectiveClassId);
-  const selectedSubject = subjects.find((s) => s.id === effectiveSubjectId);
+  const selectedClass   = classes.find((c) => String(c.id) === String(effectiveClassId));
+  const selectedSubject = subjects.find((s) => String(s.id) === String(effectiveSubjectId));
   const handlingFacultyName =
     currentSession?.staff_name ||
     location.state?.staffName ||

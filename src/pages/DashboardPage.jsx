@@ -832,23 +832,29 @@ export default function DashboardPage() {
     ];
   }
 
-  // Shape sessions into the format RecentEntries expects
-  const entries = sessions.map((s) => ({
-    id:          s.id,
-    subject:     s.subject,
-    class:       s.class_name,
-    submittedAt: s.created_at,
-    status:      s.status,
-    count:       s.student_count,
-    avgScore:    s.avg_score,
-    classId:     s.class_id,
-    subjectId:   s.subject_id,
-    yearLabel:   s.year_label,
-    semester:    s.semester,
-    sessionLabel: s.session_label,
-    staffName:   s.staff_name,
-    staffDesignation: s.staff_designation
-  }));
+  // Shape sessions into the format RecentEntries expects with fallback to loaded classes
+  const entries = sessions.map((s) => {
+    const matchedClass = (classes || []).find((c) =>
+      (s.class_id && String(c.id) === String(s.class_id)) ||
+      (c.name && s.class_name && c.name.trim().toLowerCase() === s.class_name.trim().toLowerCase())
+    );
+    return {
+      id:          s.id,
+      subject:     s.subject,
+      class:       s.class_name,
+      submittedAt: s.created_at,
+      status:      s.status,
+      count:       s.student_count,
+      avgScore:    s.avg_score,
+      classId:     s.class_id || matchedClass?.id,
+      subjectId:   s.subject_id,
+      yearLabel:   s.year_label || matchedClass?.year_label,
+      semester:    s.semester || matchedClass?.semester,
+      sessionLabel: s.session_label || 'internal1',
+      staffName:   s.staff_name,
+      staffDesignation: s.staff_designation
+    };
+  });
 
   let sideChartTitle = 'Subject Scores';
   let sideChartSub = 'Average % per subject';
@@ -1580,7 +1586,7 @@ export default function DashboardPage() {
         session={pdfPayload?.session}
       />
 
-      <RecentEntries entries={entries} />
+      <RecentEntries entries={entries} classes={classes} />
       <SubjectSelectionModal
         isOpen={subjectModalOpen}
         onClose={() => setSubjectModalOpen(false)}

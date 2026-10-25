@@ -25,12 +25,71 @@ function ScorePill({ avg }) {
   );
 }
 
-export default function RecentEntries({ entries }) {
+export default function RecentEntries({ entries, classes = [] }) {
   const navigate = useNavigate();
-  const { setRegulation, setClassAndSubject } = useMarks();
+  const { setRegulation, setClassAndSubject, setSelectionWithRegulation } = useMarks();
   const formatDate = (iso) => {
     const d = new Date(iso);
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const handleRowClick = (e) => {
+    // 1. Resolve class from props or matching class name
+    const matchedClass = (classes || []).find((c) =>
+      (e.classId && String(c.id) === String(e.classId)) ||
+      (c.name && e.class && c.name.trim().toLowerCase() === e.class.trim().toLowerCase())
+    );
+
+    const targetClassId = (e.classId && e.classId !== 'undefined' && e.classId !== 'null')
+      ? String(e.classId)
+      : (matchedClass?.id ? String(matchedClass.id) : '');
+
+    const targetSubjectId = (e.subjectId && e.subjectId !== 'undefined' && e.subjectId !== 'null')
+      ? String(e.subjectId)
+      : '';
+
+    // 2. Robust 2021 Regulation Detection
+    const yr = String(e.yearLabel || matchedClass?.year_label || '').toUpperCase();
+    const sem = parseInt(e.semester || matchedClass?.semester, 10);
+    const clsName = String(e.class || matchedClass?.name || '').toUpperCase();
+    const is2021 = yr === 'III' || yr === 'IV' || yr === '3' || yr === '4' ||
+                   (!isNaN(sem) && sem >= 5) ||
+                   clsName.includes('III YEAR') || clsName.includes('IV YEAR') ||
+                   clsName.includes('3RD YEAR') || clsName.includes('4TH YEAR') ||
+                   clsName.includes('V SEM') || clsName.includes('VI SEM') ||
+                   clsName.includes('VII SEM') || clsName.includes('VIII SEM') ||
+                   clsName.includes('SEM 5') || clsName.includes('SEM 6') ||
+                   clsName.includes('SEM 7') || clsName.includes('SEM 8');
+
+    const reg = is2021 ? '2021' : '2025';
+    const route = is2021 ? '/marks-entry-2021' : '/marks-entry';
+    const sessionLabel = e.sessionLabel || 'internal1';
+
+    // 3. Atomically update MarksContext
+    if (setSelectionWithRegulation) {
+      setSelectionWithRegulation({
+        regulation: reg,
+        classId: targetClassId,
+        subjectId: targetSubjectId
+      });
+    } else {
+      if (setRegulation) setRegulation(reg);
+      if (setClassAndSubject && targetClassId && targetSubjectId) {
+        setClassAndSubject(targetClassId, targetSubjectId);
+      }
+    }
+
+    // 4. Navigate directly to the destination Marks Entry route
+    navigate(`${route}?classId=${targetClassId}&subjectId=${targetSubjectId}&sessionLabel=${sessionLabel}`, { 
+      state: { 
+        loadSessionId: e.id, 
+        classId: targetClassId, 
+        subjectId: targetSubjectId,
+        sessionLabel,
+        staffName: e.staffName,
+        staffDesignation: e.staffDesignation
+      } 
+    });
   };
 
   return (
@@ -38,7 +97,7 @@ export default function RecentEntries({ entries }) {
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>Recent Submissions</h3>
-          <p className={styles.sub}>Latest marks entries by you</p>
+          <p className={styles.sub}>Latest marks entries — click any row to open marks sheet</p>
         </div>
         <button className={styles.viewAll} onClick={() => navigate('/reports')}>
           View All <ChevronRight size={14} />
@@ -54,6 +113,7 @@ export default function RecentEntries({ entries }) {
           <span>Students</span>
           <span>Avg Score</span>
           <span>Status</span>
+          <span style={{ textAlign: 'right' }}>Action</span>
         </div>
 
         {/* Rows */}
@@ -62,28 +122,13 @@ export default function RecentEntries({ entries }) {
             key={e.id}
             className={styles.row}
             style={{ animationDelay: `${i * 60}ms`, cursor: 'pointer' }}
-            onClick={() => {
-              const is2021 = e.yearLabel === 'III' || e.yearLabel === 'IV' || e.yearLabel === '3' || e.yearLabel === '4' || parseInt(e.semester) >= 5;
-              const route = is2021 ? '/marks-entry-2021' : '/marks-entry';
-              if (setRegulation) setRegulation(is2021 ? '2021' : '2025');
-              if (setClassAndSubject && e.classId && e.subjectId) {
-                setClassAndSubject(e.classId, e.subjectId);
-              }
-              navigate(`${route}?classId=${e.classId}&subjectId=${e.subjectId}&sessionLabel=${e.sessionLabel || 'internal1'}`, { 
-                state: { 
-                  loadSessionId: e.id, 
-                  classId: e.classId, 
-                  subjectId: e.subjectId,
-                  sessionLabel: e.sessionLabel || 'internal1',
-                  staffName: e.staffName,
-                  staffDesignation: e.staffDesignation
-                } 
-              });
-            }}
-            title="Click subject to view & edit marks entry"
+            onClick={() => handleRowClick(e)}
+            title={`Click to open marks entry for ${e.subject} (${e.class})`}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700 }}>{e.subject}</span>
+              <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {e.subject}
+              </span>
               {e.staffName && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
                   👤 {e.staffName}
@@ -95,6 +140,11 @@ export default function RecentEntries({ entries }) {
             <span className={styles.count}>{e.count}</span>
             <ScorePill avg={e.avgScore} />
             <StatusBadge status={e.status} />
+            <div style={{ textAlign: 'right' }}>
+              <span className={styles.enterLink}>
+                Edit Sheet <ChevronRight size={13} />
+              </span>
+            </div>
           </div>
         ))}
       </div>
