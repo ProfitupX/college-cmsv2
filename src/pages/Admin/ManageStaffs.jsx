@@ -430,6 +430,17 @@ export default function ManageStaffs() {
                       {isPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  <div style={{ marginTop: '2px' }}>
+                    {s.is_password_changed ? (
+                      <span style={{ fontSize: '0.68rem', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        ● Changed by Staff
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        ○ Default
+                      </span>
+                    )}
+                  </div>
                 </td>
 
                 <td>

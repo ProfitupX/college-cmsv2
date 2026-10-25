@@ -158,6 +158,7 @@ export default function AdminPage() {
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Email</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Department</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Role</th>
+                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>Password Status</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
@@ -175,6 +176,25 @@ export default function AdminPage() {
                         }}>
                           {staff.role.toUpperCase()}
                         </span>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        {staff.is_password_changed ? (
+                          <span style={{ 
+                            padding: '3px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
+                            background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px'
+                          }}>
+                            ● Changed by User
+                          </span>
+                        ) : (
+                          <span style={{ 
+                            padding: '3px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
+                            background: '#F1F5F9', color: '#64748B', border: '1px solid #CBD5E1',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px'
+                          }}>
+                            ○ Default (faculty123)
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                         {resettingId === staff.id ? (
