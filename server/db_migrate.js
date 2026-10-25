@@ -30,6 +30,14 @@ async function runMigration() {
       }
     }
 
+    // 3. Automatically deduplicate staff records across all departments and years
+    try {
+      const { runStaffDeduplication } = await import('./deduplicate_staff.js');
+      await runStaffDeduplication();
+    } catch (dedupErr) {
+      console.warn('⚠️ Staff deduplication during migration warning:', dedupErr.message);
+    }
+
     console.log('=== DATABASE MIGRATION COMPLETE ===');
     process.exit(0);
   } catch (err) {

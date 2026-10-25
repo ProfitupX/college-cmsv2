@@ -38,16 +38,60 @@ export default function StaffClasses() {
     loadData();
   }, []);
 
+  const unifiedStaffList = useMemo(() => {
+    const map = new Map();
+
+    staffList.forEach((st) => {
+      let rawName = (st.name || '').toLowerCase().replace(/^(dr|mr|mrs|ms|prof)\.?\s*/i, '').trim();
+      const tokens = rawName.split(/[\s\.\-_]+/).filter((t) => t.length > 0).sort().join('_');
+      let emailPrefix = (st.email || '').toLowerCase().split('@')[0]
+        .replace(/(\.it|\.cse|\.ece|\.mech|\.civil|\.eee|\.sh|\.aids|\.phy|\.chem|\.maths|\.eng|\.tamil|\.pd)$/i, '')
+        .replace(/^[a-z][\._]/, '').replace(/[\._][a-z]$/, '')
+        .replace(/[^a-z]/g, '');
+
+      const key = (tokens && tokens.length >= 4) ? tokens : (emailPrefix || st.id);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          ...st,
+          teachingSubjects: [...(st.teachingSubjects || [])],
+          coordinatedClasses: [...(st.coordinatedClasses || [])]
+        });
+      } else {
+        const existing = map.get(key);
+        // Merge teaching subjects without duplicates
+        (st.teachingSubjects || []).forEach((sub) => {
+          if (!existing.teachingSubjects.some((s) => s.id === sub.id || (s.code === sub.code && s.class_id === sub.class_id))) {
+            existing.teachingSubjects.push(sub);
+          }
+        });
+        // Merge coordinated classes without duplicates
+        (st.coordinatedClasses || []).forEach((cls) => {
+          if (!existing.coordinatedClasses.some((c) => c.id === cls.id)) {
+            existing.coordinatedClasses.push(cls);
+          }
+        });
+        // Prefer official NSCET employee id, non-SH email, and HOD role
+        if (st.employee_id && st.employee_id.startsWith('NSCET-')) existing.employee_id = st.employee_id;
+        if (st.role === 'hod') existing.role = 'hod';
+        if (st.email && !st.email.includes('.it@') && !st.email.includes('.sh@')) existing.email = st.email;
+        if (st.designation && (!existing.designation || existing.designation === 'Faculty')) existing.designation = st.designation;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [staffList]);
+
   const departments = useMemo(() => {
     const set = new Set();
-    staffList.forEach((st) => {
+    unifiedStaffList.forEach((st) => {
       if (st.department) set.add(st.department);
     });
     return Array.from(set).sort();
-  }, [staffList]);
+  }, [unifiedStaffList]);
 
   const filteredStaff = useMemo(() => {
-    return staffList.filter((st) => {
+    return unifiedStaffList.filter((st) => {
       const q = search.toLowerCase();
       const nameMatch = (st.name || '').toLowerCase().includes(q) ||
                         (st.email || '').toLowerCase().includes(q) ||
@@ -75,58 +119,68 @@ export default function StaffClasses() {
       }
 
       return matchesSearch && matchesDept && matchesYear;
-    });
-  }, [staffList, search, deptFilter, yearFilter]);
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [unifiedStaffList, search, deptFilter, yearFilter]);
 
   const stats = useMemo(() => {
     let totalSubs = 0;
     let totalCoords = 0;
-    staffList.forEach((st) => {
+    unifiedStaffList.forEach((st) => {
       totalSubs += (st.teachingSubjects || []).length;
       if ((st.coordinatedClasses || []).length > 0) totalCoords++;
     });
     return {
-      totalStaff: staffList.length,
+      totalStaff: unifiedStaffList.length,
       totalAllocatedSubjects: totalSubs,
       totalCoordinators: totalCoords,
     };
-  }, [staffList]);
+  }, [unifiedStaffList]);
 
   const handleExportExcel = async () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Staff Class Allocations');
+    const worksheet = workbook.addWorksheet('Staff Allocations');
 
+    // College Header Banner
     worksheet.mergeCells('A1:G1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY, THENI';
     titleCell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 25;
+    worksheet.getRow(1).height = 28;
 
     worksheet.mergeCells('A2:G2');
     const subCell = worksheet.getCell('A2');
     subCell.value = 'FACULTY & STAFF CLASS-WISE SUBJECT ALLOCATION DIRECTORY';
-    subCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: '1E3A8A' } };
+    subCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
+    subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } };
     subCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(2).height = 20;
+    worksheet.getRow(2).height = 22;
 
-    worksheet.addRow([]);
+    const infoRow = worksheet.addRow([
+      `Exported on: ${new Date().toLocaleDateString('en-GB')} | Total Faculty: ${stats.totalStaff} | Total Allocations: ${stats.totalAllocatedSubjects} | Class In-charges: ${stats.totalCoordinators}`
+    ]);
+    worksheet.mergeCells(`A3:G3`);
+    infoRow.getCell(1).font = { name: 'Arial', size: 9, italic: true, color: { argb: '475569' } };
+    infoRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    infoRow.height = 18;
+
+    worksheet.addRow([]); // Blank spacer row
 
     const headers = [
       'S.No',
       'Faculty / Staff Name',
       'Designation & Department',
-      'Coordinated Class',
-      'Allocated Subject Code',
+      'In-charge Roles',
+      'Subject Code',
       'Subject Title',
       'Target Class & Sem'
     ];
     const headerRow = worksheet.addRow(headers);
-    headerRow.height = 24;
+    headerRow.height = 26;
     headerRow.eachCell((cell) => {
-      cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '334155' } };
+      cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E293B' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = {
         top: { style: 'thin', color: { argb: '94A3B8' } },
@@ -137,9 +191,12 @@ export default function StaffClasses() {
     });
 
     let sNo = 1;
-    filteredStaff.forEach((st) => {
-      const coordStr = (st.coordinatedClasses || []).map((c) => `${c.name} (${c.roleType})`).join(', ') || '-';
+    filteredStaff.forEach((st, staffIdx) => {
+      const coordStr = (st.coordinatedClasses || []).map((c) => `${c.name} (${c.roleType})`).join('\n') || '— None —';
       const subs = st.teachingSubjects || [];
+      const bgHex = staffIdx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+
+      const startRowIdx = worksheet.lastRow.number + 1;
 
       if (subs.length === 0) {
         const row = worksheet.addRow([
@@ -147,12 +204,20 @@ export default function StaffClasses() {
           st.name,
           `${st.designation || 'Faculty'} · ${st.department || '-'}`,
           coordStr,
-          '-',
+          '—',
           'No Assigned Subjects',
-          '-'
+          '—'
         ]);
-        row.eachCell((c) => {
-          c.border = {
+        row.height = 26;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Arial', size: 9, color: { argb: colNum === 6 ? '94A3B8' : '0F172A' }, bold: colNum === 2 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgHex } };
+          cell.alignment = { 
+            vertical: 'middle', 
+            wrapText: true, 
+            horizontal: (colNum === 1 || colNum === 5) ? 'center' : 'left' 
+          };
+          cell.border = {
             top: { style: 'thin', color: { argb: 'CBD5E1' } },
             bottom: { style: 'thin', color: { argb: 'CBD5E1' } },
             left: { style: 'thin', color: { argb: 'CBD5E1' } },
@@ -162,16 +227,29 @@ export default function StaffClasses() {
       } else {
         subs.forEach((sub, subIdx) => {
           const row = worksheet.addRow([
-            subIdx === 0 ? sNo++ : '',
+            subIdx === 0 ? sNo : '',
             subIdx === 0 ? st.name : '',
-            subIdx === 0 ? `${st.designation || 'Faculty'} · ${st.department || '-'}` : '',
+            subIdx === 0 ? `${st.designation || 'Faculty'}\n${st.department || '-'}` : '',
             subIdx === 0 ? coordStr : '',
             sub.code,
             sub.name,
-            `${sub.class_name || '-'} (Sem ${sub.semester || '-'})`
+            `${sub.class_name || '-'}\n(Sem ${sub.semester || '-'})`
           ]);
-          row.eachCell((c) => {
-            c.border = {
+          row.height = 26;
+          row.eachCell((cell, colNum) => {
+            cell.font = { 
+              name: 'Arial', 
+              size: 9, 
+              color: { argb: colNum === 5 ? '3730A3' : '0F172A' },
+              bold: colNum === 1 || colNum === 2 || colNum === 5
+            };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgHex } };
+            cell.alignment = { 
+              vertical: 'middle', 
+              wrapText: true, 
+              horizontal: (colNum === 1 || colNum === 5) ? 'center' : 'left' 
+            };
+            cell.border = {
               top: { style: 'thin', color: { argb: 'CBD5E1' } },
               bottom: { style: 'thin', color: { argb: 'CBD5E1' } },
               left: { style: 'thin', color: { argb: 'CBD5E1' } },
@@ -179,17 +257,58 @@ export default function StaffClasses() {
             };
           });
         });
+
+        const endRowIdx = worksheet.lastRow.number;
+
+        // Clean vertical merging for faculty details across all their subject rows
+        if (subs.length > 1) {
+          worksheet.mergeCells(`A${startRowIdx}:A${endRowIdx}`);
+          worksheet.mergeCells(`B${startRowIdx}:B${endRowIdx}`);
+          worksheet.mergeCells(`C${startRowIdx}:C${endRowIdx}`);
+          worksheet.mergeCells(`D${startRowIdx}:D${endRowIdx}`);
+
+          // Re-affirm alignment on merged cells
+          ['A', 'B', 'C', 'D'].forEach((colLetter, cIdx) => {
+            const cell = worksheet.getCell(`${colLetter}${startRowIdx}`);
+            cell.alignment = { 
+              vertical: 'middle', 
+              wrapText: true, 
+              horizontal: cIdx === 0 ? 'center' : 'left' 
+            };
+          });
+        }
+
+        sNo++;
       }
     });
 
+    // Summary footer row
+    worksheet.addRow([]);
+    const summaryRowIdx = worksheet.lastRow.number + 1;
+    const summaryRow = worksheet.addRow([
+      `END OF DIRECTORY — Total Faculty Listed: ${filteredStaff.length} | Generated by NSCET Marks Hub`
+    ]);
+    worksheet.mergeCells(`A${summaryRowIdx}:G${summaryRowIdx}`);
+    summaryRow.height = 24;
+    summaryRow.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: '475569' } };
+    summaryRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    summaryRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    summaryRow.getCell(1).border = {
+      top: { style: 'thin', color: { argb: 'CBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'CBD5E1' } },
+      left: { style: 'thin', color: { argb: 'CBD5E1' } },
+      right: { style: 'thin', color: { argb: 'CBD5E1' } }
+    };
+
+    // Generous column widths so no text ever overlaps or clips
     worksheet.columns = [
-      { width: 8 },
-      { width: 28 },
-      { width: 32 },
-      { width: 28 },
-      { width: 16 },
-      { width: 38 },
-      { width: 28 }
+      { width: 8 },  // A: S.No
+      { width: 30 }, // B: Faculty / Staff Name
+      { width: 34 }, // C: Designation & Department
+      { width: 32 }, // D: In-charge Roles
+      { width: 18 }, // E: Subject Code
+      { width: 44 }, // F: Subject Title
+      { width: 30 }  // G: Target Class & Sem
     ];
 
     const buffer = await workbook.xlsx.writeBuffer();

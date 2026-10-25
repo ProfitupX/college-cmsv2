@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../db.js';
+import { getStaffMatchingKeys } from '../deduplicate_staff.js';
 
 const router = express.Router();
 
@@ -210,32 +211,85 @@ router.get('/staff-classes', async (req, res) => {
       ORDER BY FIELD(year_label, 'IV', 'III', 'II', 'I'), name ASC
     `);
 
-    // Unified deduplication by email or normalized name
-    const unifiedStaffMap = new Map();
+    // Unified deduplication across all departments & years
+    const parent = new Map();
+    staffs.forEach(s => parent.set(s.id, s.id));
 
-    staffs.forEach(st => {
-      const emailKey = (st.email || '').toLowerCase().trim();
-      const nameKey = (st.name || '').toLowerCase().trim();
-      const key = emailKey || nameKey || st.id;
+    function find(x) {
+      if (parent.get(x) !== x) parent.set(x, find(parent.get(x)));
+      return parent.get(x);
+    }
 
-      if (!unifiedStaffMap.has(key)) {
-        unifiedStaffMap.set(key, {
-          ...st,
-          aliasIds: [st.id],
-          teachingSubjects: [],
-          coordinatedClasses: []
-        });
-      } else {
-        const existing = unifiedStaffMap.get(key);
-        existing.aliasIds.push(st.id);
-        if (st.designation && !existing.designation) existing.designation = st.designation;
-        if (st.role === 'hod' && existing.role !== 'hod') existing.role = st.role;
-      }
+    function union(x, y) {
+      const rx = find(x), ry = find(y);
+      if (rx !== ry) parent.set(rx, ry);
+    }
+
+    const keyToStaff = new Map();
+    staffs.forEach(s => {
+      const keys = getStaffMatchingKeys(s);
+      keys.forEach(k => {
+        if (!keyToStaff.has(k)) {
+          keyToStaff.set(k, s.id);
+        } else {
+          const otherId = keyToStaff.get(k);
+          const otherStaff = staffs.find(x => x.id === otherId);
+          const deptA = (s.department || '').toLowerCase();
+          const deptB = (otherStaff?.department || '').toLowerCase();
+          const deptMatch = deptA === deptB || deptA.includes('science') || deptB.includes('science');
+
+          if (deptMatch) {
+            union(s.id, otherId);
+          }
+        }
+      });
     });
 
-    const unifiedList = Array.from(unifiedStaffMap.values());
+    const clusters = new Map();
+    staffs.forEach(s => {
+      const root = find(s.id);
+      if (!clusters.has(root)) clusters.set(root, []);
+      clusters.get(root).push(s);
+    });
 
-    // Map teaching subjects
+    const unifiedList = [];
+
+    for (const members of clusters.values()) {
+      // Pick primary record
+      members.sort((a, b) => {
+        const score = (x) => {
+          let s = 0;
+          if (x.role === 'hod') s += 50;
+          if (x.employee_id && x.employee_id.startsWith('NSCET-')) s += 30;
+          if (x.id && x.id.startsWith('FAC')) s += 20;
+          if (x.email && !x.email.includes('.it@') && !x.email.includes('.sh@') && !x.email.includes('.cse@')) s += 10;
+          return s;
+        };
+        return score(b) - score(a);
+      });
+
+      const primary = { ...members[0] };
+      const aliasIds = members.map(m => m.id);
+      
+      // Preserve HOD / coordinator roles if any member has them
+      if (members.some(m => m.role === 'hod')) primary.role = 'hod';
+      if (members.some(m => m.designation && m.designation !== 'Faculty')) {
+        const des = members.find(m => m.designation && m.designation !== 'Faculty')?.designation;
+        if (des) primary.designation = des;
+      }
+
+      unifiedList.push({
+        ...primary,
+        aliasIds,
+        teachingSubjects: [],
+        coordinatedClasses: []
+      });
+    }
+
+    // Sort unified list alphabetically by name
+    unifiedList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // Map teaching subjects across all alias IDs
     subjects.forEach(sub => {
       const match = unifiedList.find(st => 
         st.aliasIds.includes(sub.faculty_id) || 
@@ -246,11 +300,16 @@ router.get('/staff-classes', async (req, res) => {
       }
     });
 
-    // Map coordinated classes
+    // Map coordinated classes using normalized name matching
     classes.forEach(cls => {
+      const normCoord = (cls.class_coordinator || '').toLowerCase().replace(/[^a-z]/g, '');
+      const normAsst = (cls.asst_coordinator || '').toLowerCase().replace(/[^a-z]/g, '');
+
       unifiedList.forEach(st => {
-        const isCoord = cls.class_coordinator && cls.class_coordinator.toLowerCase().includes(st.name.toLowerCase());
-        const isAsst = cls.asst_coordinator && cls.asst_coordinator.toLowerCase().includes(st.name.toLowerCase());
+        const normName = (st.name || '').toLowerCase().replace(/^(dr|mr|mrs|ms|prof)\.?\s*/i, '').replace(/[^a-z]/g, '');
+        const isCoord = normCoord && normName && (normCoord.includes(normName) || normName.includes(normCoord));
+        const isAsst = normAsst && normName && (normAsst.includes(normName) || normName.includes(normAsst));
+
         if (isCoord || isAsst) {
           st.coordinatedClasses.push({
             id: cls.id,
