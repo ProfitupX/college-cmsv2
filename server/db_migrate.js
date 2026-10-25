@@ -38,6 +38,14 @@ async function runMigration() {
       console.warn('⚠️ Staff deduplication during migration warning:', dedupErr.message);
     }
 
+    // 4. Ensure marks sessions for All Academic Years (I, II, III, IV) are seeded
+    try {
+      const { seedAllYearsMarks } = await import('./seed_all_years_marks.js');
+      await seedAllYearsMarks(false);
+    } catch (seedMarksErr) {
+      console.warn('⚠️ All years marks seeding during migration warning:', seedMarksErr.message);
+    }
+
     console.log('=== DATABASE MIGRATION COMPLETE ===');
     process.exit(0);
   } catch (err) {

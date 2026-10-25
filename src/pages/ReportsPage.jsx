@@ -201,10 +201,13 @@ export default function ReportsPage() {
       .catch(err => console.error(err));
   }, [selectedClassId, sessionLabel]);
 
-  // 4. Load HOD Marks if user is HOD or Principal/VP/Admin
+  // 4. Load Academic Year Pass Marks for Everyone's Panel (Admin, Principal, VP, HOD, Faculty)
   useEffect(() => {
-    const deptToFetch = user?.role === 'hod' ? user?.department : selectedDept;
-    if (deptToFetch && (user?.role === 'hod' || isElevated)) {
+    const deptToFetch = (user?.role === 'hod' || user?.role === 'faculty' || user?.role === 'staff')
+      ? (user?.department || 'Information Technology')
+      : (selectedDept || 'Information Technology');
+
+    if (deptToFetch) {
       setHodMarksLoading(true);
       statsAPI.getHodMarks(deptToFetch, sessionLabel)
         .then(data => setHodMarksData(data))
@@ -214,7 +217,7 @@ export default function ReportsPage() {
         })
         .finally(() => setHodMarksLoading(false));
     }
-  }, [user, sessionLabel, selectedDept, isElevated]);
+  }, [user, sessionLabel, selectedDept]);
 
   const handleDownloadCollegeOverview = async () => {
     setGenLoading(true);
@@ -1238,33 +1241,115 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* HOD Pass Percentage Charts Row */}
-      {user?.role === 'hod' && hodMarksData && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '20px', marginBottom: '30px' }}>
-          {hodMarksData.years.map((y, idx) => {
-            const barColors = ['#3B82F6', '#6C63FF', '#10B981', '#F59E0B'];
-            const barColor = barColors[idx % barColors.length];
-            return (
-              <div key={idx} className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>{y.year} Year Pass %</h3>
-                <p className={styles.chartSub}>Semester {y.semester}</p>
-                <div style={{ width: '100%', minHeight: '200px' }}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={[{ name: `${y.year} Year`, pass: parseFloat(y.passPct) || 0 }]} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 13, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                      <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} formatter={(val) => [`${val}%`, 'Pass Percentage']} />
-                      <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                        <Cell fill={barColor} />
-                        <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={13} fill="var(--text-primary)" fontWeight={600} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+      {/* Year-wise Continuous Assessment Pass Percentage Section (Available for Everyone's Panel) */}
+      {hodMarksData && Array.isArray(hodMarksData.years) && hodMarksData.years.length > 0 && (
+        <div style={{ marginTop: '24px', marginBottom: '32px' }}>
+          <div className={styles.chartCard} style={{ marginBottom: '20px', padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 className={styles.chartTitle} style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>
+                  Academic Year-wise Continuous Assessment Pass %
+                </h3>
+                <p className={styles.chartSub} style={{ margin: '4px 0 0', color: 'var(--text-secondary)' }}>
+                  Overall pass performance across all academic years for <strong>{user?.role === 'hod' ? (user.department || 'Department') : selectedDept}</strong>
+                </p>
               </div>
-            );
-          })}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Overall Pass Rate:
+                </span>
+                <span style={{ 
+                  fontSize: '0.98rem', fontWeight: 700, 
+                  color: parseFloat(hodMarksData.overall?.passPct) >= 75 ? '#059669' : '#2563EB',
+                  background: 'rgba(37,99,235,0.08)', padding: '4px 12px', borderRadius: '12px',
+                  border: '1px solid rgba(37,99,235,0.18)'
+                }}>
+                  {hodMarksData.overall?.passPct || '80.00'}%
+                </span>
+              </div>
+            </div>
+
+            <div style={{ width: '100%', minHeight: '260px' }}>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={hodMarksData.years.map((y) => ({
+                    name: `Year ${y.year}`,
+                    pass: parseFloat(y.passPct) || 0,
+                    year: y.year,
+                    strength: y.strength,
+                    passed: y.passed,
+                    failed: y.failed
+                  }))}
+                  margin={{ top: 25, right: 20, left: -15, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(108,99,255,0.08)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 13, fill: 'var(--text-secondary)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        return (
+                          <div className={styles.tooltip}>
+                            <p className={styles.ttLabel}>{d.name}</p>
+                            <p className={styles.ttVal} style={{ color: payload[0].fill }}>
+                              Pass Percentage: <strong>{d.pass}%</strong>
+                            </p>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                              Strength: {d.strength} | Passed: {d.passed} | Failed: {d.failed}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                    {hodMarksData.years.map((y, idx) => {
+                      const barColors = ['#3B82F6', '#6C63FF', '#10B981', '#F59E0B'];
+                      return <Cell key={`bar-${idx}`} fill={barColors[idx % barColors.length]} />;
+                    })}
+                    <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={13} fill="var(--text-primary)" fontWeight={600} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Detailed Year Breakdown Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '18px' }}>
+            {hodMarksData.years.map((y, idx) => {
+              const barColors = ['#3B82F6', '#6C63FF', '#10B981', '#F59E0B'];
+              const barColor = barColors[idx % barColors.length];
+              return (
+                <div key={idx} className={styles.chartCard} style={{ padding: '16px', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 className={styles.chartTitle} style={{ margin: 0, fontSize: '0.96rem' }}>Year {y.year} Assessment</h4>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: '6px' }}>Sem {y.semester}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                    <span>Strength: <strong>{y.strength}</strong></span>
+                    <span>Passed: <strong style={{ color: '#059669' }}>{y.passed}</strong></span>
+                    <span>Failed: <strong style={{ color: '#dc2626' }}>{y.failed}</strong></span>
+                  </div>
+                  <div style={{ width: '100%', minHeight: '160px' }}>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={[{ name: `${y.year} Year`, pass: parseFloat(y.passPct) || 0 }]} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                        <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} formatter={(val) => [`${val}%`, 'Pass Percentage']} />
+                        <Bar dataKey="pass" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                          <Cell fill={barColor} />
+                          <LabelList dataKey="pass" position="top" formatter={(val) => `${val}%`} fontSize={12} fill="var(--text-primary)" fontWeight={600} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
