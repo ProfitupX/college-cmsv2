@@ -410,12 +410,13 @@ export default function MarksEntryPage() {
         labMark: (labData[st.id] && labData[st.id].labMark) || ''
       }));
 
+      const currentAssessmentHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || parseInt(totalHours, 10) || 30;
       const payload = {
         subjectId:     effectiveSubjectId,
         classId:       effectiveClassId,
         staffId:       user.id,
         sessionLabel:  assessmentMode,
-        totalHours:    parseInt(displayHours || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || totalHours || 0, 10),
+        totalHours:    parseInt(currentAssessmentHours, 10),
         int1Hours:     parseInt(int1Hours || 0, 10),
         int2Hours:     parseInt(int2Hours || 0, 10),
         labHours:      parseInt(labHours || 0, 10),

@@ -108,6 +108,7 @@ function marksReducer(state, action) {
     case 'CLEAR_SELECTION':
       return { ...state, selectedClassId: '', selectedSubjectId: '', marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     case 'SET_CLASS_AND_SUBJECT':
+      if (state.selectedClassId === action.payload.classId && state.selectedSubjectId === action.payload.subjectId) return state;
       return { ...state, selectedClassId: action.payload.classId, selectedSubjectId: action.payload.subjectId, marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     default:
       return state;

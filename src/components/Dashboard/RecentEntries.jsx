@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useMarks } from '../../context/MarksContext';
 import styles from './RecentEntries.module.css';
 
 function StatusBadge({ status }) {
@@ -26,6 +27,7 @@ function ScorePill({ avg }) {
 
 export default function RecentEntries({ entries }) {
   const navigate = useNavigate();
+  const { setRegulation, setClassAndSubject } = useMarks();
   const formatDate = (iso) => {
     const d = new Date(iso);
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -63,12 +65,16 @@ export default function RecentEntries({ entries }) {
             onClick={() => {
               const is2021 = e.yearLabel === 'III' || e.yearLabel === 'IV' || e.yearLabel === '3' || e.yearLabel === '4' || parseInt(e.semester) >= 5;
               const route = is2021 ? '/marks-entry-2021' : '/marks-entry';
-              navigate(route, { 
+              if (setRegulation) setRegulation(is2021 ? '2021' : '2025');
+              if (setClassAndSubject && e.classId && e.subjectId) {
+                setClassAndSubject(e.classId, e.subjectId);
+              }
+              navigate(`${route}?classId=${e.classId}&subjectId=${e.subjectId}&sessionLabel=${e.sessionLabel || 'internal1'}`, { 
                 state: { 
                   loadSessionId: e.id, 
                   classId: e.classId, 
                   subjectId: e.subjectId,
-                  sessionLabel: e.sessionLabel,
+                  sessionLabel: e.sessionLabel || 'internal1',
                   staffName: e.staffName,
                   staffDesignation: e.staffDesignation
                 } 
