@@ -97,6 +97,7 @@ function AppRoutes() {
       <Route path="/admin/subjects" element={<AdminRoute><ManageSubjects /></AdminRoute>} />
       <Route path="/admin/students" element={<AdminRoute><ManageStudents /></AdminRoute>} />
       <Route path="/admin/staff-classes" element={<AdminRoute><StaffClasses /></AdminRoute>} />
+      <Route path="/admin/staff_classes" element={<AdminRoute><StaffClasses /></AdminRoute>} />
       
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/login" replace />} />
