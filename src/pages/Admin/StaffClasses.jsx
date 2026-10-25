@@ -15,7 +15,7 @@ import {
   Loader
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
-import { adminAPI } from '../../services/api';
+import { adminAPI, staffsAPI, classesAPI, subjectsAPI } from '../../services/api';
 import styles from './AdminPages.module.css';
 
 export default function StaffClasses() {
@@ -26,12 +26,79 @@ export default function StaffClasses() {
   const [deptFilter, setDeptFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
 
-  const loadData = () => {
+  const loadData = async () => {
     setLoading(true);
-    adminAPI.getStaffClasses()
-      .then((data) => setStaffList(data || []))
-      .catch((err) => setError(err.message || 'Failed to load staff classes.'))
-      .finally(() => setLoading(false));
+    setError('');
+    try {
+      const data = await adminAPI.getStaffClasses();
+      if (Array.isArray(data) && data.length > 0) {
+        setStaffList(data);
+        setLoading(false);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('adminAPI.getStaffClasses failed, using fallback synthesis:', apiErr.message);
+    }
+
+    // Fallback synthesis from standard endpoints
+    try {
+      const [staffs, classes, subjects] = await Promise.all([
+        staffsAPI.getAll().catch(() => []),
+        classesAPI.getAll().catch(() => []),
+        subjectsAPI.getAll().catch(() => [])
+      ]);
+
+      if (Array.isArray(staffs) && staffs.length > 0) {
+        const classMap = new Map();
+        (classes || []).forEach((c) => classMap.set(c.id, c));
+
+        const synthesized = staffs.map((st) => {
+          const teachingSubs = (subjects || [])
+            .filter((sub) => String(sub.faculty_id) === String(st.id))
+            .map((sub) => {
+              const cls = classMap.get(sub.class_id);
+              return {
+                id: sub.id,
+                code: sub.code,
+                name: sub.name,
+                type: sub.type,
+                ltpc: sub.ltpc,
+                total_hours: sub.total_hours,
+                class_id: sub.class_id,
+                class_name: cls ? cls.name : 'Class',
+                year_label: cls ? cls.year_label : '',
+                semester: cls ? cls.semester : sub.semester,
+                class_department: cls ? cls.department : sub.department,
+              };
+            });
+
+          const coordinatedCls = (classes || []).filter((cls) => {
+            const coord = (cls.class_coordinator || '').toLowerCase();
+            const asst = (cls.asst_coordinator || '').toLowerCase();
+            const stName = (st.name || '').toLowerCase();
+            return (
+              (stName.length > 3 && (coord.includes(stName) || asst.includes(stName))) ||
+              String(cls.coordinator_id) === String(st.id)
+            );
+          });
+
+          return {
+            ...st,
+            teachingSubjects: teachingSubs,
+            coordinatedClasses: coordinatedCls,
+          };
+        });
+
+        setStaffList(synthesized);
+        setError('');
+      } else {
+        setError('Failed to load staff classes.');
+      }
+    } catch (fallbackErr) {
+      setError(fallbackErr.message || 'Failed to load staff classes.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

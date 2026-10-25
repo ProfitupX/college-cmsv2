@@ -193,10 +193,12 @@ export default function MarksEntryPage2021() {
       setSubjects(visibleSubs);
 
       if (targetSubId && visibleSubs.some(s => String(s.id) === String(targetSubId))) {
-        setSubject(targetSubId);
+        if (String(targetSubId) !== String(selectedSubjectId)) {
+          setSubject(targetSubId);
+        }
       }
     }).catch(() => setSubjects([]));
-  }, [effectiveClassId, user, location.state, location.search]);
+  }, [effectiveClassId, user, location.state, location.search, selectedSubjectId]);
 
   // ── Load students when class changes ──────────────────────
   useEffect(() => {
@@ -256,7 +258,16 @@ export default function MarksEntryPage2021() {
         } else {
           setCurrentSession(null);
           setSessionStatus('draft');
-          setAssessmentComponents([]);
+          const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
+          const defaultComponents2021 = isLabCumTheory ? [
+            { uid: 'comp_test', typeId: 'test', label: 'Test 1', conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
+            { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 15, icon: '📋', color: '#22D3EE' },
+            { uid: 'comp_lab', typeId: 'practical', label: 'Lab Assessment', conductedMax: 100, max: 10, icon: '🔬', color: '#F472B6' },
+          ] : [
+            { uid: 'comp_test', typeId: 'test', label: 'Test 1', conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
+            { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 15, icon: '📋', color: '#22D3EE' },
+          ];
+          setAssessmentComponents(defaultComponents2021);
           setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: 0 });
           setRemedialAction('');
           setSaved(false);
@@ -265,7 +276,7 @@ export default function MarksEntryPage2021() {
       })
       .catch((err) => console.error('Failed to load marks session (2021):', err))
       .finally(() => setLoading(false));
-  }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode]);
+  }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode, selectedSubject]);
 
   const selectedClass   = classes.find(c => c.id === effectiveClassId);
   const selectedSubject = subjects.find(s => s.id === effectiveSubjectId);
@@ -358,6 +369,36 @@ export default function MarksEntryPage2021() {
       const res = await marksAPI.submit(payload);
       if (res.sessionId) {
         setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId }));
+        try {
+          const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
+          if (freshDetail && freshDetail.components) {
+            const reloadedComps = freshDetail.components.map((c) => ({
+              uid: c.id,
+              typeId: c.type_id,
+              label: c.label,
+              conductedMax: parseFloat(c.conducted_max) || 100,
+              max: parseFloat(c.max_marks),
+              icon: c.icon,
+              color: c.color,
+            }));
+            setAssessmentComponents(reloadedComps);
+
+            const reloadedMarks = {};
+            freshDetail.marks.forEach(m => {
+              if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
+              reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+            });
+            setSessionBulk({
+              marks: reloadedMarks,
+              attendance: freshDetail.attendance || {},
+              internalExam: freshDetail.internalExam || {},
+              labData: freshDetail.labData || {},
+              totalHours: freshDetail.session?.total_hours || ''
+            });
+          }
+        } catch (detailErr) {
+          console.warn('Post-save refresh detail notice (2021):', detailErr);
+        }
       }
 
       markSaved();

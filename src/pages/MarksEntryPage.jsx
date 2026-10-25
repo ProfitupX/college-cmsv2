@@ -185,10 +185,12 @@ export default function MarksEntryPage() {
       setSubjects(visibleSubs);
 
       if (targetSubId && visibleSubs.some(s => String(s.id) === String(targetSubId))) {
-        setSubject(targetSubId);
+        if (String(targetSubId) !== String(selectedSubjectId)) {
+          setSubject(targetSubId);
+        }
       }
     }).catch(() => setSubjects([]));
-  }, [effectiveClassId, user, location.state, location.search]);
+  }, [effectiveClassId, user, location.state, location.search, selectedSubjectId]);
 
   // ── Load students when class changes ──────────────────
   useEffect(() => {
@@ -266,7 +268,15 @@ export default function MarksEntryPage() {
             } else {
               setCurrentSession(null);
               setSessionStatus('draft');
-              setAssessmentComponents([]);
+              // Auto-populate 4 standard Anna University 2025 assessment components (Test 1/2: 25, Assignment: 25, Seminar: 25, Quiz: 20 summing to 95)
+              const testLabel = assessmentMode === 'internal2' ? 'Test 2' : 'Test 1';
+              const defaultComponents2025 = [
+                { uid: 'comp_test', typeId: 'test', label: testLabel, conductedMax: 100, max: 25, icon: '📝', color: '#6C63FF' },
+                { uid: 'comp_assign', typeId: 'assignment', label: 'Assignment', conductedMax: 100, max: 25, icon: '📋', color: '#22D3EE' },
+                { uid: 'comp_seminar', typeId: 'seminar', label: 'Seminar', conductedMax: 100, max: 25, icon: '📢', color: '#8B5CF6' },
+                { uid: 'comp_quiz', typeId: 'quiz', label: 'Quiz', conductedMax: 100, max: 20, icon: '❓', color: '#10B981' },
+              ];
+              setAssessmentComponents(defaultComponents2025);
               setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, totalHours: 0 });
               setRemedialAction('');
               setSaved(false);
@@ -427,6 +437,37 @@ export default function MarksEntryPage() {
 
       if (res.sessionId) {
         setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId }));
+        try {
+          const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
+          if (freshDetail && freshDetail.components) {
+            const reloadedComps = freshDetail.components.map((c) => ({
+              uid: c.id,
+              typeId: c.type_id,
+              label: c.label,
+              conductedMax: parseFloat(c.conducted_max) || 100,
+              max: parseFloat(c.max_marks),
+              icon: c.icon,
+              color: c.color,
+            }));
+            setAssessmentComponents(reloadedComps);
+
+            const reloadedMarks = {};
+            freshDetail.marks.forEach(m => {
+              if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
+              reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+            });
+            setSessionBulk({
+              marks: reloadedMarks,
+              attendance: freshDetail.attendance || {},
+              attendanceMarks: freshDetail.attendanceMarks || {},
+              internalExam: freshDetail.internalExam || {},
+              labData: freshDetail.labData || {},
+              totalHours: freshDetail.session?.total_hours || 0
+            });
+          }
+        } catch (detailErr) {
+          console.warn('Post-save refresh detail notice:', detailErr);
+        }
       }
 
       markSaved();

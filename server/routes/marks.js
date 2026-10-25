@@ -45,8 +45,11 @@ router.post('/submit', async (req, res) => {
         await conn.commit();
         return res.json({ success: true, message: 'Marks sheet cleared successfully.' });
       }
-      await conn.commit();
-      return res.json({ success: true, message: 'No changes made.' });
+      const hasAttendance = attendance && Array.isArray(attendance) && attendance.some(a => (a.hoursAttended || a.actualTakenHours || a.internalExamMark));
+      if (!hasAttendance) {
+        await conn.commit();
+        return res.json({ success: true, message: 'No changes made.' });
+      }
     }
 
     // 1. Calculate total max and avg score

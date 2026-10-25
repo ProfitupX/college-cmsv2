@@ -17,12 +17,25 @@ async function request(method, path, body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${BASE}${path}`, opts);
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
 
-  if (!res.ok) {
-    throw new Error(data.error || `Request failed: ${res.status}`);
+  if (contentType.includes('application/json')) {
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Request failed: ${res.status}`);
+    }
+    return data;
+  } else {
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Server error (${res.status}): ${res.statusText || 'Endpoint unavailable'}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   }
-  return data;
 }
 
 const get    = (path)         => request('GET',    path);

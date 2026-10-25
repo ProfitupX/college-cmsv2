@@ -33,8 +33,10 @@ function marksReducer(state, action) {
       };
     }
     case 'SET_CLASS':
+      if (state.selectedClassId === action.payload) return state;
       return { ...state, selectedClassId: action.payload, selectedSubjectId: '', marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     case 'SET_SUBJECT':
+      if (state.selectedSubjectId === action.payload) return state;
       return { ...state, selectedSubjectId: action.payload, marksData: {}, attendanceData: {}, internalExamData: {}, labData: {}, totalHours: 0, isDirty: false };
     case 'SET_TOTAL_HOURS':
       return { ...state, totalHours: action.payload, isDirty: true };
