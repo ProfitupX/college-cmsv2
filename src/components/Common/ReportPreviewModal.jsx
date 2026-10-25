@@ -128,6 +128,38 @@ export default function ReportPreviewModal({
     });
   }, [students, marksData, attendanceData, attendanceMarks, internalExamData, labData, components, tHours, reportType, isLabOnly]);
 
+  // Dynamic pagination sections based on PDF Layout Format selection (1, 2, 3, 4 pages, or Auto)
+  const paginatedSections = useMemo(() => {
+    const total = previewRows.length;
+    if (total === 0) return [];
+
+    let numPages = 1;
+    if (targetPages === '1_page') numPages = 1;
+    else if (targetPages === '2_pages') numPages = 2;
+    else if (targetPages === '3_pages') numPages = 3;
+    else if (targetPages === '4_pages') numPages = 4;
+    else {
+      // auto: ~24-28 students per page
+      numPages = Math.max(1, Math.ceil(total / 25));
+    }
+
+    const pageSize = Math.ceil(total / numPages);
+    const pages = [];
+    for (let i = 0; i < numPages; i++) {
+      const start = i * pageSize;
+      const end = Math.min(start + pageSize, total);
+      if (start < total) {
+        pages.push({
+          pageNumber: i + 1,
+          totalPages: numPages,
+          rows: previewRows.slice(start, end),
+          isLastPage: i === numPages - 1
+        });
+      }
+    }
+    return pages;
+  }, [previewRows, targetPages]);
+
   // 2. Subject Test Analysis Data Calculation
   const subjectAnalysisData = useMemo(() => {
     if (reportType !== 'subject_analysis') return null;
@@ -458,6 +490,7 @@ export default function ReportPreviewModal({
               <option value="1_page">Fit on 1 Single Page</option>
               <option value="2_pages">Format into 2 Pages</option>
               <option value="3_pages">Format into 3 Pages</option>
+              <option value="4_pages">Format into 4 Pages</option>
             </select>
             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
               (Signatures automatically pinned to bottom of final page)
@@ -777,94 +810,138 @@ export default function ReportPreviewModal({
             </div>
           )}
 
-          {/* VIEW F: Single Subject Marks & Lab Only */}
+          {/* VIEW F: Single Subject Marks & Lab Only with Real-time PDF Page Layout Preview */}
           {(reportType === 'subject_marks' || isLabOnly) && (
-            isLabOnly ? (
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px' }}>S.No</th>
-                    <th style={{ width: '130px' }}>Roll No</th>
-                    <th>Student Name</th>
-                    <th style={{ width: '150px' }}>Lab Attended Hours</th>
-                    <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
-                    <th style={{ width: '120px' }}>Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map(r => (
-                    <tr key={r.rollNo}>
-                      <td style={{ textAlign: 'center' }}>{r.sNo}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
-                      <td>{r.name}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#10b981' : '#ef4444' }}>
-                        {r.labResult}
-                      </td>
-                    </tr>
-                  ))}
-                  {previewRows.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                        No student records found to display.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            paginatedSections.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                No student records found to display.
+              </div>
             ) : (
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px' }}>S.No</th>
-                    <th style={{ width: '130px' }}>Roll No</th>
-                    <th>Student Name</th>
-                    {withInternal ? (
-                      <>
-                        <th style={{ width: '110px' }}>Attd Mark (5)</th>
-                        <th style={{ width: '130px' }}>Activities (95)</th>
-                        <th style={{ width: '140px' }}>Total Internal (100)</th>
-                      </>
-                    ) : (
-                      <>
-                        <th style={{ width: '130px' }}>Exam Mark (100)</th>
-                        <th style={{ width: '110px' }}>Result</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map(r => (
-                    <tr key={r.rollNo}>
-                      <td style={{ textAlign: 'center' }}>{r.sNo}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
-                      <td>{r.name}</td>
-                      {withInternal ? (
-                        <>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
-                          <td style={{ textAlign: 'center' }}>{r.convertedTotal}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
-                            {r.resultStr}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                  {previewRows.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                        No student records found to display.
-                      </td>
-                    </tr>
+              paginatedSections.map((page) => (
+                <div key={page.pageNumber} style={{ 
+                  marginBottom: '26px', 
+                  background: '#ffffff', 
+                  border: '1.5px solid #cbd5e1', 
+                  borderRadius: '10px', 
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                }}>
+                  {/* Sheet Header reflecting PDF Page Division */}
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
+                    padding: '10px 16px', borderBottom: '1.5px solid #cbd5e1'
+                  }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📄 Sheet / Page {page.pageNumber} of {page.totalPages}
+                      <span style={{ fontWeight: 500, fontSize: '0.78rem', color: '#64748b' }}>
+                        ({page.rows.length} Students · S.No {page.rows[0]?.sNo} to {page.rows[page.rows.length - 1]?.sNo})
+                      </span>
+                    </span>
+                    <span style={{
+                      fontSize: '0.74rem', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                      background: page.isLastPage ? '#ecfdf5' : '#eff6ff',
+                      color: page.isLastPage ? '#047857' : '#1d4ed8',
+                      border: `1px solid ${page.isLastPage ? '#a7f3d0' : '#bfdbfe'}`
+                    }}>
+                      {page.isLastPage ? '✓ Final Page (with Official Signatures)' : `Page ${page.pageNumber} of ${page.totalPages}`}
+                    </span>
+                  </div>
+
+                  {/* Table for this Page */}
+                  <table className={styles.table} style={{ margin: 0, border: 'none' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '50px' }}>S.No</th>
+                        <th style={{ width: '130px' }}>Roll No</th>
+                        <th>Student Name</th>
+                        {isLabOnly ? (
+                          <>
+                            <th style={{ width: '150px' }}>Lab Attended Hours</th>
+                            <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
+                            <th style={{ width: '120px' }}>Result</th>
+                          </>
+                        ) : withInternal ? (
+                          <>
+                            <th style={{ width: '110px' }}>Attd Mark (5)</th>
+                            <th style={{ width: '130px' }}>Activities (95)</th>
+                            {hasLab && (
+                              <th style={{ width: '120px' }}>Lab Mark (50)</th>
+                            )}
+                            {showWrittenExamInPdf && (
+                              <th style={{ width: '120px' }}>Written Exam</th>
+                            )}
+                            <th style={{ width: '140px' }}>Total Internal (100)</th>
+                          </>
+                        ) : (
+                          <>
+                            <th style={{ width: '130px' }}>Exam Mark (100)</th>
+                            <th style={{ width: '110px' }}>Result</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {page.rows.map(r => (
+                        <tr key={r.rollNo}>
+                          <td style={{ textAlign: 'center' }}>{r.sNo}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
+                          <td>{r.name}</td>
+                          {isLabOnly ? (
+                            <>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#10b981' : '#ef4444' }}>
+                                {r.labResult}
+                              </td>
+                            </>
+                          ) : withInternal ? (
+                            <>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
+                              <td style={{ textAlign: 'center' }}>{r.convertedTotal}</td>
+                              {hasLab && (
+                                <td style={{ textAlign: 'center', color: '#0e7490', fontWeight: 600 }}>{r.labConverted}</td>
+                              )}
+                              {showWrittenExamInPdf && (
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
+                              )}
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
+                                {r.resultStr}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Pinned Signatures if Last Page */}
+                  {page.isLastPage && (
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end',
+                      padding: '24px 20px 14px', background: '#fafafa',
+                      borderTop: '1px dashed #cbd5e1'
+                    }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ borderTop: '1.5px solid #334155', width: '180px', margin: '0 auto 6px' }} />
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>Signature of Faculty In-Charge</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{staff?.name || 'Subject Faculty'}</div>
+                      </div>
+
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ borderTop: '1.5px solid #334155', width: '180px', margin: '0 auto 6px' }} />
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>Head of the Department</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>Department HOD Seal</div>
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
+                </div>
+              ))
             )
           )}
         </div>
