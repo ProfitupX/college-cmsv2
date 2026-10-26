@@ -85,12 +85,10 @@ export default function AdminPage() {
     if (!matchesSearch) return false;
 
     if (statusFilter === 'changed') return !!s.is_password_changed;
-    if (statusFilter === 'default') return !s.is_password_changed;
     return true;
   });
 
   const changedCount = staffs.filter(s => s.is_password_changed).length;
-  const defaultCount = staffs.length - changedCount;
 
   return (
     <div style={{ padding: '24px' }}>
@@ -151,22 +149,11 @@ export default function AdminPage() {
                     style={{
                       padding: '4px 10px', borderRadius: '16px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
                       border: '1px solid var(--border-solid)',
-                      background: statusFilter === 'all' ? 'var(--primary)' : 'var(--surface)',
-                      color: statusFilter === 'all' ? '#fff' : 'var(--text-secondary)'
+                      background: 'var(--primary)',
+                      color: '#fff'
                     }}
                   >
-                    All Staff ({staffs.length})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('changed')}
-                    style={{
-                      padding: '4px 10px', borderRadius: '16px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                      border: '1px solid #86EFAC',
-                      background: statusFilter === 'changed' ? '#16A34A' : '#DCFCE7',
-                      color: statusFilter === 'changed' ? '#fff' : '#15803D'
-                    }}
-                  >
-                    ● Password Updated ({changedCount})
+                    All Staff Directory ({staffs.length})
                   </button>
                 </div>
               </div>
@@ -215,23 +202,13 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 8px' }}>
-                        {staff.is_password_changed ? (
-                          <span style={{ 
-                            padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-                            background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC',
-                            display: 'inline-flex', alignItems: 'center', gap: '4px'
-                          }}>
-                            ● Password Customized
-                          </span>
-                        ) : (
-                          <span style={{ 
-                            padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-                            background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1',
-                            display: 'inline-flex', alignItems: 'center', gap: '4px'
-                          }}>
-                            ○ Active Account
-                          </span>
-                        )}
+                        <span style={{ 
+                          padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
+                          background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC',
+                          display: 'inline-flex', alignItems: 'center', gap: '4px'
+                        }}>
+                          ● Active Account
+                        </span>
                       </td>
                       <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                         {resettingId === staff.id ? (

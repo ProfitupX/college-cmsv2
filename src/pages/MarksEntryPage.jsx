@@ -221,6 +221,9 @@ export default function MarksEntryPage() {
     
     setLoading(true);
 
+    const searchParams = new URLSearchParams(location.search);
+    const targetSessionId = location.state?.loadSessionId || searchParams.get('sessionId');
+
     const fetchInt1Promise = (assessmentMode === 'internal2')
       ? marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: 'internal1' })
           .then((sessions) => {
@@ -235,17 +238,24 @@ export default function MarksEntryPage() {
       .then((int1Attd) => {
         setInt1AttendanceData(int1Attd);
 
-        return marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
-          .then((sessions) => {
-            if (sessions.length > 0) {
-              return marksAPI.getSessionDetail(sessions[0].id);
-            }
-            return null;
-          })
+        const fetchSession = targetSessionId
+          ? marksAPI.getSessionDetail(targetSessionId).catch(() => null)
+          : marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
+              .then((sessions) => {
+                if (sessions.length > 0) {
+                  return marksAPI.getSessionDetail(sessions[0].id);
+                }
+                return null;
+              });
+
+        return fetchSession
           .then((detail) => {
             if (detail) {
               setCurrentSession(detail.session);
               setSessionStatus(detail.session.status || 'locked');
+              if (detail.session.session_label && detail.session.session_label !== assessmentMode) {
+                setAssessmentMode(detail.session.session_label);
+              }
 
               const loadedComps = detail.components.map((c) => ({
                 uid: c.id,

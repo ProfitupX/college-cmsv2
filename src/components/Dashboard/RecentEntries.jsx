@@ -79,8 +79,15 @@ export default function RecentEntries({ entries, classes = [] }) {
       }
     }
 
-    // 4. Navigate directly to the destination Marks Entry route
-    navigate(`${route}?classId=${targetClassId}&subjectId=${targetSubjectId}&sessionLabel=${sessionLabel}`, { 
+    // 4. Navigate directly to the destination Marks Entry route with explicit params
+    const queryParams = new URLSearchParams({
+      classId: targetClassId,
+      subjectId: targetSubjectId,
+      sessionLabel,
+      ...(e.id ? { sessionId: String(e.id) } : {})
+    }).toString();
+
+    navigate(`${route}?${queryParams}`, { 
       state: { 
         loadSessionId: e.id, 
         classId: targetClassId, 

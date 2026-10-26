@@ -86,7 +86,8 @@ export default function DashboardPage() {
             ? { staffId: user?.id }
             : {}
       ),
-      settingsAPI.getDeadline()
+      settingsAPI.getDeadline(),
+      classesAPI.getAll().catch(() => [])
     ];
 
     if (user?.role === 'hod') {
@@ -104,7 +105,10 @@ export default function DashboardPage() {
     promises.push(backupPromise);
 
     Promise.all(promises)
-      .then(([stats, sess, dl, requests, backupData]) => { 
+      .then(([stats, sess, dl, loadedClasses, requests, backupData]) => { 
+        if (Array.isArray(loadedClasses)) {
+          setClasses(loadedClasses);
+        }
         let finalStats = stats ? { ...stats } : {};
 
         const defaultYearBenchmarks = {

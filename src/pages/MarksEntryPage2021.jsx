@@ -228,15 +228,25 @@ export default function MarksEntryPage2021() {
     }
     setLoading(true);
 
-    marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
-      .then((sessions) => {
-        if (sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
-        return null;
-      })
+    const searchParams = new URLSearchParams(location.search);
+    const targetSessionId = location.state?.loadSessionId || searchParams.get('sessionId');
+
+    const fetchSession = targetSessionId
+      ? marksAPI.getSessionDetail(targetSessionId).catch(() => null)
+      : marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
+          .then((sessions) => {
+            if (sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
+            return null;
+          });
+
+    fetchSession
       .then((detail) => {
         if (detail) {
           setCurrentSession(detail.session);
           setSessionStatus(detail.session.status || 'locked');
+          if (detail.session.session_label && detail.session.session_label !== assessmentMode) {
+            setAssessmentMode(detail.session.session_label);
+          }
 
           const loadedComps = detail.components.map((c) => ({
             uid: c.id,
