@@ -80,24 +80,37 @@ jobs:
               node db_migrate.js >> "$LOG_FILE" 2>&1 || true
             fi
 
-            # 4. Restart PM2 backend cleanly with latest code
+            # 4. Restart PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
             echo "--- SUDO CHECK: $(sudo -n whoami 2>&1 || true)" >> "$LOG_FILE"
-            echo "--- PROCESSES RUNNING NODE ---" >> "$LOG_FILE"
             ps -ef | grep node >> "$LOG_FILE" 2>&1 || true
-            echo "--- LISTENING ON 5000 ---" >> "$LOG_FILE"
             ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
 
-            # If sudo is available, kill port 5000 occupant or restart systemd
+            # Use sudo if available
             if sudo -n true 2>/dev/null; then
-              echo "Sudo available. Freeing port 5000..." >> "$LOG_FILE"
+              echo "Sudo available - freeing port 5000..." >> "$LOG_FILE"
               sudo -n fuser -k -9 5000/tcp 2>/dev/null || true
               sudo -n systemctl restart college-cms 2>/dev/null || true
               sudo -n pm2 restart all 2>/dev/null || true
             fi
 
-            pm2 describe college-cms >> "$LOG_FILE" 2>&1 || true
+            # Stop and delete PM2 process owned by deploy user
+            pm2 stop college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
+
+            # Kill any user-owned node process on port 5000
+            echo "=== KILLING PORT 5000 OCCUPANTS ===" >> "$LOG_FILE"
+            PIDS=$(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
+            for PID in $PIDS; do
+              OWNER=$(ps -o user= -p $PID 2>/dev/null | tr -d ' ')
+              echo "Port 5000: PID=$PID OWNER=$OWNER" >> "$LOG_FILE"
+              if [ "$OWNER" = "$(whoami)" ]; then
+                kill -9 $PID 2>/dev/null && echo "Killed PID $PID" >> "$LOG_FILE" || true
+              fi
+            done
+            sleep 1
+
+            # Start fresh PM2 instance
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
@@ -115,41 +128,42 @@ jobs:
             fi
             echo "Using bundle source: $SRC" >> "$LOG_FILE"
 
-            # 6. Overwrite /var/www/markhub/dist cleanly
+            # 6. Clean-wipe stale assets, then copy new dist
             TARGET="/var/www/markhub/dist"
             if [ -d "$TARGET" ]; then
               echo "Deploying to $TARGET..." >> "$LOG_FILE"
-              # Rename old root-owned assets directory out of the way
-              mv "$TARGET/assets" "$TARGET/assets_old_$(date +%s)" 2>/dev/null || true
-              
-              # Copy all new bundle assets and HTML
-              cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
-              
-              echo "=== NEW ASSETS VERIFICATION ===" >> "$LOG_FILE"
-              ls -la "$TARGET/assets" >> "$LOG_FILE" 2>&1 || true
-              
-              # Save system diagnostic dump to server_diag.txt
-              DIAG="$TARGET/server_diag.txt"
-              echo "=== SYSTEM DIAGNOSTIC DUMP ===" > "$DIAG"
-              echo "--- WHOAMI & GROUPS ---" >> "$DIAG"
-              id >> "$DIAG" 2>&1 || true
-              groups >> "$DIAG" 2>&1 || true
-              echo "--- SUDO CHECK ---" >> "$DIAG"
-              sudo -n -l >> "$DIAG" 2>&1 || true
-              echo "--- PROCESS 1212 (PARENT) ---" >> "$DIAG"
-              tr '\0' ' ' < /proc/1212/cmdline >> "$DIAG" 2>&1 || true
-              echo "" >> "$DIAG"
-              echo "--- PROCESS 311286 ---" >> "$DIAG"
-              tr '\0' ' ' < /proc/311286/cmdline >> "$DIAG" 2>&1 || true
-              echo "" >> "$DIAG"
-              echo "--- ALL NODE PROCESSES ---" >> "$DIAG"
-              ps -eo pid,ppid,user,args | grep -E 'node|pm2' >> "$DIAG" 2>&1 || true
-              echo "--- NGINX SITES ENABLED ---" >> "$DIAG"
-              cat /etc/nginx/sites-enabled/* >> "$DIAG" 2>&1 || true
-              echo "--- LISTENING SOCKETS ---" >> "$DIAG"
-              ss -lptn >> "$DIAG" 2>&1 || true
 
-              # Save deploy log
+              # Remove old versioned JS/CSS files owned by this deploy user
+              echo "=== CLEANING STALE ASSETS ===" >> "$LOG_FILE"
+              find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
+                -user "$(whoami)" -delete 2>/dev/null || true
+              find "$TARGET" -maxdepth 1 -type d -name "assets_old_*" \
+                -user "$(whoami)" -exec rm -rf {} + 2>/dev/null || true
+
+              # Copy new bundle
+              cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
+
+              echo "=== NEW ASSETS VERIFICATION ===" >> "$LOG_FILE"
+              ls -la "$TARGET/assets" | head -10 >> "$LOG_FILE" 2>&1 || true
+              echo "Total asset files: $(ls "$TARGET/assets" | wc -l)" >> "$LOG_FILE"
+
+              # System diagnostic
+              DIAG="$TARGET/server_diag.txt"
+              {
+                echo "=== SYSTEM DIAGNOSTIC DUMP ==="
+                echo "--- WHOAMI & GROUPS ---"
+                id
+                groups
+                echo "--- SUDO CHECK ---"
+                sudo -n -l 2>&1 || true
+                echo "--- ALL NODE PROCESSES ---"
+                ps -eo pid,ppid,user,args | grep -E 'node|pm2' 2>/dev/null || true
+                echo "--- NGINX SITES ENABLED ---"
+                cat /etc/nginx/sites-enabled/* 2>/dev/null || true
+                echo "--- LISTENING SOCKETS ---"
+                ss -lptn 2>/dev/null || true
+              } > "$DIAG" 2>&1
+
               cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
             fi
 
