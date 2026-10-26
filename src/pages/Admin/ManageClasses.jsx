@@ -1,9 +1,41 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Edit2, Loader, AlertTriangle, BookOpen, UploadCloud } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader, AlertTriangle, BookOpen, UploadCloud, Shield, GraduationCap, Award, Users } from 'lucide-react';
 import { classesAPI, adminAPI } from '../../services/api';
 import AdminToolbar from '../../components/Admin/AdminToolbar';
 import BulkUploadModal from '../../components/Admin/BulkUploadModal';
 import styles from './AdminPages.module.css';
+
+// Helper: resolve role info from staffs list for a given coordinator name
+function resolveCoordinatorRole(coordinatorName, staffsList) {
+  if (!coordinatorName || !staffsList?.length) return null;
+  const normTarget = coordinatorName.toLowerCase().replace(/^(dr|mr|mrs|ms|prof)\.?\s*/i, '').replace(/[^a-z]/g, '');
+  if (!normTarget || normTarget.length < 3) return null;
+  const match = staffsList.find((s) => {
+    const normName = (s.name || '').toLowerCase().replace(/^(dr|mr|mrs|ms|prof)\.?\s*/i, '').replace(/[^a-z]/g, '');
+    return normName && normName.length >= 3 && (normName.includes(normTarget) || normTarget.includes(normName));
+  });
+  if (!match) return { roleLabel: 'Class In-charge', roleBg: '#ecfdf5', roleColor: '#065f46', border: '#a7f3d0', icon: 'incharge', name: coordinatorName };
+  const role = (match.role || '').toLowerCase();
+  const desig = (match.designation || '').toLowerCase();
+  if (role === 'admin') return { roleLabel: 'Admin', roleBg: '#f1f5f9', roleColor: '#475569', border: '#cbd5e1', icon: 'admin', name: match.name };
+  if (role === 'principal' || (desig.includes('principal') && !desig.includes('vice')))
+    return { roleLabel: 'Principal', roleBg: '#f5f3ff', roleColor: '#6d28d9', border: '#ddd6fe', icon: 'principal', name: match.name };
+  if (role === 'vice_principal' || desig.includes('vice principal') || desig.includes('vp'))
+    return { roleLabel: 'Vice Principal', roleBg: '#eef2ff', roleColor: '#4338ca', border: '#c7d2fe', icon: 'vp', name: match.name };
+  if (role === 'hod' || desig.includes('hod')) {
+    const dept = match.department ? match.department.replace('Engineering', 'Engg').replace('Artificial Intelligence and Data Science', 'AI&DS') : '';
+    return { roleLabel: dept ? `HOD · ${dept}` : 'HOD', roleBg: '#fef2f2', roleColor: '#991b1b', border: '#fecaca', icon: 'hod', name: match.name };
+  }
+  return { roleLabel: 'Class In-charge', roleBg: '#ecfdf5', roleColor: '#065f46', border: '#a7f3d0', icon: 'incharge', name: match.name };
+}
+
+function RoleIcon({ type, size = 13 }) {
+  if (type === 'admin') return <Shield size={size} />;
+  if (type === 'principal') return <GraduationCap size={size} />;
+  if (type === 'vp') return <Award size={size} />;
+  if (type === 'hod') return <Award size={size} />;
+  return <Users size={size} />;
+}
 
 export default function ManageClasses() {
   const [classes, setClasses] = useState([]);
@@ -196,25 +228,50 @@ export default function ManageClasses() {
             <th>Name</th>
             <th>Dept</th>
             <th>Sem / Year</th>
+            <th>In Charge</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {filteredClasses.map(c => (
-            <tr key={c.id}>
-              <td><strong>{c.id}</strong></td>
-              <td>{c.name}</td>
-              <td>{c.department}</td>
-              <td>Sem {c.semester} / {c.year_label}</td>
-              <td>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className={styles.editIcon} onClick={() => openEdit(c)}><Edit2 size={16} /></button>
-                  <button className={styles.deleteIcon} onClick={() => handleDelete(c.id)}><Trash2 size={16} /></button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {filteredClasses.length === 0 && <tr><td colSpan="5" className={styles.empty}>No classes found.</td></tr>}
+          {filteredClasses.map(c => {
+            const coordRole = resolveCoordinatorRole(c.class_coordinator, staffs);
+            return (
+              <tr key={c.id}>
+                <td><strong>{c.id}</strong></td>
+                <td>{c.name}</td>
+                <td>{c.department}</td>
+                <td>Sem {c.semester} / {c.year_label}</td>
+                <td>
+                  {coordRole ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        padding: '3px 9px', borderRadius: '12px', fontSize: '0.72rem',
+                        fontWeight: 700, background: coordRole.roleBg,
+                        color: coordRole.roleColor, border: `1px solid ${coordRole.border}`,
+                        width: 'fit-content'
+                      }}>
+                        <RoleIcon type={coordRole.icon} size={12} />
+                        {coordRole.roleLabel}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>
+                        {coordRole.name}
+                      </span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>Not Assigned</span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className={styles.editIcon} onClick={() => openEdit(c)}><Edit2 size={16} /></button>
+                    <button className={styles.deleteIcon} onClick={() => handleDelete(c.id)}><Trash2 size={16} /></button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {filteredClasses.length === 0 && <tr><td colSpan="6" className={styles.empty}>No classes found.</td></tr>}
         </tbody>
       </table>
 
