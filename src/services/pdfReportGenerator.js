@@ -185,6 +185,7 @@ export const generateSubjectAnalysisPDF = async ({
     let isAbsent = false;
 
     if (is2021) {
+      // Regulation 2021: CIA components + internal exam (converted)
       let rawCIA = 0;
       if (components && marksData) {
         const isArray = Array.isArray(marksData);
@@ -203,10 +204,10 @@ export const generateSubjectAnalysisPDF = async ({
       }
       
       const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
-      const examRaw = parseFloat(internalExamData[st.id]) || 0;
+      const examRaw = parseFloat(internalExamData?.[st.id]) || 0;
       const examConverted = Math.round((examRaw / 100) * examConvertedMax);
       
-      const labExamRaw = labData[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
+      const labExamRaw = labData?.[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
       const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
       if (isLabType && assessmentMode === 'internal2') {
@@ -215,16 +216,46 @@ export const generateSubjectAnalysisPDF = async ({
         mark = Math.min(ciaTotal + examConverted, 100);
       }
 
-      const rawVal = internalExamData[st.id];
-      if ((rawVal === '' || rawVal === undefined || rawVal === null) && (!isLabType || assessmentMode !== 'internal2')) {
+      const rawVal = internalExamData?.[st.id];
+      // For 2021 reg: absent only if no CIA marks AND no exam mark
+      if ((rawVal === '' || rawVal === undefined || rawVal === null) && ciaTotal === 0 && (!isLabType || assessmentMode !== 'internal2')) {
          isAbsent = true; 
       }
     } else {
-      const rawVal = internalExamData[st.id];
-      if (rawVal === '' || rawVal === undefined || rawVal === null) {
-        isAbsent = true;
+      // Regulation 2025: prefer internalExamData, fall back to CIA component marks + attendance mark
+      const rawExamVal = internalExamData?.[st.id];
+      const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null;
+
+      if (hasExamMark) {
+        // Use the stored internal exam mark directly
+        mark = parseFloat(rawExamVal) || 0;
       } else {
-        mark = parseFloat(rawVal) || 0;
+        // Fall back: sum CIA component marks + attendance contribution
+        let rawCIA = 0;
+        const dataSource = marksData;
+        if (components && dataSource) {
+          const isArray = Array.isArray(dataSource);
+          components.forEach(comp => {
+            let val = 0;
+            if (isArray) {
+              const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
+              val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+            } else {
+              val = parseFloat(dataSource?.[st.id]?.[comp.uid || comp.id]) || 0;
+            }
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
+            rawCIA += Math.min(val, conducted);
+          });
+        }
+        rawCIA = Math.round(rawCIA);
+
+        if (rawCIA > 0) {
+          // CIA marks exist — use them as the analysis mark
+          mark = Math.min(rawCIA, 100);
+        } else {
+          // No marks at all — mark as absent
+          isAbsent = true;
+        }
       }
     }
 
@@ -237,10 +268,8 @@ export const generateSubjectAnalysisPDF = async ({
     if (mark > maxMark) maxMark = mark;
     if (mark < minMark) minMark = mark;
 
-    let passMarkThreshold = 60; // Default for Theory
-    if (isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) {
-      passMarkThreshold = 50; // Theory-cum-Lab / Lab
-    }
+    // Pass threshold: 50 marks (standard Anna University internal passing mark)
+    const passMarkThreshold = 50;
 
     if (mark >= passMarkThreshold) passed++;
     else failed++;

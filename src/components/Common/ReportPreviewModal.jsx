@@ -183,6 +183,7 @@ export default function ReportPreviewModal({
       let isAbsent = false;
 
       if (is2021) {
+        // Regulation 2021: CIA components + internal exam (converted)
         let rawCIA = 0;
         if (components && (marksData || allMarks)) {
           const isArray = Array.isArray(marksData) || Array.isArray(allMarks);
@@ -193,16 +194,16 @@ export default function ReportPreviewModal({
               const markObj = dataArr.find(m => m.component_id === comp.id && m.student_id === st.id);
               val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
             } else {
-              val = (marksData[st.id] && marksData[st.id][comp.uid || comp.id]) ? parseFloat(marksData[st.id][comp.uid || comp.id]) : 0;
+              val = parseFloat(marksData?.[st.id]?.[comp.uid || comp.id]) || 0;
             }
             const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || 100;
             rawCIA += Math.min(val, conducted);
           });
         }
         const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
-        const examRaw = parseFloat(internalExamData[st.id]) || 0;
+        const examRaw = parseFloat(internalExamData?.[st.id]) || 0;
         const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-        const labExamRaw = labData[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
+        const labExamRaw = labData?.[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
         const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
         if (isLabType && assessmentMode === 'internal2') {
@@ -211,16 +212,47 @@ export default function ReportPreviewModal({
           mark = Math.min(ciaTotal + examConverted, 100);
         }
 
-        const rawVal = internalExamData[st.id];
-        if ((rawVal === '' || rawVal === undefined || rawVal === null) && (!isLabType || assessmentMode !== 'internal2')) {
+        const rawVal = internalExamData?.[st.id];
+        // For 2021 reg: absent only if no CIA marks AND no exam mark
+        if ((rawVal === '' || rawVal === undefined || rawVal === null) && ciaTotal === 0 && (!isLabType || assessmentMode !== 'internal2')) {
           isAbsent = true;
         }
       } else {
-        const rawVal = internalExamData[st.id];
-        if (rawVal === '' || rawVal === undefined || rawVal === null) {
-          isAbsent = true;
+        // Regulation 2025: prefer internalExamData, fall back to CIA component marks
+        const rawExamVal = internalExamData?.[st.id];
+        const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null;
+
+        if (hasExamMark) {
+          // Use the stored internal exam mark directly
+          mark = parseFloat(rawExamVal) || 0;
         } else {
-          mark = parseFloat(rawVal) || 0;
+          // Fall back: sum CIA component marks
+          let rawCIA = 0;
+          const dataSource = marksData;
+          if (components && dataSource) {
+            const isArray = Array.isArray(dataSource);
+            const dataArr = Array.isArray(allMarks) ? allMarks : [];
+            components.forEach(comp => {
+              let val = 0;
+              if (isArray) {
+                const markObj = dataArr.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
+                val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+              } else {
+                val = parseFloat(dataSource?.[st.id]?.[comp.uid || comp.id]) || 0;
+              }
+              const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || 100;
+              rawCIA += Math.min(val, conducted);
+            });
+          }
+          rawCIA = Math.round(rawCIA);
+
+          if (rawCIA > 0) {
+            // CIA marks exist — use component sum as analysis mark
+            mark = Math.min(rawCIA, 100);
+          } else {
+            // No marks at all — absent
+            isAbsent = true;
+          }
         }
       }
 
@@ -240,7 +272,8 @@ export default function ReportPreviewModal({
       if (mark > maxMark) maxMark = mark;
       if (mark < minMark) minMark = mark;
 
-      const passThreshold = (isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) ? 50 : 60;
+      // Pass threshold: 50 marks (Anna University standard for internal tests — E and D grades are passes)
+      const passThreshold = 50;
       const isPass = mark >= passThreshold;
       if (isPass) passed++;
       else failed++;

@@ -309,15 +309,24 @@ export default function ReportsPage() {
         detail = await marksAPI.getSessionDetail(sessDetail[0].id);
       }
 
+      // Build marksData lookup { [studentId]: { [componentId]: mark } } for Reg-2025 CIA fallback
+      const marksDataObj = {};
+      (detail?.marks || []).forEach(m => {
+        if (!marksDataObj[m.student_id]) marksDataObj[m.student_id] = {};
+        marksDataObj[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+      });
+
       setPdfPayload({
         subject: sub || { code: 'SUB', name: 'Subject Analysis', department: cls.department },
         classObj: cls,
         staff: { name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff' },
         session: detail?.session,
         students,
+        marksData: marksDataObj,
         allMarks: detail?.marks || [],
         components: detail?.components || [],
         attendanceData: detail?.attendance || {},
+        attendanceMarks: detail?.attendanceMarks || {},
         internalExamData: detail?.internalExam || {},
         labData: detail?.labData || {},
         assessmentMode: sessionLabel,

@@ -65,6 +65,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Route aliases for URL variants seen on the live site (spaces / underscores) */}
+      <Route path="/marks entry" element={<Navigate to="/marks-entry" replace />} />
+      <Route path="/marks_entry" element={<Navigate to="/marks-entry" replace />} />
       <Route
         path="/marks-entry-2021"
         element={
@@ -73,6 +76,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/marks entry 2021" element={<Navigate to="/marks-entry-2021" replace />} />
+      <Route path="/marks_entry_2021" element={<Navigate to="/marks-entry-2021" replace />} />
       <Route
         path="/reports"
         element={
