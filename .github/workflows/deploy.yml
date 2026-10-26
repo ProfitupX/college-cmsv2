@@ -133,15 +133,14 @@ jobs:
             if [ -d "$TARGET" ]; then
               echo "Deploying to $TARGET..." >> "$LOG_FILE"
 
-              # Remove old versioned JS/CSS files owned by this deploy user
-              echo "=== CLEANING STALE ASSETS ===" >> "$LOG_FILE"
-              find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
-                -user "$(whoami)" -delete 2>/dev/null || true
-              find "$TARGET" -maxdepth 1 -type d -name "assets_old_*" \
-                -user "$(whoami)" -exec rm -rf {} + 2>/dev/null || true
-
-              # Copy new bundle
+              # Copy new bundle FIRST (ensures zero downtime for active users)
+              echo "=== COPYING NEW BUNDLE ===" >> "$LOG_FILE"
               cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
+
+              # Clean only stale assets older than 2 days so active tabs don't 404
+              echo "=== CLEANING STALE ASSETS (OLDER THAN 2 DAYS) ===" >> "$LOG_FILE"
+              find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
+                -user "$(whoami)" -mtime +2 -delete 2>/dev/null || true
 
               echo "=== NEW ASSETS VERIFICATION ===" >> "$LOG_FILE"
               ls -la "$TARGET/assets" | head -10 >> "$LOG_FILE" 2>&1 || true
