@@ -215,6 +215,9 @@ export default function MarksEntryPage2021() {
     studentsAPI.getByClass(effectiveClassId).then(setStudents).catch(() => setStudents([]));
   }, [effectiveClassId]);
 
+  const selectedClass   = classes.find(c => String(c.id) === String(effectiveClassId));
+  const selectedSubject = subjects.find(s => String(s.id) === String(effectiveSubjectId));
+
   // ── Load existing session when subject or mode changes ────
   useEffect(() => {
     if (!effectiveClassId || !effectiveSubjectId || !user?.id) {
@@ -229,26 +232,28 @@ export default function MarksEntryPage2021() {
     setLoading(true);
 
     const searchParams = new URLSearchParams(location.search);
-    const targetSessionId = location.state?.loadSessionId || searchParams.get('sessionId');
+    const rawSessionId = location.state?.loadSessionId || searchParams.get('sessionId');
+    const targetSessionId = (rawSessionId && rawSessionId !== 'undefined' && rawSessionId !== 'null') ? rawSessionId : null;
 
     const fetchSession = targetSessionId
       ? marksAPI.getSessionDetail(targetSessionId).catch(() => null)
       : marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
           .then((sessions) => {
-            if (sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
+            if (sessions && sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
             return null;
-          });
+          })
+          .catch(() => null);
 
     fetchSession
       .then((detail) => {
-        if (detail) {
+        if (detail && detail.session) {
           setCurrentSession(detail.session);
           setSessionStatus(detail.session.status || 'locked');
           if (detail.session.session_label && detail.session.session_label !== assessmentMode) {
             setAssessmentMode(detail.session.session_label);
           }
 
-          const loadedComps = detail.components.map((c) => ({
+          const loadedComps = (detail.components || []).map((c) => ({
             uid: c.id,
             typeId: c.type_id,
             label: c.label,
@@ -260,7 +265,7 @@ export default function MarksEntryPage2021() {
           setAssessmentComponents(loadedComps);
 
           const loadedMarks = {};
-          detail.marks.forEach(m => {
+          (detail.marks || []).forEach(m => {
             if (!loadedMarks[m.student_id]) loadedMarks[m.student_id] = {};
             loadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
           });
@@ -286,10 +291,8 @@ export default function MarksEntryPage2021() {
       })
       .catch((err) => console.error('Failed to load marks session (2021):', err))
       .finally(() => setLoading(false));
-  }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode, selectedSubject]);
+  }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode]);
 
-  const selectedClass   = classes.find(c => String(c.id) === String(effectiveClassId));
-  const selectedSubject = subjects.find(s => String(s.id) === String(effectiveSubjectId));
   const handlingFacultyName =
     currentSession?.staff_name ||
     location.state?.staffName ||

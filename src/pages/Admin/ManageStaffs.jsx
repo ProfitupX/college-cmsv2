@@ -33,7 +33,7 @@ export default function ManageStaffs() {
     short_name: '',
     designation: '',
     email: '',
-    password: '',
+
     role: 'faculty',
     employee_id: '',
     department: '',
@@ -125,7 +125,7 @@ export default function ManageStaffs() {
       short_name: s.short_name || '',
       designation: s.designation || '',
       email: s.email || '',
-      password: '',
+
       role: s.role || 'faculty',
       employee_id: s.employee_id || '',
       department: s.department || '',
@@ -142,7 +142,7 @@ export default function ManageStaffs() {
       short_name: '',
       designation: '',
       email: '',
-      password: '',
+
       role: 'faculty',
       employee_id: '',
       department: '',

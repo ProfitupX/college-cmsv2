@@ -62,16 +62,17 @@ router.post('/credentials', async (req, res) => {
       return res.status(400).json({ error: 'Staff ID, Name, and Email are required.' });
     }
 
-    const defaultPwd = password || null;
+    const pwdValue = password || null;
 
     await db.execute(
       `INSERT INTO staffs (id, name, short_name, designation, role, email, password, employee_id, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 'faculty123'), ?, ?)
        ON DUPLICATE KEY UPDATE
          name=VALUES(name), short_name=VALUES(short_name), designation=VALUES(designation),
-         role=VALUES(role), email=VALUES(email), password=VALUES(password),
+         role=VALUES(role), email=VALUES(email),
+         password=IF(VALUES(password) IS NOT NULL AND VALUES(password) != '', VALUES(password), password),
          employee_id=VALUES(employee_id), department=VALUES(department)`,
-      [id, name, short_name || null, designation || null, role || 'faculty', email, defaultPwd, employee_id || null, department || null]
+      [id, name, short_name || null, designation || null, role || 'faculty', email, pwdValue, employee_id || null, department || null]
     );
 
     res.status(201).json({ success: true, message: 'Staff credential saved successfully.' });
