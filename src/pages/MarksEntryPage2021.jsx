@@ -85,9 +85,9 @@ export default function MarksEntryPage2021() {
   // ── Handle incoming navigation state ────────────────────────
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const rawClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
-    const rawSubjectId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id');
-    const targetSession = location.state?.sessionLabel || location.state?.session_label || searchParams.get('session') || searchParams.get('sessionLabel');
+    const rawClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id') || sessionStorage.getItem('last_classId_2021');
+    const rawSubjectId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || sessionStorage.getItem('last_subjectId_2021');
+    const targetSession = location.state?.sessionLabel || location.state?.session_label || searchParams.get('session') || searchParams.get('sessionLabel') || sessionStorage.getItem('last_session_2021');
 
     const targetClassId = (rawClassId && rawClassId !== 'undefined' && rawClassId !== 'null') ? String(rawClassId) : '';
     const targetSubjectId = (rawSubjectId && rawSubjectId !== 'undefined' && rawSubjectId !== 'null') ? String(rawSubjectId) : '';
@@ -108,6 +108,28 @@ export default function MarksEntryPage2021() {
       setAssessmentMode(targetSession);
     }
   }, [location.state, location.search]);
+
+  // Sync active selection to sessionStorage and URL query params so reload/F5 preserves state
+  useEffect(() => {
+    if (effectiveClassId) {
+      sessionStorage.setItem('last_classId_2021', effectiveClassId);
+    }
+    if (effectiveSubjectId) {
+      sessionStorage.setItem('last_subjectId_2021', effectiveSubjectId);
+    }
+    if (assessmentMode) {
+      sessionStorage.setItem('last_session_2021', assessmentMode);
+    }
+    if (effectiveClassId && effectiveSubjectId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('classId') !== effectiveClassId || searchParams.get('subjectId') !== effectiveSubjectId || searchParams.get('session') !== assessmentMode) {
+        searchParams.set('classId', effectiveClassId);
+        searchParams.set('subjectId', effectiveSubjectId);
+        searchParams.set('session', assessmentMode);
+        window.history.replaceState(null, '', `${window.location.pathname}?${searchParams.toString()}`);
+      }
+    }
+  }, [effectiveClassId, effectiveSubjectId, assessmentMode]);
 
   // ── Load classes on mount — filter to 3rd/4th year only, restricted by user role ────
   useEffect(() => {
@@ -140,7 +162,7 @@ export default function MarksEntryPage2021() {
 
         // Guarantee target class from redirect is available in classes list for HoD/Staff
         const searchParams = new URLSearchParams(location.search);
-        const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
+        const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id') || sessionStorage.getItem('last_classId_2021');
         if (targetClassId) {
           const matchedTarget = allClasses.find(c => String(c.id) === String(targetClassId));
           if (matchedTarget && !filtered.some(c => String(c.id) === String(targetClassId))) {
@@ -191,7 +213,7 @@ export default function MarksEntryPage2021() {
 
       // Restore target subject reliably from incoming state, query params, or existing selection
       const searchParams = new URLSearchParams(location.search);
-      const targetSubId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || effectiveSubjectId;
+      const targetSubId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || effectiveSubjectId || sessionStorage.getItem('last_subjectId_2021');
       if (targetSubId) {
         const matched = allSubs.find(s => String(s.id) === String(targetSubId));
         if (matched && !visibleSubs.some(s => String(s.id) === String(targetSubId))) {

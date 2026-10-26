@@ -24,7 +24,7 @@ router.post('/submit', async (req, res) => {
 
     // 1.5 Find existing session to perform safe in-place UPDATE (avoids foreign-key CASCADE wipe)
     const [existingSessions] = await conn.execute(
-      `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ?`,
+      `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
       [String(subjectId), String(classId), String(sessionLabel)]
     );
     const existingSession = existingSessions.length > 0 ? existingSessions[0] : null;
@@ -232,7 +232,7 @@ router.post('/submit', async (req, res) => {
         const rawHours = parseInt(a.hoursAttended !== undefined && a.hoursAttended !== '' ? a.hoursAttended : (a.actualTakenHours || 0), 10) || 0;
         const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
-        let savedHours = rawHours;
+        const savedHours = Math.max(0, rawHours);
         
         if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
@@ -247,14 +247,12 @@ router.post('/submit', async (req, res) => {
 
           const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          savedHours = cappedI2;
         } else {
-          // Internal 1: Strictly capped at total class hours (standard 30)
+          // Internal 1: Calculate attendance mark percentage
           const prescribedHours = parseInt(req.body.int1Hours, 10) || tHours || 30;
           const cappedHours = Math.min(prescribedHours, Math.max(0, rawHours));
           const pct = prescribedHours > 0 ? Math.min(100, Math.round((cappedHours / prescribedHours) * 100)) : 0;
           attMark = getAttendanceMark(pct);
-          savedHours = cappedHours;
         }
 
         await conn.execute(

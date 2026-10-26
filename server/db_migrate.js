@@ -38,13 +38,7 @@ async function runMigration(shouldExit = false) {
       console.warn('⚠️ Staff deduplication during migration warning:', dedupErr.message);
     }
 
-    // 4. Clean any residual demo marks for Dr. C. Prathap (CS25C07 - OOP) to ensure fresh clean slate
-    try {
-      const { cleanPrathapMarks } = await import('./clean_prathap_fake_marks.js');
-      await cleanPrathapMarks(false);
-    } catch (cleanPrathapErr) {
-      console.warn('⚠️ Prathap marks cleaning warning:', cleanPrathapErr.message);
-    }
+    // 4. Protect real staff & HOD marks (no automated purges)
 
 
 

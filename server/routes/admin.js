@@ -193,7 +193,7 @@ router.put('/reset-password', async (req, res) => {
 router.get('/staff-classes', async (req, res) => {
   try {
     const [staffs] = await db.query(`
-      SELECT id, name, designation, department, email, employee_id, role
+      SELECT id, name, designation, department, email, employee_id, role, class_role
       FROM staffs
       ORDER BY name ASC
     `);
@@ -260,6 +260,7 @@ router.get('/staff-classes', async (req, res) => {
       members.sort((a, b) => {
         const score = (x) => {
           let s = 0;
+          if (x.role === 'admin' || x.role === 'principal' || x.role === 'vice_principal') s += 100;
           if (x.role === 'hod') s += 50;
           if (x.employee_id && x.employee_id.startsWith('NSCET-')) s += 30;
           if (x.id && x.id.startsWith('FAC')) s += 20;
@@ -272,8 +273,16 @@ router.get('/staff-classes', async (req, res) => {
       const primary = { ...members[0] };
       const aliasIds = members.map(m => m.id);
       
-      // Preserve HOD / coordinator roles if any member has them
-      if (members.some(m => m.role === 'hod')) primary.role = 'hod';
+      // Preserve elevated leadership and coordinator roles if any member has them
+      if (members.some(m => m.role === 'admin')) primary.role = 'admin';
+      else if (members.some(m => m.role === 'principal')) primary.role = 'principal';
+      else if (members.some(m => m.role === 'vice_principal')) primary.role = 'vice_principal';
+      else if (members.some(m => m.role === 'hod')) primary.role = 'hod';
+
+      if (members.some(m => m.class_role)) {
+        primary.class_role = members.find(m => m.class_role)?.class_role;
+      }
+
       if (members.some(m => m.designation && m.designation !== 'Faculty')) {
         const des = members.find(m => m.designation && m.designation !== 'Faculty')?.designation;
         if (des) primary.designation = des;

@@ -1200,12 +1200,13 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Staff Name         : ${staffName}`, 14, y);
   doc.text(`Academic Year  : 2026 - 2027`, 120, y);
   y += 5;
-  doc.text(`Subject              : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${prescribedHours || 30}`, 14, y);
+  const displayTotalHrs = parseInt(totalHours || session?.total_hours || subject?.total_hours || prescribedHours || 30, 10);
+  doc.text(`Subject              : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${displayTotalHrs}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
   doc.text(`Calendar           : From Date: _________________    To Date: _________________`, 14, y);
   y += 5;
-  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}${prescribedHours > 0 ? `   |   Total Classes: ${prescribedHours}` : ''}`, 14, y);
+  doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}${displayTotalHrs > 0 ? `   |   Total Classes: ${displayTotalHrs}` : ''}`, 14, y);
   y += 6;
 
   // ── Build Table Header ──────────────────────────────────────
@@ -1215,7 +1216,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       'S.No',
       'Roll No',
       'Student Name',
-      `Attendance\n(${prescribedHours > 0 ? `/${prescribedHours}` : 'Attd'})`,
+      'Attendance\n(Attended Hrs)',
       hasLab ? `Assignment Marks\n(/${ciaMax})` : `Internal Marks\n(/${ciaMax})`
     ];
 
@@ -1247,7 +1248,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       'S.No',
       'Roll No',
       'Student Name',
-      `Attendance\n(${prescribedHours > 0 ? `/${prescribedHours}` : 'Attd'})`,
+      'Attendance\n(Attended Hrs)',
       'Written Exam Mark\n(/100)',
       'Result\n(Pass / Fail)'
     ];
@@ -1258,7 +1259,7 @@ export const generateSubjectMarksListPDF2021 = async ({
     const attdVal = attendanceData[student.id];
     let attdDisplay = '-';
     if (attdVal !== undefined && attdVal !== null && attdVal !== '') {
-      attdDisplay = prescribedHours > 0 ? `${attdVal}/${prescribedHours}` : `${attdVal}`;
+      attdDisplay = String(attdVal);
     }
 
     if (withInternal) {

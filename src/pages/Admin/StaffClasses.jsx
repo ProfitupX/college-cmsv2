@@ -12,7 +12,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  Loader
+  Loader,
+  Shield
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { adminAPI, staffsAPI, classesAPI, subjectsAPI } from '../../services/api';
@@ -76,10 +77,17 @@ export default function StaffClasses() {
             const coord = (cls.class_coordinator || '').toLowerCase();
             const asst = (cls.asst_coordinator || '').toLowerCase();
             const stName = (st.name || '').toLowerCase();
-            return (
-              (stName.length > 3 && (coord.includes(stName) || asst.includes(stName))) ||
-              String(cls.coordinator_id) === String(st.id)
-            );
+            const isCoord = (stName.length > 3 && coord.includes(stName)) || String(cls.coordinator_id) === String(st.id);
+            const isAsst = stName.length > 3 && asst.includes(stName);
+            return isCoord || isAsst;
+          }).map((cls) => {
+            const coord = (cls.class_coordinator || '').toLowerCase();
+            const stName = (st.name || '').toLowerCase();
+            const isCoord = (stName.length > 3 && coord.includes(stName)) || String(cls.coordinator_id) === String(st.id);
+            return {
+              ...cls,
+              roleType: isCoord ? 'Class In-charge' : 'Assistant Coordinator'
+            };
           });
 
           return {
@@ -157,6 +165,97 @@ export default function StaffClasses() {
     return Array.from(set).sort();
   }, [unifiedStaffList]);
 
+  const getStaffRoles = (st) => {
+    const roles = [];
+    const roleLower = (st.role || '').toLowerCase();
+    const desigLower = (st.designation || '').toLowerCase();
+    const nameLower = (st.name || '').toLowerCase();
+    const classRoleLower = (st.class_role || '').toLowerCase();
+
+    // 1. Admin
+    if (roleLower === 'admin' || desigLower.includes('administrator') || nameLower.includes('admin user') || (st.id && String(st.id).startsWith('ADM'))) {
+      roles.push({
+        type: 'admin',
+        title: 'System Admin',
+        color: '#475569',
+        bg: '#f1f5f9',
+        border: '#cbd5e1'
+      });
+    }
+
+    // 2. Principal
+    if (roleLower === 'principal' || (desigLower.includes('principal') && !desigLower.includes('vice'))) {
+      roles.push({
+        type: 'principal',
+        title: 'Principal',
+        color: '#6d28d9',
+        bg: '#f5f3ff',
+        border: '#ddd6fe'
+      });
+    }
+
+    // 3. Vice Principal
+    if (roleLower === 'vice_principal' || desigLower.includes('vice principal') || desigLower.includes('vp')) {
+      roles.push({
+        type: 'vp',
+        title: 'Vice Principal',
+        color: '#4338ca',
+        bg: '#eef2ff',
+        border: '#c7d2fe'
+      });
+    }
+
+    // 4. HOD
+    if (roleLower === 'hod' || desigLower.includes('hod')) {
+      const deptShort = st.department ? st.department.replace('Engineering', 'Engg').replace('Artificial Intelligence and Data Science', 'AI&DS') : '';
+      roles.push({
+        type: 'hod',
+        title: deptShort ? `HOD · ${deptShort}` : 'HOD',
+        color: '#991b1b',
+        bg: '#fef2f2',
+        border: '#fecaca'
+      });
+    }
+
+    // 5. Class In-charges & Assistant Coordinators
+    (st.coordinatedClasses || []).forEach((c) => {
+      const isAsst = (c.roleType || '').toLowerCase().includes('asst') || classRoleLower.includes('assistant');
+      roles.push({
+        type: isAsst ? 'asst_incharge' : 'class_incharge',
+        title: isAsst ? `Asst. In-charge (${c.name})` : `Class In-charge (${c.name})`,
+        color: isAsst ? '#1e40af' : '#065f46',
+        bg: isAsst ? '#eff6ff' : '#ecfdf5',
+        border: isAsst ? '#bfdbfe' : '#a7f3d0'
+      });
+    });
+
+    // 6. Direct class_role on staff record if not already matched
+    if (classRoleLower.includes('coordinator') && (st.coordinatedClasses || []).length === 0) {
+      const isAsst = classRoleLower.includes('assistant');
+      roles.push({
+        type: isAsst ? 'asst_incharge' : 'class_incharge',
+        title: isAsst ? 'Assistant Coordinator' : 'Class In-charge',
+        color: isAsst ? '#1e40af' : '#065f46',
+        bg: isAsst ? '#eff6ff' : '#ecfdf5',
+        border: isAsst ? '#bfdbfe' : '#a7f3d0'
+      });
+    }
+
+    // 7. Course Faculty (Teaching Allocation for each class/subject)
+    if ((st.teachingSubjects || []).length > 0) {
+      const count = st.teachingSubjects.length;
+      roles.push({
+        type: 'course_faculty',
+        title: `Course Faculty (${count} Subject${count > 1 ? 's' : ''})`,
+        color: '#b45309',
+        bg: '#fffbeb',
+        border: '#fde68a'
+      });
+    }
+
+    return roles;
+  };
+
   const filteredStaff = useMemo(() => {
     return unifiedStaffList.filter((st) => {
       const q = search.toLowerCase();
@@ -174,7 +273,11 @@ export default function StaffClasses() {
         (c.name || '').toLowerCase().includes(q)
       );
 
-      const matchesSearch = !q || nameMatch || subjectMatch || classCoordMatch;
+      const roleMatch = getStaffRoles(st).some((r) =>
+        r.title.toLowerCase().includes(q)
+      );
+
+      const matchesSearch = !q || nameMatch || subjectMatch || classCoordMatch || roleMatch;
 
       const matchesDept = !deptFilter || st.department === deptFilter;
 
@@ -191,15 +294,17 @@ export default function StaffClasses() {
 
   const stats = useMemo(() => {
     let totalSubs = 0;
-    let totalCoords = 0;
+    let totalDesignatedRoles = 0;
     unifiedStaffList.forEach((st) => {
       totalSubs += (st.teachingSubjects || []).length;
-      if ((st.coordinatedClasses || []).length > 0) totalCoords++;
+      const roles = getStaffRoles(st);
+      const hasKeyRole = roles.some(r => ['admin', 'principal', 'vp', 'hod', 'class_incharge', 'asst_incharge'].includes(r.type));
+      if (hasKeyRole) totalDesignatedRoles++;
     });
     return {
       totalStaff: unifiedStaffList.length,
       totalAllocatedSubjects: totalSubs,
-      totalCoordinators: totalCoords,
+      totalDesignatedRoles,
     };
   }, [unifiedStaffList]);
 
@@ -225,7 +330,7 @@ export default function StaffClasses() {
     worksheet.getRow(2).height = 22;
 
     const infoRow = worksheet.addRow([
-      `Exported on: ${new Date().toLocaleDateString('en-GB')} | Total Faculty: ${stats.totalStaff} | Total Allocations: ${stats.totalAllocatedSubjects} | Class In-charges: ${stats.totalCoordinators}`
+      `Exported on: ${new Date().toLocaleDateString('en-GB')} | Total Faculty: ${stats.totalStaff} | Total Allocations: ${stats.totalAllocatedSubjects} | Roles & In-charges: ${stats.totalDesignatedRoles}`
     ]);
     worksheet.mergeCells(`A3:G3`);
     infoRow.getCell(1).font = { name: 'Arial', size: 9, italic: true, color: { argb: '475569' } };
@@ -238,7 +343,7 @@ export default function StaffClasses() {
       'S.No',
       'Faculty / Staff Name',
       'Designation & Department',
-      'In-charge Roles',
+      'Roles & In-charges',
       'Subject Code',
       'Subject Title',
       'Target Class & Sem'
@@ -259,7 +364,8 @@ export default function StaffClasses() {
 
     let sNo = 1;
     filteredStaff.forEach((st, staffIdx) => {
-      const coordStr = (st.coordinatedClasses || []).map((c) => `${c.name} (${c.roleType})`).join('\n') || '— None —';
+      const staffRoles = getStaffRoles(st);
+      const coordStr = staffRoles.length > 0 ? staffRoles.map((r) => r.title).join('\n') : 'Faculty';
       const subs = st.teachingSubjects || [];
       const bgHex = staffIdx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
 
@@ -372,7 +478,7 @@ export default function StaffClasses() {
       { width: 8 },  // A: S.No
       { width: 30 }, // B: Faculty / Staff Name
       { width: 34 }, // C: Designation & Department
-      { width: 32 }, // D: In-charge Roles
+      { width: 36 }, // D: Roles & In-charges
       { width: 18 }, // E: Subject Code
       { width: 44 }, // F: Subject Title
       { width: 30 }  // G: Target Class & Sem
@@ -441,8 +547,8 @@ export default function StaffClasses() {
               <Award size={22} />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>Class In-charges</p>
-              <h3 style={{ margin: '4px 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>{stats.totalCoordinators}</h3>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>Roles & In-charges</p>
+              <h3 style={{ margin: '4px 0 0', fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>{stats.totalDesignatedRoles}</h3>
             </div>
           </div>
         </div>
@@ -531,14 +637,13 @@ export default function StaffClasses() {
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', width: '60px', textAlign: 'center' }}>#</th>
                   <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', minWidth: '220px' }}>Faculty / Staff Details</th>
-                  <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', minWidth: '180px' }}>In-charge Roles</th>
+                  <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', minWidth: '220px' }}>Roles & In-charges</th>
                   <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', minWidth: '380px' }}>Assigned Subjects & Classes</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStaff.map((st, idx) => {
                   const subs = st.teachingSubjects || [];
-                  const coords = st.coordinatedClasses || [];
 
                   return (
                     <tr 
@@ -564,32 +669,42 @@ export default function StaffClasses() {
                       </td>
 
                       <td style={{ padding: '16px' }}>
-                        {coords.length === 0 ? (
-                          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>— None —</span>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {coords.map((c, cIdx) => (
-                              <span 
-                                key={cIdx}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  fontSize: '0.78rem',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  background: c.roleType === 'Class In-charge' ? '#ecfdf5' : '#eff6ff',
-                                  color: c.roleType === 'Class In-charge' ? '#065f46' : '#1e40af',
-                                  border: `1px solid ${c.roleType === 'Class In-charge' ? '#a7f3d0' : '#bfdbfe'}`,
-                                  fontWeight: 500,
-                                  width: 'fit-content'
-                                }}
-                              >
-                                <Award size={13} /> {c.name} ({c.roleType})
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        {(() => {
+                          const roles = getStaffRoles(st);
+                          if (roles.length === 0) {
+                            return <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>Faculty</span>;
+                          }
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {roles.map((r, rIdx) => (
+                                <span 
+                                  key={rIdx}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '0.78rem',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    background: r.bg,
+                                    color: r.color,
+                                    border: `1px solid ${r.border}`,
+                                    fontWeight: 600,
+                                    width: 'fit-content'
+                                  }}
+                                >
+                                  {r.type === 'admin' && <Shield size={13} />}
+                                  {r.type === 'principal' && <GraduationCap size={13} />}
+                                  {r.type === 'vp' && <Award size={13} />}
+                                  {r.type === 'hod' && <Award size={13} />}
+                                  {(r.type === 'class_incharge' || r.type === 'asst_incharge') && <Award size={13} />}
+                                  {r.type === 'course_faculty' && <BookOpen size={13} />}
+                                  {r.title}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       <td style={{ padding: '16px' }}>
