@@ -66,25 +66,16 @@ export default function MarksEntryPage() {
     }
   }, [location.state, location.search]);
 
-  // Sync active selection to sessionStorage and URL query params so reload/F5 preserves state
+  // Sync active selection to sessionStorage so reload/F5 preserves state
   useEffect(() => {
     if (effectiveClassId) {
-      sessionStorage.setItem('last_classId_2025', effectiveClassId);
+      sessionStorage.setItem('last_classId_2025', String(effectiveClassId));
     }
     if (effectiveSubjectId) {
-      sessionStorage.setItem('last_subjectId_2025', effectiveSubjectId);
+      sessionStorage.setItem('last_subjectId_2025', String(effectiveSubjectId));
     }
     if (assessmentMode) {
       sessionStorage.setItem('last_session_2025', assessmentMode);
-    }
-    if (effectiveClassId && effectiveSubjectId) {
-      const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.get('classId') !== effectiveClassId || searchParams.get('subjectId') !== effectiveSubjectId || searchParams.get('session') !== assessmentMode) {
-        searchParams.set('classId', effectiveClassId);
-        searchParams.set('subjectId', effectiveSubjectId);
-        searchParams.set('session', assessmentMode);
-        window.history.replaceState(null, '', `${window.location.pathname}?${searchParams.toString()}`);
-      }
     }
   }, [effectiveClassId, effectiveSubjectId, assessmentMode]);
 
@@ -119,51 +110,61 @@ export default function MarksEntryPage() {
   useEffect(() => {
     classesAPI.getAll()
       .then(allClasses => {
-        let filtered = allClasses.filter(c =>
-          c.year_label === 'I' ||
-          c.year_label === 'II' ||
-          c.year_label === '1' ||
-          c.year_label === '2' ||
-          parseInt(c.semester) === 1 ||
-          parseInt(c.semester) === 2 ||
-          parseInt(c.semester) === 3 ||
-          parseInt(c.semester) === 4
+        const classList = Array.isArray(allClasses) ? allClasses.filter(Boolean) : [];
+        let filtered = classList.filter(c =>
+          c && (
+            c.year_label === 'I' ||
+            c.year_label === 'II' ||
+            c.year_label === '1' ||
+            c.year_label === '2' ||
+            parseInt(c.semester) === 1 ||
+            parseInt(c.semester) === 2 ||
+            parseInt(c.semester) === 3 ||
+            parseInt(c.semester) === 4
+          )
         );
 
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
           // All 1st & 2nd year classes
         } else if (user?.role === 'hod') {
-          const teachIds = (user?.teachingClasses || []).map(c => c.id);
+          const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
           filtered = filtered.filter(c => 
-            c.department === user.department || 
-            (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0])) ||
-            teachIds.includes(c.id)
+            c && (
+              c.department === user.department || 
+              (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0])) ||
+              teachIds.includes(String(c.id))
+            )
           );
         } else if (user?.isClassCoordinator) {
-          const coordIds = (user.coordinatedClasses || []).map(c => c.id);
-          const teachIds = (user.teachingClasses || []).map(c => c.id);
+          const coordIds = (user.coordinatedClasses || []).map(c => c && String(c.id));
+          const teachIds = (user.teachingClasses || []).map(c => c && String(c.id));
           filtered = filtered.filter(c => 
-            coordIds.includes(c.id) || 
-            (user.coordinatedClassId && c.id === user.coordinatedClassId) || 
-            teachIds.includes(c.id)
+            c && (
+              coordIds.includes(String(c.id)) || 
+              (user.coordinatedClassId && String(c.id) === String(user.coordinatedClassId)) || 
+              teachIds.includes(String(c.id))
+            )
           );
         } else {
-          const teachIds = (user?.teachingClasses || []).map(c => c.id);
-          filtered = filtered.filter(c => teachIds.includes(c.id));
+          const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
+          filtered = filtered.filter(c => c && teachIds.includes(String(c.id)));
         }
 
         // Guarantee target class from redirect is available in classes list for HoD/Staff
         const searchParams = new URLSearchParams(location.search);
-        const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id') || sessionStorage.getItem('last_classId_2025');
+        const rawTargetClass = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id') || sessionStorage.getItem('last_classId_2025');
+        const targetClassId = (rawTargetClass && rawTargetClass !== 'undefined' && rawTargetClass !== 'null') ? String(rawTargetClass) : '';
+
         if (targetClassId) {
-          const matchedTarget = allClasses.find(c => String(c.id) === String(targetClassId));
-          if (matchedTarget && !filtered.some(c => String(c.id) === String(targetClassId))) {
-            filtered.push(matchedTarget);
+          const matchedTarget = classList.find(c => c && String(c.id) === String(targetClassId));
+          if (matchedTarget && !filtered.some(c => c && String(c.id) === String(targetClassId))) {
+            filtered = [...filtered, matchedTarget];
           }
         }
 
         const yearWeight = { 'IV': 1, 'III': 2, 'II': 3, 'I': 4 };
         filtered.sort((a, b) => {
+          if (!a || !b) return 0;
           const wA = yearWeight[a.year_label] || (a.name?.includes('IV') ? 1 : a.name?.includes('III') ? 2 : a.name?.includes('II') ? 3 : 4);
           const wB = yearWeight[b.year_label] || (b.name?.includes('IV') ? 1 : b.name?.includes('III') ? 2 : b.name?.includes('II') ? 3 : 4);
           if (wA !== wB) return wA - wB;
@@ -174,63 +175,68 @@ export default function MarksEntryPage() {
       })
       .catch(() => setClasses([]))
       .finally(() => setLoading(false));
-  }, [user, location.state, location.search]);
+  }, [user]);
 
-  // Ensure stale 2021 classes are cleanly removed on regulation switch without refresh
+  // Ensure stale classes are cleanly removed on regulation switch without refresh
   useEffect(() => {
     if (classes.length > 0 && effectiveClassId) {
-      const isValid = classes.some(c => c.id === effectiveClassId);
+      const isValid = classes.some(c => c && String(c.id) === String(effectiveClassId));
       const searchParams = new URLSearchParams(location.search);
       const targetClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id');
       if (!isValid && !targetClassId) {
         clearSelection();
       }
     }
-  }, [classes, effectiveClassId, location.state, location.search]);
+  }, [classes, effectiveClassId]);
 
   // ── Load subjects when class changes ──────────────────────
   useEffect(() => {
     if (!effectiveClassId) { setSubjects([]); return; }
     subjectsAPI.getByClass(effectiveClassId).then((allSubs) => {
+      const subsList = Array.isArray(allSubs) ? allSubs.filter(Boolean) : [];
       const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
       const isCoordinator = user?.isClassCoordinator && (
         user.coordinatedClassId === effectiveClassId || 
-        (user.coordinatedClasses || []).some(c => c.id === effectiveClassId)
+        (user.coordinatedClasses || []).some(c => c && String(c.id) === String(effectiveClassId))
       );
 
-      let visibleSubs = allSubs;
+      let visibleSubs = subsList;
       if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
-        visibleSubs = allSubs.filter(s => user.assignedSubjectIds.includes(s.id));
+        visibleSubs = subsList.filter(s => s && user.assignedSubjectIds.map(String).includes(String(s.id)));
       }
 
       // Restore target subject reliably from incoming state, query params, or existing selection
       const searchParams = new URLSearchParams(location.search);
-      const targetSubId = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || effectiveSubjectId || sessionStorage.getItem('last_subjectId_2025');
+      const rawTargetSub = location.state?.subjectId || location.state?.subject_id || searchParams.get('subjectId') || searchParams.get('subject_id') || effectiveSubjectId || sessionStorage.getItem('last_subjectId_2025');
+      const targetSubId = (rawTargetSub && rawTargetSub !== 'undefined' && rawTargetSub !== 'null') ? String(rawTargetSub) : '';
+
       if (targetSubId) {
-        const matched = allSubs.find(s => String(s.id) === String(targetSubId));
-        if (matched && !visibleSubs.some(s => String(s.id) === String(targetSubId))) {
-          visibleSubs.push(matched);
+        const matched = subsList.find(s => s && String(s.id) === String(targetSubId));
+        if (matched && !visibleSubs.some(s => s && String(s.id) === String(targetSubId))) {
+          visibleSubs = [...visibleSubs, matched];
         }
       }
 
       setSubjects(visibleSubs);
 
-      if (targetSubId && visibleSubs.some(s => String(s.id) === String(targetSubId))) {
+      if (targetSubId && visibleSubs.some(s => s && String(s.id) === String(targetSubId))) {
         if (String(targetSubId) !== String(selectedSubjectId)) {
           setSubject(targetSubId);
         }
       }
     }).catch(() => setSubjects([]));
-  }, [effectiveClassId, user, location.state, location.search, selectedSubjectId]);
+  }, [effectiveClassId, user, selectedSubjectId]);
 
   // ── Load students when class changes ──────────────────
   useEffect(() => {
     if (!effectiveClassId) { setStudents([]); return; }
-    studentsAPI.getByClass(effectiveClassId).then(setStudents).catch(() => setStudents([]));
+    studentsAPI.getByClass(effectiveClassId).then(allStudents => {
+      setStudents(Array.isArray(allStudents) ? allStudents.filter(Boolean) : []);
+    }).catch(() => setStudents([]));
   }, [effectiveClassId]);
 
-  const selectedClass   = classes.find((c) => String(c.id) === String(effectiveClassId));
-  const selectedSubject = subjects.find((s) => String(s.id) === String(effectiveSubjectId));
+  const selectedClass   = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
+  const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
 
   // ── Load existing session when subject or mode changes ────────
   useEffect(() => {
@@ -857,6 +863,13 @@ export default function MarksEntryPage() {
 
   const handleClassChange = (val) => {
     setClass(val);
+    if (!val) {
+      sessionStorage.removeItem('last_classId_2025');
+      sessionStorage.removeItem('last_subjectId_2025');
+    } else {
+      sessionStorage.setItem('last_classId_2025', String(val));
+      sessionStorage.removeItem('last_subjectId_2025');
+    }
     setAssessmentComponents([]);
     setCurrentSession(null);
     setSessionStatus('draft');
@@ -865,6 +878,11 @@ export default function MarksEntryPage() {
   };
   const handleSubjectChange = (val) => {
     setSubject(val);
+    if (val) {
+      sessionStorage.setItem('last_subjectId_2025', String(val));
+    } else {
+      sessionStorage.removeItem('last_subjectId_2025');
+    }
     setAssessmentComponents([]);
     setCurrentSession(null);
     setSessionStatus('draft');

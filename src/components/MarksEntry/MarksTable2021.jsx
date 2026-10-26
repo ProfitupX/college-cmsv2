@@ -14,10 +14,10 @@ import styles from './MarksTable.module.css';
  * NO attendance marks column.
  */
 export default function MarksTable2021({
-  students, components, marksData, onMarkChange,
-  attendanceData = {}, totalHours, onAttendanceChange, onTotalHoursChange,
-  internalExamData, labData,
-  assessmentMode, selectedSubject,
+  students = [], components = [], marksData = {}, onMarkChange,
+  attendanceData = {}, totalHours = 0, onAttendanceChange, onTotalHoursChange,
+  internalExamData = {}, labData = {},
+  assessmentMode = 'internal1', selectedSubject = {},
   onInternalExamChange, onLabDataChange, isLocked
 }) {
 
@@ -42,7 +42,7 @@ export default function MarksTable2021({
               <th className={`${styles.th} ${styles.studentTh}`}>Student Name</th>
 
               {/* Dynamic assessment component columns */}
-              {components.map((comp) => (
+              {(components || []).filter(Boolean).map((comp) => (
                 <th key={comp.uid} className={styles.th}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>{comp.icon}</span>
@@ -95,7 +95,7 @@ export default function MarksTable2021({
                       max="200"
                       className={styles.globalHoursInput}
                       value={totalHours || ''}
-                      onChange={(e) => onTotalHoursChange(e.target.value)}
+                      onChange={(e) => onTotalHoursChange && onTotalHoursChange(e.target.value)}
                       disabled={isLocked}
                       placeholder="Total"
                       title="Enter total classes conducted for this assessment period"
@@ -113,22 +113,22 @@ export default function MarksTable2021({
             </tr>
           </thead>
           <tbody>
-            {students.map((student, i) => (
+            {(students || []).filter(Boolean).map((student, i) => (
               <MarksRow2021
-                key={`${student.id}-${assessmentMode}`}
+                key={`${student?.id}-${assessmentMode}`}
                 student={student}
-                components={components}
-                marks={marksData[student.id] || {}}
-                attendanceHours={attendanceData[student.id] !== undefined ? attendanceData[student.id] : ''}
+                components={components || []}
+                marks={(marksData && student?.id ? marksData[student.id] : {}) || {}}
+                attendanceHours={(attendanceData && student?.id && attendanceData[student.id] !== undefined) ? attendanceData[student.id] : ''}
                 totalHours={totHours}
-                internalExamMark={internalExamData[student.id] || ''}
-                labData={labData ? labData[student.id] || {} : {}}
+                internalExamMark={(internalExamData && student?.id && internalExamData[student.id] !== undefined) ? internalExamData[student.id] : ''}
+                labData={(labData && student?.id ? labData[student.id] : {}) || {}}
                 assessmentMode={assessmentMode}
                 selectedSubject={selectedSubject}
                 onMarkChange={onMarkChange}
-                onAttendanceChange={(val) => onAttendanceChange(student.id, val)}
-                onInternalExamChange={(val) => onInternalExamChange(student.id, val)}
-                onLabDataChange={(field, val) => onLabDataChange(student.id, field, val)}
+                onAttendanceChange={(val) => onAttendanceChange && student?.id && onAttendanceChange(student.id, val)}
+                onInternalExamChange={(val) => onInternalExamChange && student?.id && onInternalExamChange(student.id, val)}
+                onLabDataChange={(field, val) => onLabDataChange && student?.id && onLabDataChange(student.id, field, val)}
                 isLocked={isLocked}
                 index={i}
                 ciaMax={ciaMax}

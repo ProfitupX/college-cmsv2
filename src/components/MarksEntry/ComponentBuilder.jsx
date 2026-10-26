@@ -19,13 +19,13 @@ function TypeBadge({ typeId, small }) {
   );
 }
 
-export default function ComponentBuilder({ components, onChange, isLocked }) {
+export default function ComponentBuilder({ components = [], onChange, isLocked }) {
   const [selectedType, setSelectedType] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [maxMarks, setMaxMarks] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
+  const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
 
   const selectedTypeMeta = ASSESSMENT_TYPES.find((t) => t.id === selectedType);
 

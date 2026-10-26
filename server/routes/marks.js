@@ -463,8 +463,8 @@ router.get('/sessions/:id', async (req, res) => {
       `SELECT ms.*, sub.name AS subject, sub.code, cl.name AS class_name,
               st.name AS staff_name, st.designation AS staff_designation, st.department AS staff_department
        FROM marks_sessions ms
-       JOIN subjects sub ON sub.id = ms.subject_id
-       JOIN classes  cl  ON cl.id  = ms.class_id
+       LEFT JOIN subjects sub ON sub.id = ms.subject_id
+       LEFT JOIN classes  cl  ON cl.id  = ms.class_id
        LEFT JOIN staffs st ON st.id = ms.staff_id
        WHERE ms.id = ?`, [id]
     );

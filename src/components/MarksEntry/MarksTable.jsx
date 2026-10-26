@@ -3,14 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import styles from './MarksTable.module.css';
 
 export default function MarksTable({ 
-  students, components, marksData, onMarkChange,
-  attendanceData, attendanceMarks = {}, int1AttendanceData = {}, internalExamData, totalHours, int1Hours, int2Hours, labHours,
+  students = [], components = [], marksData = {}, onMarkChange,
+  attendanceData = {}, attendanceMarks = {}, int1AttendanceData = {}, internalExamData = {}, totalHours = 0, int1Hours = 30, int2Hours = 30, labHours = 0,
   onAttendanceChange, onInternalExamChange, onTotalHoursChange,
-  labData, assessmentMode, selectedSubject, onLabDataChange, isLocked
+  labData = {}, assessmentMode = 'internal1', selectedSubject = {}, onLabDataChange, isLocked
 }) {
   const { user } = useAuth();
   const isElevated = user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'hod' || user?.role === 'admin';
-  const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
+  const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
 
   // Which hours to show based on mode (default standard 30)
   const displayHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
@@ -28,7 +28,7 @@ export default function MarksTable({
               <th className={`${styles.th} ${styles.studentTh}`}>Student Name</th>
 
               {/* Dynamic Assessment Columns */}
-              {components.map((comp) => (
+              {(components || []).filter(Boolean).map((comp) => (
                 <th key={comp.uid} className={styles.th}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>{comp.icon}</span>
@@ -117,29 +117,29 @@ export default function MarksTable({
             </tr>
           </thead>
           <tbody>
-            {students.map((student, i) => (
+            {(students || []).filter(Boolean).map((student, i) => (
               <MarksRow
-                key={`${student.id}-${assessmentMode}`}
+                key={`${student?.id}-${assessmentMode}`}
                 student={student}
-                components={components}
-                marks={marksData[student.id] || {}}
-                attendanceHours={attendanceData[student.id] || ''}
-                savedAttendanceMark={attendanceMarks[student.id]}
+                components={components || []}
+                marks={(marksData && student?.id ? marksData[student.id] : {}) || {}}
+                attendanceHours={(attendanceData && student?.id && attendanceData[student.id] !== undefined) ? attendanceData[student.id] : ''}
+                savedAttendanceMark={attendanceMarks && student?.id ? attendanceMarks[student.id] : undefined}
                 isElevated={isElevated}
-                int1AttendanceHours={int1AttendanceData[student.id] || ''}
-                internalExamMark={internalExamData[student.id] || ''}
+                int1AttendanceHours={(int1AttendanceData && student?.id && int1AttendanceData[student.id] !== undefined) ? int1AttendanceData[student.id] : ''}
+                internalExamMark={(internalExamData && student?.id && internalExamData[student.id] !== undefined) ? internalExamData[student.id] : ''}
                 displayHours={displayHours}
                 int1Hours={int1Hours || 30}
                 int2Hours={int2Hours || 30}
                 labHours={labHours || 30}
                 assessmentMode={assessmentMode}
                 selectedSubject={selectedSubject}
-                labData={labData ? labData[student.id] || {} : {}}
+                labData={(labData && student?.id ? labData[student.id] : {}) || {}}
                 onMarkChange={onMarkChange}
                 isLocked={isLocked}
-                onAttendanceChange={(val) => onAttendanceChange(student.id, val)}
-                onInternalExamChange={(val) => onInternalExamChange(student.id, val)}
-                onLabDataChange={(field, val) => onLabDataChange(student.id, field, val)}
+                onAttendanceChange={(val) => onAttendanceChange && student?.id && onAttendanceChange(student.id, val)}
+                onInternalExamChange={(val) => onInternalExamChange && student?.id && onInternalExamChange(student.id, val)}
+                onLabDataChange={(field, val) => onLabDataChange && student?.id && onLabDataChange(student.id, field, val)}
                 index={i}
               />
             ))}

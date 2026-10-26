@@ -20,10 +20,10 @@ import styles from './MarksRow.module.css';
  *     Final Total = CIA + labExamConverted (max 100)
  */
 export default function MarksRow2021({
-  student, components, marks = {}, attendanceHours = '', totalHours = 0,
-  internalExamMark, labData, assessmentMode, selectedSubject,
+  student = {}, components = [], marks = {}, attendanceHours = '', totalHours = 0,
+  internalExamMark = '', labData = {}, assessmentMode = 'internal1', selectedSubject = {},
   onMarkChange, onAttendanceChange, onInternalExamChange, onLabDataChange,
-  isLocked, index, ciaMax, examConvertedMax
+  isLocked, index = 0, ciaMax = 40, examConvertedMax = 60
 }) {
   // Match both hyphenated ('Theory-cum-Lab') and non-hyphenated ('Theory cum Lab') DB values
   const isLabType = [
@@ -33,9 +33,9 @@ export default function MarksRow2021({
 
   // 1. Sum raw component marks — cap each at conductedMax
   let rawCIA = 0;
-  components.forEach(c => {
-    const val = parseFloat(marks[c.uid]) || 0;
-    const conducted = parseFloat(c.conductedMax) || 100;
+  (components || []).forEach(c => {
+    const val = parseFloat(marks[c?.uid]) || 0;
+    const conducted = parseFloat(c?.conductedMax) || 100;
     rawCIA += Math.min(val, conducted);
   });
 
@@ -59,7 +59,13 @@ export default function MarksRow2021({
     finalTotal = Math.min(ciaTotal + examConverted, 100);
   }
 
-  const initials = (student.name || 'Unknown').split(' ').map(n => n[0]).join('').slice(0, 2);
+  const initials = (student?.name || 'Unknown')
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   const parsedAttd = parseInt(attendanceHours);
   const hasAttd = attendanceHours !== '' && !isNaN(parsedAttd);
   const attdOver = totalHours > 0 && hasAttd && parsedAttd > totalHours;

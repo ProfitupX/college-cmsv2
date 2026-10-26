@@ -2,15 +2,20 @@ import { ChevronDown } from 'lucide-react';
 import styles from './ClassSubjectSelector.module.css';
 
 export default function ClassSubjectSelector({
-  classes,
-  subjects,
+  classes = [],
+  subjects = [],
   selectedClass,
   selectedSubject,
   onClassChange,
   onSubjectChange,
 }) {
-  const sortedClasses = [...classes].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const sortedSubjects = [...subjects].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+  const sortedClasses = [...(classes || [])]
+    .filter(Boolean)
+    .sort((a, b) => (a?.name || '').localeCompare(b?.name || ''));
+
+  const sortedSubjects = [...(subjects || [])]
+    .filter(Boolean)
+    .sort((a, b) => (a?.code || '').localeCompare(b?.code || ''));
 
   return (
     <div className={styles.wrapper}>
@@ -24,13 +29,13 @@ export default function ClassSubjectSelector({
             <select
               id="class-select"
               className={styles.select}
-              value={selectedClass}
+              value={selectedClass || ''}
               onChange={(e) => onClassChange(e.target.value)}
             >
               <option value="">— Choose a Class —</option>
               {sortedClasses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+                <option key={c?.id} value={c?.id}>
+                  {c?.name}
                 </option>
               ))}
             </select>
@@ -47,20 +52,20 @@ export default function ClassSubjectSelector({
             <select
               id="subject-select"
               className={styles.select}
-              value={selectedSubject}
+              value={selectedSubject || ''}
               onChange={(e) => onSubjectChange(e.target.value)}
-              disabled={!selectedClass || subjects.length === 0}
+              disabled={!selectedClass || sortedSubjects.length === 0}
             >
               <option value="">
                 {!selectedClass
                   ? '— Select a class first —'
-                  : subjects.length === 0
+                  : sortedSubjects.length === 0
                   ? '— No subjects available —'
                   : '— Choose a Subject —'}
               </option>
               {sortedSubjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.code} — {s.name}{s.faculty_name ? ` • [Staff: ${s.faculty_name}]` : ''}
+                <option key={s?.id} value={s?.id}>
+                  {s?.code} — {s?.name}{s?.faculty_name ? ` • [Staff: ${s.faculty_name}]` : ''}
                 </option>
               ))}
             </select>
@@ -71,12 +76,13 @@ export default function ClassSubjectSelector({
 
       {/* Info Strip */}
       {selectedClass && selectedSubject && (() => {
-        const activeSub = subjects.find(s => s.id === selectedSubject);
+        const activeSub = (subjects || []).find(s => s && String(s.id) === String(selectedSubject));
+        if (!activeSub) return null;
         return (
           <div className={styles.infoStrip}>
             <span className={styles.infoBadge}>
-              Subject: <strong>{activeSub?.code} — {activeSub?.name}</strong>
-              {activeSub?.faculty_name && (
+              Subject: <strong>{activeSub.code} — {activeSub.name}</strong>
+              {activeSub.faculty_name && (
                 <span> • Staff In-Charge: <strong style={{ color: '#f59e0b' }}>{activeSub.faculty_name}</strong></span>
               )}
             </span>

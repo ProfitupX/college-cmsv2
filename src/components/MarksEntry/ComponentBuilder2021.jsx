@@ -25,13 +25,13 @@ function TypeBadge({ typeId, small }) {
   );
 }
 
-export default function ComponentBuilder2021({ components, onChange, isLocked, ciaMax = 40 }) {
+export default function ComponentBuilder2021({ components = [], onChange, isLocked, ciaMax = 40 }) {
   const [selectedType, setSelectedType] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [maxMarks, setMaxMarks] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const totalMax = components.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
+  const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
   const remaining = ciaMax - totalMax;
   const isOver = totalMax > ciaMax;
   const isFull = totalMax >= ciaMax;

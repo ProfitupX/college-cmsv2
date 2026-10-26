@@ -2,15 +2,15 @@ import { computeGrade } from '../../data/assessmentTypes';
 import styles from './MarksRow.module.css';
 
 export default function MarksRow({ 
-  student, components, marks = {}, attendanceHours, savedAttendanceMark, isElevated, int1AttendanceHours, internalExamMark, displayHours, conductedHours, conductedCumHours, int1Hours, int2Hours, labHours,
-  onMarkChange, onAttendanceChange, onInternalExamChange, index,
-  assessmentMode, labData, selectedSubject, onLabDataChange, isLocked
+  student = {}, components = [], marks = {}, attendanceHours = '', savedAttendanceMark, isElevated, int1AttendanceHours = '', internalExamMark = '', displayHours = 30, conductedHours, conductedCumHours, int1Hours = 30, int2Hours = 30, labHours = 0,
+  onMarkChange, onAttendanceChange, onInternalExamChange, index = 0,
+  assessmentMode = 'internal1', labData = {}, selectedSubject = {}, onLabDataChange, isLocked
 }) {
   // Converted total (sum of raw marks)
   let convertedTotal = 0;
-  components.forEach(c => {
-    const val = parseFloat(marks[c.uid]) || 0;
-    const conducted = parseFloat(c.conductedMax) || 100;
+  (components || []).forEach(c => {
+    const val = parseFloat(marks[c?.uid]) || 0;
+    const conducted = parseFloat(c?.conductedMax) || 100;
     convertedTotal += Math.min(val, conducted);
   });
   convertedTotal = Math.round(convertedTotal);
@@ -66,7 +66,13 @@ export default function MarksRow({
     ? parseFloat(savedAttendanceMark)
     : attendanceMark;
   const finalTotal100 = convertedTotal + effectiveAttMark;
-  const initials = student.name.split(' ').map((n) => n[0]).join('').slice(0, 2);
+  const initials = (student?.name || 'Unknown')
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
