@@ -170,11 +170,16 @@ export default function PrincipalDashboard() {
     };
   });
 
-  const barData = departmentStats.map(dept => ({
-    name: DEPT_SHORT_NAMES[dept.department] || dept.department.replace('Engineering', 'Engg'),
-    fullName: dept.department,
-    avgScore: parseFloat(dept.avgScore) || 0
-  }));
+  const barData = departmentStats
+    .filter(dept => {
+      const dName = (dept.department || '').toLowerCase();
+      return !dName.includes('science') && !dName.includes('humanities') && !dName.includes('first year');
+    })
+    .map(dept => ({
+      name: DEPT_SHORT_NAMES[dept.department] || dept.department.replace('Engineering', 'Engg'),
+      fullName: dept.department,
+      avgScore: parseFloat(dept.avgScore) || 0
+    }));
 
   return (
     <div className={styles.principalContainer}>
