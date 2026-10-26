@@ -540,10 +540,24 @@ export const exportLaboratoryMarksExcel = async ({
   // Rows (Starting Row 12)
   let currentRow = 12;
   students.forEach((student, idx) => {
-    const rawAttd = parseInt(labData[student.id]?.labAttendance || attendanceData[student.id] || 0, 10);
-    const rawMark = parseFloat(labData[student.id]?.labMark || 0);
-    const isAbsent = isNaN(rawMark) || labData[student.id]?.labMark === null || labData[student.id]?.labMark === undefined || labData[student.id]?.labMark === '' || labData[student.id]?.labMark === 'AB';
-    const markStr = isAbsent ? 'AB' : Math.round(rawMark);
+    let attendedHours = 0;
+    if (labData[student.id]?.labAttendance !== undefined && labData[student.id]?.labAttendance !== null && labData[student.id]?.labAttendance !== '') {
+      attendedHours = parseInt(labData[student.id].labAttendance, 10);
+    } else if (attendanceData[student.id] !== undefined && attendanceData[student.id] !== null && attendanceData[student.id] !== '') {
+      attendedHours = parseInt(attendanceData[student.id], 10);
+    }
+    const cleanHours = Math.min(attendedHours, prescribedLabHours);
+
+    let rawLabMark = null;
+    if (labData[student.id]?.labMark !== undefined && labData[student.id]?.labMark !== null && labData[student.id]?.labMark !== '') {
+      rawLabMark = labData[student.id].labMark;
+    } else if (internalExamData[student.id] !== undefined && internalExamData[student.id] !== null && internalExamData[student.id] !== '') {
+      rawLabMark = internalExamData[student.id];
+    }
+
+    const numMark = parseFloat(rawLabMark);
+    const isAbsent = isNaN(numMark) || rawLabMark === null || rawLabMark === '' || rawLabMark === 'AB';
+    const markStr = isAbsent ? 'AB' : Math.round(numMark);
     const isPass = !isAbsent && markStr >= 50;
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
@@ -551,7 +565,7 @@ export const exportLaboratoryMarksExcel = async ({
       idx + 1,
       student.roll_no || student.rollNo || '-',
       cleanName,
-      `${rawAttd} / ${prescribedLabHours}`,
+      `${cleanHours} / ${prescribedLabHours}`,
       markStr,
       isAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL')
     ];

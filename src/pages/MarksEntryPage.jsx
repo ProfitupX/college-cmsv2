@@ -239,6 +239,18 @@ export default function MarksEntryPage() {
 
   const selectedClass   = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
   const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
+  const isPureLab = Boolean(selectedSubject && (
+    selectedSubject.type === 'Practical' ||
+    selectedSubject.type === 'Laboratory' ||
+    selectedSubject.type === 'Lab' ||
+    (selectedSubject.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type))
+  ));
+
+  useEffect(() => {
+    if (isPureLab) {
+      setReportType('lab_marks_only');
+    }
+  }, [isPureLab]);
 
   // ── Load existing session when subject or mode changes ────────
   useEffect(() => {
@@ -889,10 +901,10 @@ export default function MarksEntryPage() {
     setSaveErr('');
   };
 
-  const step = !selectedSubject ? 1 : assessmentComponents.length === 0 ? 2 : 3;
+  const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
   const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && user?.role !== 'hod' && user?.role !== 'admin');
-  const canEnterMarks = isPrincipal ? true : assessmentComponents.length > 0;
+  const canEnterMarks = isPrincipal || isPureLab ? true : assessmentComponents.length > 0;
 
   if (loading) {
     return (
@@ -908,8 +920,8 @@ export default function MarksEntryPage() {
       <div className={styles.steps}>
         {[
           { n: 1, label: 'Select Class & Subject' },
-          { n: 2, label: 'Build Assessment Sheet' },
-          { n: 3, label: 'Enter & Submit Marks' },
+          ...(!isPureLab ? [{ n: 2, label: 'Build Assessment Sheet' }] : []),
+          { n: isPureLab ? 2 : 3, label: 'Enter & Submit Marks' },
         ].map((s) => (
           <div
             key={s.n}
@@ -917,7 +929,7 @@ export default function MarksEntryPage() {
           >
             <div className={styles.stepNum}>{step > s.n ? <CheckCircle size={14} /> : s.n}</div>
             <span className={styles.stepLabel}>{s.label}</span>
-            {s.n < 3 && <div className={styles.stepLine} />}
+            {s.n < (isPureLab ? 2 : 3) && <div className={styles.stepLine} />}
           </div>
         ))}
       </div>
@@ -1060,12 +1072,34 @@ export default function MarksEntryPage() {
               )}
             </div>
           </div>
-          {!isPrincipal && (
+          {!isPrincipal && !isPureLab && (
             <ComponentBuilder
               components={assessmentComponents}
               onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); setIsComponentsDirty(true); }}
               isLocked={isLocked}
             />
+          )}
+
+          {isPureLab && (
+            <div style={{
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+              border: '1.5px solid #86efac',
+              borderRadius: '10px',
+              padding: '14px 18px',
+              margin: '16px 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 2px 4px rgba(22, 101, 52, 0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#166534', fontWeight: 600 }}>
+                <span style={{ fontSize: '1.3rem' }}>🔬</span>
+                <span>Laboratory / Practical Course — Direct Mark Entry (Lab Attended Hours &amp; 100 Marks Practical Exam)</span>
+              </div>
+              <span style={{ fontSize: '0.8rem', background: '#16a34a', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontWeight: 600 }}>
+                Direct Entry • No Theory CIA
+              </span>
+            </div>
           )}
         </>
       )}
@@ -1159,18 +1193,33 @@ export default function MarksEntryPage() {
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
               >
-                <option value="subject_marks_with_internal">Subject Marks List (With Assignment Marks)</option>
-                <option value="subject_marks_without_internal">Subject Marks List (Without Assignment Marks)</option>
-                {['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory'].includes(selectedSubject?.type) && (
-                  <option value="lab_marks_only">🔬 Laboratory Marks Statement (Lab Marks & Attended Hrs Only)</option>
-                )}
-                <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
-                {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
+                {isPureLab ? (
                   <>
-                    <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
-                    <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
-                    <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Assignment Marks)</option>
-                    <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Assignment Marks)</option>
+                    <option value="lab_marks_only">🔬 Laboratory Marks Statement (Attended Hrs &amp; 100 Marks Practical Exam)</option>
+                    <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
+                    {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
+                      <>
+                        <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
+                        <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <option value="subject_marks_with_internal">Subject Marks List (With Assignment Marks)</option>
+                    <option value="subject_marks_without_internal">Subject Marks List (Without Assignment Marks)</option>
+                    {['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory'].includes(selectedSubject?.type) && (
+                      <option value="lab_marks_only">🔬 Laboratory Marks Statement (Lab Marks &amp; Attended Hrs Only)</option>
+                    )}
+                    <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
+                    {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
+                      <>
+                        <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
+                        <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
+                        <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Assignment Marks)</option>
+                        <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Assignment Marks)</option>
+                      </>
+                    )}
                   </>
                 )}
               </select>
@@ -1217,7 +1266,7 @@ export default function MarksEntryPage() {
         </div>
       )}
 
-      {selectedSubject && assessmentComponents.length === 0 && !isPrincipal && (
+      {selectedSubject && !isPureLab && assessmentComponents.length === 0 && !isPrincipal && (
         <div className={styles.promptBox}>
           <p>👆 Add at least one assessment component above to start entering marks.</p>
         </div>

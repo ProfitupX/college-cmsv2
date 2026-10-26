@@ -22,6 +22,7 @@ import styles from './MarksRow.module.css';
 export default function MarksRow2021({
   student = {}, components = [], marks = {}, attendanceHours = '', totalHours = 0,
   internalExamMark = '', labData = {}, assessmentMode = 'internal1', selectedSubject = {},
+  isPureLab = false,
   onMarkChange, onAttendanceChange, onInternalExamChange, onLabDataChange,
   isLocked, index = 0, ciaMax = 40, examConvertedMax = 60
 }) {
@@ -30,6 +31,119 @@ export default function MarksRow2021({
     'Lab-cum-Theory', 'Theory-cum-Lab',
     'Lab cum Theory', 'Theory cum Lab'
   ].includes(selectedSubject?.type);
+
+  const initials = (student?.name || 'Unknown')
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  // Pure Laboratory / Practical Mode (Regulation 2021 - NO attendance marks)
+  if (isPureLab) {
+    const pureLabHoursMax = parseInt(totalHours || selectedSubject?.total_hours || selectedSubject?.lab_hours || 40, 10);
+    const pureLabAttdRaw = (attendanceHours !== undefined && attendanceHours !== '') ? attendanceHours : (labData?.labAttendance || '');
+    const pureLabAttdNum = parseInt(pureLabAttdRaw || 0, 10);
+
+    const pureLabMarkRaw = (labData?.labMark !== undefined && labData?.labMark !== '') ? labData.labMark : (internalExamMark || '');
+    const pureLabMarkNum = parseFloat(pureLabMarkRaw);
+    const isPureLabAbsent = isNaN(pureLabMarkNum) || pureLabMarkRaw === '' || pureLabMarkRaw === 'AB';
+    const pureLabTotal = isPureLabAbsent ? 0 : Math.min(100, Math.round(pureLabMarkNum));
+    const isPureLabPass = !isPureLabAbsent && pureLabTotal >= 50;
+
+    return (
+      <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
+        {/* S.No */}
+        <td className={styles.sNoCell}>{student.sNo || index + 1}</td>
+
+        {/* Roll No */}
+        <td className={styles.rollNoCell}>{student.rollNo || student.roll_no || '-'}</td>
+
+        {/* Student Info */}
+        <td className={styles.studentCell}>
+          <div className={styles.studentInfo}>
+            <div className={styles.avatar} style={{ '--idx': index }}>
+              {initials}
+            </div>
+            <span className={styles.name}>{student.name}</span>
+          </div>
+        </td>
+
+        {/* Column 1: Lab Attended Hours */}
+        <td className={styles.inputCell}>
+          <div className={styles.inputWrap}>
+            <input
+              type="number"
+              min="0"
+              max={pureLabHoursMax}
+              className={`${styles.input} ${pureLabAttdNum > pureLabHoursMax ? styles.inputError : ''}`}
+              value={pureLabAttdRaw}
+              onChange={(e) => {
+                const val = e.target.value;
+                onAttendanceChange && onAttendanceChange(val);
+                onLabDataChange && onLabDataChange('labAttendance', val);
+              }}
+              disabled={isLocked}
+              placeholder="Attended Hrs"
+            />
+            <span className={styles.inputMax}>/{pureLabHoursMax}</span>
+            {pureLabAttdNum > pureLabHoursMax && (
+              <span className={styles.errorTip}>Max: {pureLabHoursMax}</span>
+            )}
+          </div>
+        </td>
+
+        {/* Column 2: Lab Exam Mark written out of 100 */}
+        <td className={styles.inputCell}>
+          <div className={styles.inputWrap}>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              className={`${styles.input} ${pureLabMarkNum > 100 ? styles.inputError : ''}`}
+              value={pureLabMarkRaw}
+              onChange={(e) => {
+                const val = e.target.value;
+                onInternalExamChange && onInternalExamChange(val);
+                onLabDataChange && onLabDataChange('labMark', val);
+              }}
+              disabled={isLocked}
+              placeholder="Lab Mark / 100"
+            />
+            <span className={styles.inputMax}>/100</span>
+            {pureLabMarkNum > 100 && (
+              <span className={styles.errorTip}>Max: 100</span>
+            )}
+          </div>
+        </td>
+
+        {/* Total Mark */}
+        <td className={styles.totalCell}>
+          <div
+            className={styles.finalTotalBadge}
+            style={{
+              background: isPureLabAbsent ? '#94a3b8' : (isPureLabPass ? '#059669' : '#dc2626'),
+              color: '#ffffff'
+            }}
+          >
+            <span className={styles.total}>{isPureLabAbsent ? 'AB' : pureLabTotal}</span>
+          </div>
+        </td>
+
+        {/* Result */}
+        <td className={styles.totalCell} style={{ textAlign: 'center' }}>
+          <span style={{
+            fontWeight: 700,
+            fontSize: '0.85rem',
+            color: isPureLabAbsent ? '#64748b' : (isPureLabPass ? '#16a34a' : '#dc2626')
+          }}>
+            {isPureLabAbsent ? 'AB' : (isPureLabPass ? 'PASS' : 'FAIL')}
+          </span>
+        </td>
+      </tr>
+    );
+  }
 
   // 1. Sum raw component marks — cap each at conductedMax
   let rawCIA = 0;
@@ -59,13 +173,6 @@ export default function MarksRow2021({
     finalTotal = Math.min(ciaTotal + examConverted, 100);
   }
 
-  const initials = (student?.name || 'Unknown')
-    .split(' ')
-    .filter(Boolean)
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
   const parsedAttd = parseInt(attendanceHours);
   const hasAttd = attendanceHours !== '' && !isNaN(parsedAttd);
   const attdOver = totalHours > 0 && hasAttd && parsedAttd > totalHours;

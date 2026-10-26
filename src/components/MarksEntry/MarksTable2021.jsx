@@ -26,91 +26,147 @@ export default function MarksTable2021({
     'Lab-cum-Theory', 'Theory-cum-Lab',
     'Lab cum Theory', 'Theory cum Lab'
   ].includes(selectedSubject?.type);
+  const isPureLab = Boolean(selectedSubject && (
+    selectedSubject.type === 'Practical' ||
+    selectedSubject.type === 'Laboratory' ||
+    selectedSubject.type === 'Lab' ||
+    (selectedSubject.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type))
+  ));
   const ciaMax    = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
-  const totHours = parseInt(totalHours || 0);
+  const totHours = parseInt(totalHours || selectedSubject?.total_hours || selectedSubject?.lab_hours || 40, 10);
 
   return (
     <div className={styles.wrapper}>
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
-            <tr>
-              {/* Fixed columns */}
-              <th className={`${styles.th} ${styles.sNoTh}`}>S.No</th>
-              <th className={`${styles.th} ${styles.rollNoTh}`}>Roll No</th>
-              <th className={`${styles.th} ${styles.studentTh}`}>Student Name</th>
+            {isPureLab ? (
+              <tr>
+                <th className={`${styles.th} ${styles.sNoTh}`}>S.No</th>
+                <th className={`${styles.th} ${styles.rollNoTh}`}>Roll No</th>
+                <th className={`${styles.th} ${styles.studentTh}`}>Student Name</th>
 
-              {/* Dynamic assessment component columns */}
-              {(components || []).filter(Boolean).map((comp) => (
-                <th key={comp.uid} className={styles.th}>
+                {/* Column 1: Lab Total Hours on top, enter actual attended hours below */}
+                <th className={`${styles.th} ${styles.attendanceTh}`}>
                   <div className={styles.thContent}>
-                    <span className={styles.thIcon}>{comp.icon}</span>
-                    <span className={styles.thLabel}>{comp.label}</span>
-                    <span className={styles.thMax}>Max: {comp.conductedMax || 100}</span>
+                    <span className={styles.thIcon}>⏱</span>
+                    <span className={styles.thLabel}>Lab Attended Hours</span>
+                    <div className={styles.globalHoursWrap} style={{ marginTop: '4px' }}>
+                      <label style={{ fontSize: '0.65rem', opacity: 0.85 }}>Total Lab Hrs:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        className={styles.globalHoursInput}
+                        value={totalHours || ''}
+                        onChange={(e) => onTotalHoursChange && onTotalHoursChange(e.target.value)}
+                        disabled={isLocked}
+                        placeholder="Hrs"
+                        title="Enter total lab hours"
+                        style={{ width: '48px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '4px', textAlign: 'center' }}
+                      />
+                    </div>
                   </div>
                 </th>
-              ))}
 
-              {/* CIA Total (computed) */}
-              <th className={`${styles.th} ${styles.computedTh}`}>
-                CIA Total
-                <div className={styles.thSub}>/ {ciaMax}</div>
-              </th>
-
-              {/* Internal Exam column — always shown */}
-              <th className={`${styles.th} ${styles.internalExamTh}`}>
-                <div className={styles.thContent}>
-                  <span className={styles.thIcon}>📝</span>
-                  <span className={styles.thLabel}>
-                    {assessmentMode === 'internal1' ? 'Internal 1 Exam' : 'Internal 2 Exam'}
-                  </span>
-                  <div className={styles.thSub}>
-                    /100 → {examConvertedMax}
-                  </div>
-                </div>
-              </th>
-
-              {/* Lab Exam column — only Int2 Lab-cum-Theory */}
-              {assessmentMode === 'internal2' && isLabType && (
+                {/* Column 2: Lab Exam Mark written out of 100 */}
                 <th className={`${styles.th} ${styles.internalExamTh}`}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>🔬</span>
-                    <span className={styles.thLabel}>Lab Exam</span>
-                    <div className={styles.thSub}>/100 → 50</div>
+                    <span className={styles.thLabel}>Lab Practical Exam</span>
+                    <div className={styles.thSub}>Max: 100</div>
                   </div>
                 </th>
-              )}
 
-              {/* Attendance column — manual open entry (no marks impact) */}
-              <th className={`${styles.th} ${styles.attendanceTh}`}>
-                <div className={styles.thContent}>
-                  <span className={styles.thIcon}>📅</span>
-                  <span className={styles.thLabel}>Attendance</span>
-                  <div className={styles.globalHoursWrap} style={{ marginTop: '4px' }}>
-                    <label style={{ fontSize: '0.65rem', opacity: 0.85 }}>Total Held:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="200"
-                      className={styles.globalHoursInput}
-                      value={totalHours || ''}
-                      onChange={(e) => onTotalHoursChange && onTotalHoursChange(e.target.value)}
-                      disabled={isLocked}
-                      placeholder="Total"
-                      title="Enter total classes conducted for this assessment period"
-                      style={{ width: '48px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '4px', textAlign: 'center' }}
-                    />
+                {/* Total Mark & Result */}
+                <th className={`${styles.th} ${styles.computedTh}`} style={{ background: 'var(--primary)', color: '#fff' }}>
+                  Total Mark
+                  <div className={styles.thSub}>/ 100</div>
+                </th>
+                <th className={`${styles.th} ${styles.computedTh}`}>
+                  Result
+                  <div className={styles.thSub}>Pass &gt;= 50</div>
+                </th>
+              </tr>
+            ) : (
+              <tr>
+                {/* Fixed columns */}
+                <th className={`${styles.th} ${styles.sNoTh}`}>S.No</th>
+                <th className={`${styles.th} ${styles.rollNoTh}`}>Roll No</th>
+                <th className={`${styles.th} ${styles.studentTh}`}>Student Name</th>
+
+                {/* Dynamic assessment component columns */}
+                {(components || []).filter(Boolean).map((comp) => (
+                  <th key={comp.uid} className={styles.th}>
+                    <div className={styles.thContent}>
+                      <span className={styles.thIcon}>{comp.icon}</span>
+                      <span className={styles.thLabel}>{comp.label}</span>
+                      <span className={styles.thMax}>Max: {comp.conductedMax || 100}</span>
+                    </div>
+                  </th>
+                ))}
+
+                {/* CIA Total (computed) */}
+                <th className={`${styles.th} ${styles.computedTh}`}>
+                  CIA Total
+                  <div className={styles.thSub}>/ {ciaMax}</div>
+                </th>
+
+                {/* Internal Exam column — always shown */}
+                <th className={`${styles.th} ${styles.internalExamTh}`}>
+                  <div className={styles.thContent}>
+                    <span className={styles.thIcon}>📝</span>
+                    <span className={styles.thLabel}>
+                      {assessmentMode === 'internal1' ? 'Internal 1 Exam' : 'Internal 2 Exam'}
+                    </span>
+                    <div className={styles.thSub}>
+                      /100 → {examConvertedMax}
+                    </div>
                   </div>
-                </div>
-              </th>
+                </th>
 
-              {/* Final Score */}
-              <th className={`${styles.th} ${styles.computedTh}`} style={{ background: 'var(--primary)', color: '#fff' }}>
-                Final Total
-                <div className={styles.thSub}>/ 100</div>
-              </th>
-            </tr>
+                {/* Lab Exam column — only Int2 Lab-cum-Theory */}
+                {assessmentMode === 'internal2' && isLabType && (
+                  <th className={`${styles.th} ${styles.internalExamTh}`}>
+                    <div className={styles.thContent}>
+                      <span className={styles.thIcon}>🔬</span>
+                      <span className={styles.thLabel}>Lab Exam</span>
+                      <div className={styles.thSub}>/100 → 50</div>
+                    </div>
+                  </th>
+                )}
+
+                {/* Attendance column — manual open entry (no marks impact) */}
+                <th className={`${styles.th} ${styles.attendanceTh}`}>
+                  <div className={styles.thContent}>
+                    <span className={styles.thIcon}>📅</span>
+                    <span className={styles.thLabel}>Attendance</span>
+                    <div className={styles.globalHoursWrap} style={{ marginTop: '4px' }}>
+                      <label style={{ fontSize: '0.65rem', opacity: 0.85 }}>Total Held:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        className={styles.globalHoursInput}
+                        value={totalHours || ''}
+                        onChange={(e) => onTotalHoursChange && onTotalHoursChange(e.target.value)}
+                        disabled={isLocked}
+                        placeholder="Total"
+                        title="Enter total classes conducted for this assessment period"
+                        style={{ width: '48px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '4px', textAlign: 'center' }}
+                      />
+                    </div>
+                  </div>
+                </th>
+
+                {/* Final Score */}
+                <th className={`${styles.th} ${styles.computedTh}`} style={{ background: 'var(--primary)', color: '#fff' }}>
+                  Final Total
+                  <div className={styles.thSub}>/ 100</div>
+                </th>
+              </tr>
+            )}
           </thead>
           <tbody>
             {(students || []).filter(Boolean).map((student, i) => (
@@ -125,6 +181,7 @@ export default function MarksTable2021({
                 labData={(labData && student?.id ? labData[student.id] : {}) || {}}
                 assessmentMode={assessmentMode}
                 selectedSubject={selectedSubject}
+                isPureLab={isPureLab}
                 onMarkChange={onMarkChange}
                 onAttendanceChange={(val) => onAttendanceChange && student?.id && onAttendanceChange(student.id, val)}
                 onInternalExamChange={(val) => onInternalExamChange && student?.id && onInternalExamChange(student.id, val)}
