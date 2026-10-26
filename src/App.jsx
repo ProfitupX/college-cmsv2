@@ -121,7 +121,10 @@ export default function App() {
               const keys = await caches.keys();
               await Promise.all(keys.map(k => caches.delete(k)));
             }
-            window.location.reload();
+            // Force browser to fetch freshest index.html bypassing cache
+            const url = new URL(window.location.href);
+            url.searchParams.set('_v', String(data.buildTime));
+            window.location.replace(url.toString());
           } else if (data.buildTime) {
             localStorage.setItem('markhub_build_time', String(data.buildTime));
           }
