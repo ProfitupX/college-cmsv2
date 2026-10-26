@@ -40,6 +40,35 @@ export default function MarksEntryPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Remote data
+  const [classes,   setClasses]   = useState([]);
+  const [subjects,  setSubjects]  = useState([]);
+  const [students,  setStudents]  = useState([]);
+
+  // UI & Lock state
+  const [assessmentComponents, setAssessmentComponents] = useState([]);
+  const [saved,   setSaved]   = useState(false);
+  const [assessmentMode, setAssessmentMode] = useState('internal1');
+  const [saving,  setSaving]  = useState(false);
+  const [saveErr, setSaveErr] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [isComponentsDirty, setIsComponentsDirty] = useState(false);
+  const [reportType, setReportType] = useState('subject_analysis');
+  const [int1AttendanceData, setInt1AttendanceData] = useState({});
+
+  // Lock / Unlock Request State
+  const [currentSession, setCurrentSession] = useState(null);
+  const [remedialAction, setRemedialAction] = useState('');
+  const [sessionStatus, setSessionStatus] = useState('draft'); // draft | locked | unlock_requested | unlocked
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockReason, setUnlockReason] = useState('');
+  const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
+  const [pdfPayload, setPdfPayload] = useState(null);
+  const [submittingUnlock, setSubmittingUnlock] = useState(false);
+  const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
+  const autoSaveTimerRef = useRef(null);
+
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const rawClassId = location.state?.classId || location.state?.class_id || searchParams.get('classId') || searchParams.get('class_id') || sessionStorage.getItem('last_classId_2025');
@@ -78,33 +107,6 @@ export default function MarksEntryPage() {
       sessionStorage.setItem('last_session_2025', assessmentMode);
     }
   }, [effectiveClassId, effectiveSubjectId, assessmentMode]);
-
-  // Remote data
-  const [classes,   setClasses]   = useState([]);
-  const [subjects,  setSubjects]  = useState([]);
-  const [students,  setStudents]  = useState([]);
-
-  // UI & Lock state
-  const [assessmentComponents, setAssessmentComponents] = useState([]);
-  const [saved,   setSaved]   = useState(false);
-  const [assessmentMode, setAssessmentMode] = useState('internal1');
-  const [saving,  setSaving]  = useState(false);
-  const [saveErr, setSaveErr] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [isComponentsDirty, setIsComponentsDirty] = useState(false);
-  const [reportType, setReportType] = useState('subject_analysis');
-  const [int1AttendanceData, setInt1AttendanceData] = useState({});
-
-  // Lock / Unlock Request State
-  const [currentSession, setCurrentSession] = useState(null);
-  const [remedialAction, setRemedialAction] = useState('');
-  const [sessionStatus, setSessionStatus] = useState('draft'); // draft | locked | unlock_requested | unlocked
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [unlockReason, setUnlockReason] = useState('');
-  const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
-  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
-  const [pdfPayload, setPdfPayload] = useState(null);
-  const [submittingUnlock, setSubmittingUnlock] = useState(false);
 
   // ── Load classes on mount (2025 Regulation: I Year & II Year Autonomous classes, filtered by role) ────
   useEffect(() => {
@@ -396,9 +398,6 @@ export default function MarksEntryPage() {
   const labHours  = (selectedSubject?.lab_hours !== null && selectedSubject?.lab_hours !== undefined && selectedSubject?.lab_hours !== '')
     ? parseInt(selectedSubject.lab_hours, 10)
     : (defaultSplits.lab || 0);
-
-  const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
-  const autoSaveTimerRef = useRef(null);
 
   // Debounced Real-Time Auto-Save
   useEffect(() => {

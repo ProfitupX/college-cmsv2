@@ -79,6 +79,8 @@ export default function MarksEntryPage2021() {
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
+  const autoSaveTimerRef = useRef(null);
 
   const location = useLocation();
 
@@ -329,9 +331,6 @@ export default function MarksEntryPage2021() {
     location.state?.staffDesignation ||
     selectedSubject?.faculty_designation ||
     (user?.role === 'staff' || user?.role === 'faculty' ? user.designation : '');
-
-  const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
-  const autoSaveTimerRef = useRef(null);
 
   // Debounced Real-Time Auto-Save for 2021 Regulation
   useEffect(() => {
