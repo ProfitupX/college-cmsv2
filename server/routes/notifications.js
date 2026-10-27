@@ -41,57 +41,77 @@ router.get('/:role/:userId', async (req, res) => {
     }
 
     const rolesArray = Array.from(matchingRoles);
-    const placeholders = rolesArray.map(() => '?').join(', ');
-
-    let deptCondition = '';
-    const params = [userId, ...rolesArray];
+    const rolePlaceholders = rolesArray.map(() => '?').join(', ');
 
     if (isLeadership) {
-      // Leadership has institution-wide visibility across all departments
-      deptCondition = '1=1';
-    } else if (department && department.trim() !== '') {
+      // Leadership (admin, principal, vice_principal) has institution-wide visibility across all departments
+      const query = `
+        SELECT * FROM notifications 
+        WHERE (target_id = ?) 
+           OR (target_role IN (${rolePlaceholders}, 'all', 'all_staff'))
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `;
+      const [rows] = await db.query(query, [userId, ...rolesArray]);
+      return res.json(rows);
+    }
+
+    // For Academic Staff (HOD, Class Coordinator, Faculty):
+    if (department && department.trim() !== '') {
       // Map department aliases so staff only receive notices for their related department
       const deptAliases = [department.trim()];
       const depLower = department.trim().toLowerCase();
 
       if (depLower.includes('computer') || depLower === 'cse') {
-        deptAliases.push('Computer Science and Engineering', 'CSE');
+        deptAliases.push('Computer Science and Engineering', 'CSE', 'Computer Science & Engineering');
       } else if (depLower.includes('information') || depLower === 'it') {
         deptAliases.push('Information Technology', 'IT');
       } else if (depLower.includes('electronic') || depLower === 'ece') {
-        deptAliases.push('Electronics and Communication Engineering', 'ECE');
+        deptAliases.push('Electronics and Communication Engineering', 'ECE', 'Electronics & Communication Engineering');
       } else if (depLower.includes('electrical') || depLower === 'eee') {
-        deptAliases.push('Electrical and Electronics Engineering', 'EEE');
+        deptAliases.push('Electrical and Electronics Engineering', 'EEE', 'Electrical & Electronics Engineering');
       } else if (depLower.includes('mechanical') || depLower === 'mech') {
         deptAliases.push('Mechanical Engineering', 'MECH', 'Mech');
       } else if (depLower.includes('civil')) {
         deptAliases.push('Civil Engineering', 'CIVIL', 'Civil');
-      } else if (depLower.includes('intelligence') || depLower.includes('ai')) {
-        deptAliases.push('Artificial Intelligence and Data Science', 'AI&DS', 'AIDS', 'AI & DS');
+      } else if (depLower.includes('intelligence') || depLower.includes('ai') || depLower.includes('data')) {
+        deptAliases.push('Artificial Intelligence and Data Science', 'AI&DS', 'AIDS', 'AI & DS', 'AD');
       } else if (depLower.includes('science') || depLower.includes('humanities') || depLower.includes('first year') || depLower === 's&h') {
         deptAliases.push('Science and Humanities', 'S&H', 'First Year', 'Science & Humanities');
       }
 
       const uniqueAliases = Array.from(new Set(deptAliases));
       const aliasPlaceholders = uniqueAliases.map(() => '?').join(', ');
-      
-      // Academic staff only receive global broadcasts or notices for their related department
-      deptCondition = `(target_department IS NULL OR target_department = "" OR target_department IN (${aliasPlaceholders}))`;
-      params.push(...uniqueAliases);
+
+      // STRICT DEPARTMENT ISOLATION:
+      // 1. Direct messages to this user (target_id = userId)
+      // 2. Global college-wide broadcasts with NO department restriction (target_role IN ('all', 'all_staff') AND (target_department IS NULL OR target_department = ''))
+      // 3. Notices specifically matching this user's department (target_department IN (...))
+      // Role notices for 'hod' or 'class_coordinator' MUST match the department; they never leak across departments!
+      const query = `
+        SELECT * FROM notifications 
+        WHERE (target_id = ?) 
+           OR (target_role IN ('all', 'all_staff') AND (target_department IS NULL OR target_department = ''))
+           OR (target_role IN (${rolePlaceholders}, 'all', 'all_staff') AND target_department IN (${aliasPlaceholders}))
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `;
+
+      const params = [userId, ...rolesArray, ...uniqueAliases];
+      const [rows] = await db.query(query, params);
+      return res.json(rows);
     } else {
-      deptCondition = '(target_department IS NULL OR target_department = "")';
+      // If no department specified, only personal messages and global broadcasts
+      const query = `
+        SELECT * FROM notifications 
+        WHERE (target_id = ?) 
+           OR (target_role IN ('all', 'all_staff') AND (target_department IS NULL OR target_department = ''))
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `;
+      const [rows] = await db.query(query, [userId]);
+      return res.json(rows);
     }
-
-    const query = `
-      SELECT * FROM notifications 
-      WHERE (target_id = ?) 
-         OR (target_role IN (${placeholders}) AND (${deptCondition}))
-      ORDER BY created_at DESC 
-      LIMIT 50
-    `;
-
-    const [rows] = await db.query(query, params);
-    res.json(rows);
   } catch (err) {
     console.error('GET /notifications error:', err);
     res.status(500).json({ error: 'Failed to fetch notifications.' });

@@ -3,6 +3,30 @@ import db from '../db.js';
 
 const router = express.Router();
 
+// Helper to resolve accurate department for notification targeting
+function resolveSubjectDepartment(sub) {
+  if (!sub) return 'College Administration';
+  if (sub.year_label === 'I' || sub.class_dept === 'Science and Humanities' || sub.sub_dept === 'Science and Humanities' || sub.class_dept === 'First Year') {
+    return 'Science and Humanities';
+  }
+  if (sub.sub_dept && sub.sub_dept.trim()) return sub.sub_dept.trim();
+  if (sub.class_dept && sub.class_dept.trim()) return sub.class_dept.trim();
+
+  // Infer from subject code prefix
+  const code = (sub.code || '').toUpperCase().trim();
+  if (code.startsWith('CS') || code.startsWith('CCS') || code.startsWith('CB')) return 'Computer Science and Engineering';
+  if (code.startsWith('IT') || code.startsWith('CW')) return 'Information Technology';
+  if (code.startsWith('AD')) return 'Artificial Intelligence and Data Science';
+  if (code.startsWith('EC')) return 'Electronics and Communication Engineering';
+  if (code.startsWith('EE')) return 'Electrical and Electronics Engineering';
+  if (code.startsWith('ME')) return 'Mechanical Engineering';
+  if (code.startsWith('CE')) return 'Civil Engineering';
+  if (code.startsWith('MA') || code.startsWith('PH') || code.startsWith('CY') || code.startsWith('GE') || code.startsWith('HS') || code.startsWith('BS') || code.startsWith('UC')) {
+    return 'Science and Humanities';
+  }
+  return 'College Administration';
+}
+
 // ─────────────────────────────────────────────────────────────
 // POST /api/marks/submit
 // Body: {
@@ -324,15 +348,8 @@ router.post('/submit', async (req, res) => {
         const subName = sub ? `${sub.code} ${sub.name}` : 'A Subject';
         let coordNotified = false;
         
-        // Resolve true department: prioritize subject department, fallback to class department / S&H
-        let dept = sub?.sub_dept;
-        if (!dept && sub) {
-          if (sub.year_label === 'I' || sub.class_dept === 'Science and Humanities' || sub.class_dept === 'First Year') {
-            dept = 'Science and Humanities';
-          } else {
-            dept = sub.class_dept;
-          }
-        }
+        // Resolve true department: prioritize subject department, fallback to class department / S&H / code prefix
+        const dept = resolveSubjectDepartment(sub);
 
         // Notify HOD of the subject's related department ONLY
         await db.execute(
@@ -639,14 +656,7 @@ router.post('/request-unlock', async (req, res) => {
        `, [subjectId]);
        if (subs[0]) {
          subjectName = `${subs[0].code} ${subs[0].name}`;
-         subjectDept = subs[0].sub_dept;
-         if (!subjectDept) {
-           if (subs[0].year_label === 'I' || subs[0].class_dept === 'Science and Humanities' || subs[0].class_dept === 'First Year') {
-             subjectDept = 'Science and Humanities';
-           } else {
-             subjectDept = subs[0].class_dept;
-           }
-         }
+         subjectDept = resolveSubjectDepartment(subs[0]);
        }
     }
 

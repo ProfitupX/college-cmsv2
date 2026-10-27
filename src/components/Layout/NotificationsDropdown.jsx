@@ -36,28 +36,30 @@ export default function NotificationsDropdown() {
   // Detect subject department from legacy message text
   const detectDeptFromText = (text = '') => {
     const t = text.toUpperCase();
-    if (t.includes('MA25C01') || t.includes('PH25') || t.includes('CY25') || t.includes('EN25') || t.includes('UC25') || t.includes('I YEAR') || t.includes('FIRST YEAR') || t.includes('S&H')) {
+    if (t.includes('MA25') || t.includes('PH25') || t.includes('CY25') || t.includes('EN25') || t.includes('UC25') || t.includes('GE25') || t.includes('HS25') ||
+        t.includes('MA8') || t.includes('PH8') || t.includes('CY8') || t.includes('GE8') || t.includes('HS8') ||
+        t.includes('I YEAR') || t.includes('FIRST YEAR') || t.includes('S&H') || t.includes('SCIENCE AND HUMANITIES')) {
       return 'Science and Humanities';
     }
-    if (t.includes('IT25') || t.includes('CW25') || t.includes('INFORMATION TECHNOLOGY') || t.includes(' IT ') || t.includes('(IT)')) {
+    if (t.includes('IT25') || t.includes('CW25') || t.includes('IT8') || t.includes('INFORMATION TECHNOLOGY') || t.includes(' IT ') || t.includes('(IT)')) {
       return 'Information Technology';
     }
-    if (t.includes('CS25') || t.includes('CS35') || t.includes('COMPUTER SCIENCE') || t.includes('CSE')) {
+    if (t.includes('CS25') || t.includes('CS35') || t.includes('CCS') || t.includes('CS8') || t.includes('COMPUTER SCIENCE') || t.includes('CSE')) {
       return 'Computer Science and Engineering';
     }
-    if (t.includes('AD25') || t.includes('AD35') || t.includes('ARTIFICIAL INTELLIGENCE') || t.includes('AI&DS')) {
+    if (t.includes('AD25') || t.includes('AD35') || t.includes('AD8') || t.includes('ARTIFICIAL INTELLIGENCE') || t.includes('AI&DS') || t.includes('AIDS')) {
       return 'Artificial Intelligence and Data Science';
     }
-    if (t.includes('EC25') || t.includes('EC35') || t.includes('ELECTRONICS AND COMMUNICATION') || t.includes('ECE')) {
+    if (t.includes('EC25') || t.includes('EC35') || t.includes('EC8') || t.includes('ELECTRONICS AND COMMUNICATION') || t.includes('ECE')) {
       return 'Electronics and Communication Engineering';
     }
-    if (t.includes('EE25') || t.includes('EE35') || t.includes('ELECTRICAL AND ELECTRONICS') || t.includes('EEE')) {
+    if (t.includes('EE25') || t.includes('EE35') || t.includes('EE8') || t.includes('ELECTRICAL AND ELECTRONICS') || t.includes('EEE')) {
       return 'Electrical and Electronics Engineering';
     }
-    if (t.includes('ME25') || t.includes('ME35') || t.includes('ME37') || t.includes('MECHANICAL') || t.includes('MECH')) {
+    if (t.includes('ME25') || t.includes('ME35') || t.includes('ME37') || t.includes('ME8') || t.includes('MECHANICAL') || t.includes('MECH')) {
       return 'Mechanical Engineering';
     }
-    if (t.includes('CE25') || t.includes('CE35') || t.includes('CIVIL')) {
+    if (t.includes('CE25') || t.includes('CE35') || t.includes('CE8') || t.includes('CIVIL')) {
       return 'Civil Engineering';
     }
     return null;
@@ -107,6 +109,11 @@ export default function NotificationsDropdown() {
             const notifDept = n.target_department || detectDeptFromText(`${n.title} ${n.message}`);
             if (notifDept) {
               return isDeptMatch(notifDept, user.department);
+            }
+
+            // If notification targets a department-specific role (hod, class_coordinator) but department was not identified, do NOT leak it across departments!
+            if (['hod', 'class_coordinator'].includes(n.target_role)) {
+              return false;
             }
 
             // General broadcast notifications (no department specified)
