@@ -1109,13 +1109,13 @@ export const generateConsolidatedMarksPDF = async ({
 
   // Signatures (Class Incharge, HOD, Principal)
   const finalY = doc.lastAutoTable.finalY;
-  const neededHeight = 28;
+  const neededHeight = 24;
   let sigY;
-  if (finalY + neededHeight > pageHeight - 12) {
+  if (finalY + neededHeight > pageHeight - 14) {
     doc.addPage();
-    sigY = 30;
+    sigY = pageHeight - 18;
   } else {
-    sigY = finalY + 14;
+    sigY = pageHeight - 18;
   }
 
   doc.setFont('helvetica', 'bold');
@@ -1576,19 +1576,19 @@ export const generateOverallMarksAndAttendancePDF = async ({
     doc.text(`${typeLabel} — As on ${dateStr}`, centerX, 27, { align: 'center' });
   }
 
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   const deptLabel = `Dept: ${classObj?.department || 'IT'}`;
   const secLabel = `Section: ${classObj?.section || 'A'}`;
   const semLabel = `Semester: ${classObj?.semester || '4'}`;
   const acadLabel = `Academic Year: 2026 - 2027`;
   
-  doc.text(deptLabel, 35, 34);
-  doc.text(secLabel, 125, 34);
-  doc.text(semLabel, 215, 34);
-  doc.text(acadLabel, pageWidth - 35, 34, { align: 'right' });
+  doc.text(deptLabel, 35, 33);
+  doc.text(secLabel, 125, 33);
+  doc.text(semLabel, 215, 33);
+  doc.text(acadLabel, pageWidth - 35, 33, { align: 'right' });
 
-  let y = 39;
+  let y = 37;
 
   // Filter out library/seminar and apply selectedSubjectIds
   let targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
@@ -1826,8 +1826,9 @@ export const generateOverallMarksAndAttendancePDF = async ({
   colStyles[colIdx + 1] = { cellWidth: overAllSubColWidth, halign: 'center' };
   colStyles[colIdx + 2] = { cellWidth: overAllSubColWidth, halign: 'center', fontStyle: 'bold' };
 
-  const fontSize = numSubs >= 8 ? 6 : (numSubs >= 6 ? 6.5 : 7);
-  const cellPadding = numSubs >= 8 ? 0.7 : (numSubs >= 6 ? 1.0 : 1.2);
+  const sCount = students.length;
+  const fontSize = numSubs >= 8 ? 6 : (numSubs >= 6 ? 6.5 : (sCount > 25 ? 6.5 : 7));
+  const cellPadding = sCount > 25 ? 0.8 : (numSubs >= 8 ? 0.7 : (numSubs >= 6 ? 1.0 : 1.2));
 
   autoTable(doc, {
     startY: y,
@@ -1861,22 +1862,23 @@ export const generateOverallMarksAndAttendancePDF = async ({
   });
 
   const finalY = doc.lastAutoTable.finalY;
-  const neededHeight = 35; // Note + gap + signatures
+  const neededHeight = 22; // Note + signatures block
   let sigY;
 
-  if (finalY + neededHeight > pageHeight - 12) {
+  if (finalY + neededHeight > pageHeight - 14) {
     doc.addPage();
-    sigY = 25;
+    sigY = pageHeight - 18;
   } else {
-    sigY = finalY + 8;
+    sigY = pageHeight - 18;
   }
 
+  const noteY = sigY - 8;
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text('*** W.Hrs = Working Hours, P.Hrs = Present Hours, % = Attendance Percentage', marginLeft, sigY);
+  doc.setTextColor(30, 41, 59);
+  doc.text('*** W.Hrs = Working Hours, P.Hrs = Present Hours, % = Attendance Percentage', marginLeft, noteY);
   
   // Signatures: Class Incharge, HOD, Principal
-  sigY += 16;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
