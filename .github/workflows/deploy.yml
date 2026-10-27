@@ -66,9 +66,32 @@ jobs:
             if [ -d "/tmp/markhub_dist/server" ]; then
               echo "=== SYNCING SERVER CODE FROM SCP ===" >> "$LOG_FILE"
               mkdir -p /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
+
+              # BACKUP VPS PRODUCTION .env SO LOCAL .env NEVER OVERWRITES IT!
+              if [ -f "/var/www/markhub/server/.env" ]; then
+                cp /var/www/markhub/server/.env /tmp/vps_prod.env 2>/dev/null || true
+              fi
+
               cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
+
+              # RESTORE VPS PRODUCTION .env OR CREATE DEFAULT PRODUCTION .env IF MISSING
+              if [ -f "/tmp/vps_prod.env" ]; then
+                cp /tmp/vps_prod.env /var/www/markhub/server/.env 2>/dev/null || true
+              elif [ ! -f "/var/www/markhub/server/.env" ]; then
+                cat << 'EOF' > /var/www/markhub/server/.env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=markhub_user
+DB_PASSWORD=Nscet@123
+DB_NAME=markhub_db
+PORT=5000
+FRONTEND_URL=https://markhub.nscet.org
+EOF
+              fi
+
               if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}/server" ]; then
                 cp -rf /tmp/markhub_dist/server/* "${{ secrets.VPS_PATH }}/server/" >> "$LOG_FILE" 2>&1 || true
+                cp /var/www/markhub/server/.env "${{ secrets.VPS_PATH }}/server/.env" 2>/dev/null || true
               fi
             fi
 

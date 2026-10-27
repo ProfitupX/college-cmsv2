@@ -77,6 +77,9 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /classes error:', err);
     res.status(500).json({ error: 'Failed to delete class. Make sure it has no students or subjects assigned.' });
+  }
+});
+
 // POST /api/classes/:id/promote (Upgrade class to next year/semester)
 router.post('/:id/promote', async (req, res) => {
   const conn = await db.getConnection();
