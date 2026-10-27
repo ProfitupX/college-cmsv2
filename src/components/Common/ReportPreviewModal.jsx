@@ -361,20 +361,42 @@ export default function ReportPreviewModal({
         const sess = allSessions.find(s => s.subject_id === sub.id && s.session_label === assessmentMode);
         let attHrs = 0;
         let markVal = '-';
+        let examMarkVal = '-';
+        let actMarkVal = '-';
 
         if (sess) {
           const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
           if (attRec) {
-            attHrs = parseInt(attRec.hours_attended || 0, 10);
+            attHrs = parseInt(
+              attRec.actual_taken_hours !== undefined && attRec.actual_taken_hours !== null && attRec.actual_taken_hours !== ''
+                ? attRec.actual_taken_hours
+                : (attRec.hours_attended || attRec.attendance_days || attRec.lab_attendance || 0),
+              10
+            );
             if (attRec.internal_exam_mark !== null && attRec.internal_exam_mark !== undefined && attRec.internal_exam_mark !== '') {
-              markVal = Math.round(parseFloat(attRec.internal_exam_mark));
+              examMarkVal = Math.round(parseFloat(attRec.internal_exam_mark));
             }
           }
           const markRecs = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
           if (markRecs.length > 0) {
             let sum = 0;
             markRecs.forEach(m => sum += parseFloat(m.marks_obtained || 0));
-            markVal = Math.round(sum);
+            actMarkVal = Math.round(sum);
+          }
+
+          if (is2021) {
+            const isLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
+            const ciaMax = isLab ? 50 : 40;
+            const examMax = isLab ? 50 : 60;
+            const ciaTotal = Math.min(typeof actMarkVal === 'number' ? actMarkVal : 0, ciaMax);
+            const examConverted = typeof examMarkVal === 'number' ? Math.round((examMarkVal / 100) * examMax) : 0;
+            if (examMarkVal === '-' && actMarkVal === '-') {
+              markVal = '-';
+            } else {
+              markVal = Math.min(100, ciaTotal + examConverted);
+            }
+          } else {
+            markVal = examMarkVal;
           }
         }
 
@@ -395,7 +417,9 @@ export default function ReportPreviewModal({
           code: sub.code,
           attHrs,
           subPct,
-          markVal
+          markVal,
+          examMarkVal,
+          actMarkVal
         };
       });
 
@@ -688,12 +712,21 @@ export default function ReportPreviewModal({
                     <th style={{ width: '50px' }}>S.No</th>
                     <th style={{ width: '130px' }}>Roll No</th>
                     <th>Student Name</th>
-                    {multiSubjectRows.targetSubs.map(s => (
-                      <th key={s.id} style={{ textAlign: 'center' }}>
-                        <div>{s.code}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>Attd / Mark</div>
-                      </th>
-                    ))}
+                    {multiSubjectRows.targetSubs.map(s => {
+                      const subPrescribed = parseInt(
+                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || s.total_hours || 30,
+                        10
+                      );
+                      return (
+                        <th key={s.id} style={{ textAlign: 'center' }}>
+                          <div>{s.code}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>TH = {subPrescribed}</div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
+                            {is2021 ? 'Attd / Int Mark' : 'Attd / Int / Act'}
+                          </div>
+                        </th>
+                      );
+                    })}
                     <th style={{ width: '110px', textAlign: 'center' }}>Overall Attd %</th>
                   </tr>
                 </thead>
@@ -705,9 +738,21 @@ export default function ReportPreviewModal({
                       <td>{r.name}</td>
                       {r.subValues.map((sv, idx) => (
                         <td key={idx} style={{ textAlign: 'center' }}>
-                          <span style={{ fontWeight: 600 }}>{sv.attHrs}h</span>
-                          {' / '}
-                          <span style={{ fontWeight: 700, color: '#1d4ed8' }}>{sv.markVal}</span>
+                          {is2021 ? (
+                            <>
+                              <span style={{ fontWeight: 600 }}>{sv.attHrs}h</span>
+                              {' / '}
+                              <span style={{ fontWeight: 700, color: '#1d4ed8' }}>{sv.markVal}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontWeight: 600 }}>{sv.attHrs}h</span>
+                              {' / '}
+                              <span style={{ fontWeight: 700, color: '#1d4ed8' }}>{sv.examMarkVal}</span>
+                              {' / '}
+                              <span style={{ fontWeight: 600, color: '#047857' }}>{sv.actMarkVal}</span>
+                            </>
+                          )}
                         </td>
                       ))}
                       <td style={{ textAlign: 'center', fontWeight: 700, color: r.overallPct >= 75 ? '#059669' : '#dc2626' }}>
@@ -915,31 +960,30 @@ export default function ReportPreviewModal({
                           <>
                             <th style={{ width: '150px' }}>Lab Attended Hours</th>
                             <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
-                            <th style={{ width: '110px' }}>Result</th>
                           </>
                         ) : is2021 ? (
                           withInternal ? (
                             <>
-                              <th style={{ width: '130px' }}>Attended Class Hours</th>
-                              <th style={{ width: '120px' }}>Assignment Mark</th>
-                              <th style={{ width: '140px' }}>Internal Written Exam Mark (/ 100)</th>
-                              <th style={{ width: '130px' }}>Total Internal Marks (/ 100)</th>
-                              <th style={{ width: '95px' }}>Result</th>
+                              <th style={{ width: '140px' }}>Attended Class Hours</th>
+                              <th style={{ width: '130px' }}>Assignment Mark</th>
+                              <th style={{ width: '150px' }}>Internal Written Exam Mark (/ 100)</th>
+                              <th style={{ width: '140px' }}>Total Internal Marks (/ 100)</th>
                             </>
                           ) : (
                             <>
-                              <th style={{ width: '140px' }}>Attended Class Hours</th>
-                              <th style={{ width: '130px' }}>Activities Mark</th>
-                              <th style={{ width: '150px' }}>Internal Written Test Mark (/ 100)</th>
-                              <th style={{ width: '105px' }}>Result</th>
+                              <th style={{ width: '150px' }}>Attended Class Hours</th>
+                              <th style={{ width: '140px' }}>Activities Mark</th>
+                              <th style={{ width: '160px' }}>Internal Written Test Mark (/ 100)</th>
                             </>
                           )
                         ) : (
-                          // Default 2025 Autonomous Regulation Table
+                          // Default 2025 Autonomous Regulation Table: 8 columns (no result)
                           <>
-                            <th style={{ width: '130px' }}>Attd Mark (5)</th>
-                            <th style={{ width: '150px' }}>Activities (95)</th>
-                            <th style={{ width: '150px' }}>Total Internal Marks (100)</th>
+                            <th style={{ width: '130px' }}>Attended Class Hours</th>
+                            <th style={{ width: '100px' }}>Attd Mark (5)</th>
+                            <th style={{ width: '110px' }}>Activities (95)</th>
+                            <th style={{ width: '120px' }}>Internal Exam (/ 100)</th>
+                            <th style={{ width: '130px' }}>Total Internal Marks (100)</th>
                           </>
                         )}
                       </tr>
@@ -954,9 +998,6 @@ export default function ReportPreviewModal({
                             <>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#10b981' : '#ef4444' }}>
-                                {r.labResult}
-                              </td>
                             </>
                           ) : is2021 ? (
                             withInternal ? (
@@ -965,25 +1006,21 @@ export default function ReportPreviewModal({
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.totalInternal >= 50 ? '#10b981' : '#ef4444' }}>
-                                  {r.examMarkStr === 'AB' || r.examMarkStr === '-' ? 'AB' : (r.totalInternal >= 50 ? 'PASS' : 'FAIL')}
-                                </td>
                               </>
                             ) : (
                               <>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
-                                  {r.resultStr}
-                                </td>
                               </>
                             )
                           ) : (
                             // Default 2025 Autonomous Regulation Row
                             <>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
                             </>
                           )}

@@ -441,14 +441,16 @@ export const generateSubjectMarksListPDF = async ({
   };
 
   // Default 2025 Autonomous Regulation College Format:
-  // Attendance Mark (Max: 5), Activities / Assignment Mark (Max: 95), Total Internal Marks (Max: 100)
+  // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95), Internal Exam (Max: 100), Total Internal Marks (Max: 100)
   const headRow = [
     'S.No',
     'Roll No',
     'Student Name',
+    `Attendance\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
     'Attd Mark\n(Max: 5)',
-    'Activities\n(Assignment Mark)\n(Max: 95)',
-    'Total Internal Marks\n(Act + Attd)\n(Max: 100)'
+    'Activities Mark\n(Max: 95)',
+    'Internal Exam\n(/ 100)',
+    'Total Internal\n(Act + Attd)\n(Max: 100)'
   ];
 
   // Prepare Table Body
@@ -470,6 +472,11 @@ export const generateSubjectMarksListPDF = async ({
       ? parseFloat(attendanceMarks[student.id])
       : computedMark;
 
+    const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
+    const numExam = parseFloat(internalExamMark);
+    const isExamAbsent = isNaN(numExam) || internalExamMark === null || internalExamMark === undefined || internalExamMark === '' || internalExamMark === 'AB';
+    const internalExamMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
+
     const totalInternal = Math.min(100, convertedTotal + attendanceMark);
     const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
@@ -477,8 +484,10 @@ export const generateSubjectMarksListPDF = async ({
       idx + 1,
       student.roll_no || student.rollNo || '-',
       cleanStudentName,
+      `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
       attendanceMark,
       convertedTotal,
+      internalExamMarkStr,
       totalInternal
     ];
   });
@@ -487,18 +496,22 @@ export const generateSubjectMarksListPDF = async ({
     '',
     '',
     'MAX MARKS',
+    `${tHours > 0 ? tHours : '-'} Hrs`,
     '5',
     '95',
+    '100',
     '100'
   ];
 
   const colStyles = {
-    0: { cellWidth: 12, halign: 'center' },
-    1: { cellWidth: 28, halign: 'center' },
-    2: { cellWidth: 58, halign: 'left' },
-    3: { cellWidth: 24, halign: 'center' },
-    4: { cellWidth: 38, halign: 'center' },
-    5: { cellWidth: 30, halign: 'center' }
+    0: { cellWidth: 9, halign: 'center' },
+    1: { cellWidth: 24, halign: 'center' },
+    2: { cellWidth: 47, halign: 'left' },
+    3: { cellWidth: 22, halign: 'center' },
+    4: { cellWidth: 18, halign: 'center' },
+    5: { cellWidth: 22, halign: 'center' },
+    6: { cellWidth: 24, halign: 'center' },
+    7: { cellWidth: 24, halign: 'center' }
   };
 
   const sCount = students.length;
@@ -1192,8 +1205,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
       `Assignment Mark\n(/ ${ciaMax})`,
       'Internal Written Exam Mark\n(/ 100)',
-      'Total Internal Marks\n(/ 100)',
-      'Result\n(Pass / Fail)'
+      'Total Internal Marks\n(/ 100)'
     ];
   } else {
     // Without internal marks (real exam marks only)
@@ -1203,8 +1215,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       'Student Name',
       `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
       `Activities Mark\n(/ ${ciaMax})`,
-      'Internal Written Test Mark\n(/ 100)',
-      'Result\n(Pass / Fail)'
+      'Internal Written Test Mark\n(/ 100)'
     ];
   }
 
@@ -1251,8 +1262,6 @@ export const generateSubjectMarksListPDF2021 = async ({
 
     if (withInternal) {
       const examDisplay = isExamAbsent ? 'AB' : Math.round(numExam);
-      const isPass = !isExamAbsent && finalTotal >= 50;
-      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
 
       return [
         idx + 1,
@@ -1261,14 +1270,11 @@ export const generateSubjectMarksListPDF2021 = async ({
         attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
         ciaTotal,
         examDisplay,
-        finalTotal,
-        resultStr
+        finalTotal
       ];
     } else {
-      // Without internal: Real exam mark and pass/fail status
+      // Without internal: Real exam mark
       const examStr = isExamAbsent ? 'AB' : Math.round(numExam);
-      const isPass = !isExamAbsent && numExam >= 50;
-      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
 
       return [
         idx + 1,
@@ -1276,8 +1282,7 @@ export const generateSubjectMarksListPDF2021 = async ({
         cleanName,
         attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
         ciaTotal,
-        examStr,
-        resultStr
+        examStr
       ];
     }
   });
@@ -1287,24 +1292,22 @@ export const generateSubjectMarksListPDF2021 = async ({
   if (withInternal) {
     colStyles = {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 24, halign: 'center' },
-      2: { cellWidth: 48, halign: 'left' },
-      3: { cellWidth: 24, halign: 'center' },
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 24, halign: 'center' },
-      6: { cellWidth: 22, halign: 'center' },
-      7: { cellWidth: 18, halign: 'center' }
-    };
-  } else {
-    // 7 columns without internal (10 + 26 + 54 + 26 + 24 + 28 + 22 = 190mm)
-    colStyles = {
-      0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 26, halign: 'center' },
       2: { cellWidth: 54, halign: 'left' },
       3: { cellWidth: 26, halign: 'center' },
-      4: { cellWidth: 24, halign: 'center' },
-      5: { cellWidth: 28, halign: 'center' },
-      6: { cellWidth: 22, halign: 'center' }
+      4: { cellWidth: 22, halign: 'center' },
+      5: { cellWidth: 26, halign: 'center' },
+      6: { cellWidth: 26, halign: 'center' }
+    };
+  } else {
+    // 6 columns without internal (10 + 28 + 60 + 30 + 30 + 32 = 190mm)
+    colStyles = {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 28, halign: 'center' },
+      2: { cellWidth: 60, halign: 'left' },
+      3: { cellWidth: 30, halign: 'center' },
+      4: { cellWidth: 30, halign: 'center' },
+      5: { cellWidth: 32, halign: 'center' }
     };
   }
 
@@ -1616,20 +1619,20 @@ export const generateOverallMarksAndAttendancePDF = async ({
     } else {
       wHrs = subTotal;
     }
-    headRow1.push({ content: `${sub.code}\n(T.Hr:${wHrs})`, colSpan: colsPerSub, styles: { halign: 'center' } });
+    headRow1.push({ content: `${sub.code}\n(TH = ${wHrs})`, colSpan: colsPerSub, styles: { halign: 'center' } });
   });
   headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
 
   // Second header row: 
-  // For 2021 withInternal: strictly 2 columns (Int Marks, Attd Hrs)
-  // For 2025 withInternal: 3 columns (Int Marks, Activities, Attd Mark)
+  // For 2021 withInternal: strictly 2 columns (Attd Hrs, Int Marks)
+  // For 2025 withInternal: 3 columns (Attd Hrs, Int Marks, Activity Marks)
   const headRow2 = [];
   targetSubjects.forEach(() => {
     if (withInternal) {
       if (!is2021) {
-        headRow2.push('Int\nMarks', 'Activities', 'Attd\nMark');
+        headRow2.push('Attd\nHrs', 'Int\nMarks', 'Activity\nMarks');
       } else {
-        headRow2.push('Int\nMarks', 'Attd\nHrs');
+        headRow2.push('Attd\nHrs', 'Int\nMarks');
       }
     } else {
       // Without internal: Real exam mark
@@ -1756,16 +1759,15 @@ export const generateOverallMarksAndAttendancePDF = async ({
         if (!withInternal) {
           row.push(wHrs, Math.min(pHrs, wHrs), markStr);
         } else {
-          // 1st: Total Internal Marks, 2nd: Total Assignment/Activities Mark, 3rd: Total Attendance Mark
-          row.push(markStr, actMark > 0 ? actMark : '-', attMark);
+          // 2025: 1st Attended Hrs, 2nd Int Marks, 3rd Activity Marks (total for 95)
+          row.push(Math.min(pHrs, wHrs), markStr, actMark > 0 ? actMark : '-');
         }
       } else {
         if (!withInternal) {
           row.push(wHrs, Math.min(pHrs, wHrs), markStr);
         } else {
-          // 2021 Regulation withInternal: Only 2 columns
-          // 1st: Total Internal Marks (written exam mark + assignment marks), 2nd: Attended Hours
-          row.push(markStr, Math.min(pHrs, wHrs));
+          // 2021: 1st Attended Hours, 2nd Int Marks (written exam mark + assignment marks)
+          row.push(Math.min(pHrs, wHrs), markStr);
         }
       }
     });
