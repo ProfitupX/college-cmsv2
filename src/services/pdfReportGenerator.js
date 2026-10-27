@@ -446,11 +446,11 @@ export const generateSubjectMarksListPDF = async ({
     'S.No',
     'Roll No',
     'Student Name',
-    'Attendance\n(Attd Hrs)',
+    'Attended\nHrs',
     'Attd Mark\n(Max: 5)',
     'Activities Mark\n(Max: 95)',
-    'Internal Exam\n(/ 100)',
-    'Total Internal\n(Act + Attd)\n(Max: 100)'
+    'Internal\nMark',
+    'Activities Mark\nTotal'
   ];
 
   // Prepare Table Body

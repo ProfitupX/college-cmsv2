@@ -339,9 +339,9 @@ export const exportSubjectMarksExcel = async ({
   if (!is2021) {
     // 2025 Autonomous Regulation headers
     headers = [
-      'S.No', 'Roll No', 'Student Name', 'Attended Class Hours',
+      'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
       'Attd Mark (Max: 5)', 'Activities Mark (Max: 95)',
-      'Internal Exam Mark (/ 100)', 'Total Internal Marks (/ 100)'
+      'Internal Mark', 'Activities Mark Total'
     ];
   } else if (withInternal) {
     headers = [

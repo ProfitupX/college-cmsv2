@@ -979,11 +979,11 @@ export default function ReportPreviewModal({
                         ) : (
                           // Default 2025 Autonomous Regulation Table: 8 columns (no result)
                           <>
-                            <th style={{ width: '130px' }}>Attended Class Hours</th>
+                            <th style={{ width: '130px' }}>Attended Hrs</th>
                             <th style={{ width: '100px' }}>Attd Mark (5)</th>
                             <th style={{ width: '110px' }}>Activities (95)</th>
-                            <th style={{ width: '120px' }}>Internal Exam (/ 100)</th>
-                            <th style={{ width: '130px' }}>Total Internal Marks (100)</th>
+                            <th style={{ width: '120px' }}>Internal Mark</th>
+                            <th style={{ width: '130px' }}>Activities Mark Total</th>
                           </>
                         )}
                       </tr>
