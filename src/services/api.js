@@ -70,6 +70,7 @@ export const classesAPI = {
   create: (data) => post('/classes', data),
   update: (id, data)=> put(`/classes/${id}`, data),
   delete: (id)   => remove(`/classes/${id}`),
+  promote: (id, data) => post(`/classes/${id}/promote`, data),
 };
 
 // ─────────────────────────────────────────

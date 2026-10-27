@@ -77,6 +77,65 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /classes error:', err);
     res.status(500).json({ error: 'Failed to delete class. Make sure it has no students or subjects assigned.' });
+// POST /api/classes/:id/promote (Upgrade class to next year/semester)
+router.post('/:id/promote', async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const { id } = req.params;
+    const { newName, newSemester, newYearLabel, mode, newClassId } = req.body;
+
+    const [rows] = await conn.execute('SELECT * FROM classes WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Class not found.' });
+    const currentClass = rows[0];
+
+    await conn.beginTransaction();
+
+    if (mode === 'new_class') {
+      const targetId = newClassId || `CL_${Math.floor(Date.now() / 1000)}`;
+      await conn.execute(
+        `INSERT INTO classes (id, name, department, semester, year_label, section, room_no, academic_year, batch, class_coordinator, asst_coordinator)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          targetId,
+          newName || currentClass.name,
+          currentClass.department,
+          newSemester || currentClass.semester,
+          newYearLabel || currentClass.year_label,
+          currentClass.section,
+          currentClass.room_no,
+          currentClass.academic_year,
+          currentClass.batch,
+          currentClass.class_coordinator,
+          currentClass.asst_coordinator
+        ]
+      );
+
+      // Move students to new class
+      const [updateResult] = await conn.execute(
+        'UPDATE students SET class_id = ? WHERE class_id = ?',
+        [targetId, id]
+      );
+
+      await conn.commit();
+      return res.json({ 
+        success: true, 
+        message: `Created class ${targetId} and moved ${updateResult.affectedRows} students.` 
+      });
+    } else {
+      // In-place upgrade
+      await conn.execute(
+        `UPDATE classes SET name = ?, semester = ?, year_label = ? WHERE id = ?`,
+        [newName || currentClass.name, newSemester || currentClass.semester, newYearLabel || currentClass.year_label, id]
+      );
+      await conn.commit();
+      return res.json({ success: true, message: 'Class promoted successfully in-place!' });
+    }
+  } catch (err) {
+    await conn.rollback();
+    console.error('POST /classes/:id/promote error:', err);
+    res.status(500).json({ error: err.message || 'Failed to promote class.' });
+  } finally {
+    conn.release();
   }
 });
 
