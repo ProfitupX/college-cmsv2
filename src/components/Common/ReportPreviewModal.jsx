@@ -60,9 +60,16 @@ export default function ReportPreviewModal({
     return 0;
   };
 
+  const isSubjectMarksReport = (
+    reportType === 'subject_marks' ||
+    reportType?.startsWith('subject_marks_') ||
+    reportType === 'lab_marks_only' ||
+    isLabOnly
+  );
+
   // 1. Single Subject Marks Rows
   const previewRows = useMemo(() => {
-    if (reportType !== 'subject_marks' && !isLabOnly) return [];
+    if (!isSubjectMarksReport) return [];
     return students.map((student, idx) => {
       let convertedTotal = 0;
       (components || []).forEach(c => {
@@ -80,15 +87,30 @@ export default function ReportPreviewModal({
 
       const examMark = internalExamData ? internalExamData[student.id] : undefined;
       const numExam = parseFloat(examMark);
-      const examMarkStr = (!isNaN(numExam) && examMark !== null && examMark !== undefined && examMark !== '')
-        ? Math.round(numExam)
-        : '-';
+      const isExamAbsent = isNaN(numExam) || examMark === null || examMark === undefined || examMark === '' || examMark === 'AB';
+      const examMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
       const labRaw = parseFloat(labData[student.id]?.labMark) || 0;
       const labConverted = Math.round((labRaw / 100) * 50);
 
-      const totalInternal = Math.min(100, convertedTotal + attendanceMark);
-      const isPass = examMarkStr !== '-' && parseInt(examMarkStr, 10) >= 50;
+      // Regulation specific total calculation:
+      let totalInternal;
+      if (regulation === '2021') {
+        const ciaMax = hasLab ? 50 : 40;
+        const examConvertedMax = hasLab ? 50 : 60;
+        const ciaTotal2021 = Math.min(convertedTotal, ciaMax);
+        const examConverted2021 = isExamAbsent ? 0 : Math.round((numExam / 100) * examConvertedMax);
+        if (isInternal2 && hasLab) {
+          totalInternal = Math.min(100, ciaTotal2021 + labConverted);
+        } else {
+          totalInternal = Math.min(100, ciaTotal2021 + examConverted2021);
+        }
+      } else {
+        totalInternal = Math.min(100, convertedTotal + attendanceMark);
+      }
+
+      const isPass = !isExamAbsent && (withInternal ? totalInternal >= 50 : numExam >= 50);
+      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
 
       let attendedLabHours = 0;
       if (labData[student.id]?.labAttendance !== undefined && labData[student.id]?.labAttendance !== null && labData[student.id]?.labAttendance !== '') {
@@ -120,13 +142,13 @@ export default function ReportPreviewModal({
         labConverted,
         totalInternal,
         examMarkStr,
-        resultStr: examMarkStr === '-' ? 'AB' : (isPass ? 'PASS' : 'FAIL'),
+        resultStr,
         attendedLabHours,
         labMarkStr,
         labResult
       };
     });
-  }, [students, marksData, attendanceData, attendanceMarks, internalExamData, labData, components, tHours, reportType, isLabOnly]);
+  }, [students, marksData, attendanceData, attendanceMarks, internalExamData, labData, components, tHours, reportType, isLabOnly, withInternal, regulation]);
 
   // Dynamic pagination sections based on PDF Layout Format selection (1, 2, 3, 4 pages, or Auto)
   const paginatedSections = useMemo(() => {
@@ -486,7 +508,7 @@ export default function ReportPreviewModal({
           <div className={styles.metaBadge}>
             <strong>Assessment:</strong> {assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'}
           </div>
-          {reportType === 'subject_marks' && (
+          {isSubjectMarksReport && !isLabOnly && (
             <>
               <div className={styles.metaBadge}>
                 <strong>Mode:</strong> {withInternal ? 'With Assignment Marks' : 'Without Assignment Marks'}
@@ -530,7 +552,7 @@ export default function ReportPreviewModal({
             </span>
           </div>
 
-          {regulation === '2021' && isInternal2 && hasLab && withInternal && reportType === 'subject_marks' && (
+          {regulation === '2021' && isInternal2 && hasLab && withInternal && isSubjectMarksReport && (
             <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#1e40af' }}>Theory-cum-Lab:</span>
@@ -844,7 +866,7 @@ export default function ReportPreviewModal({
           )}
 
           {/* VIEW F: Single Subject Marks & Lab Only with Real-time PDF Page Layout Preview */}
-          {(reportType === 'subject_marks' || isLabOnly) && (
+          {isSubjectMarksReport && (
             paginatedSections.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
                 No student records found to display.
@@ -885,31 +907,29 @@ export default function ReportPreviewModal({
                   <table className={styles.table} style={{ margin: 0, border: 'none' }}>
                     <thead>
                       <tr>
-                        <th style={{ width: '50px' }}>S.No</th>
-                        <th style={{ width: '130px' }}>Roll No</th>
+                        <th style={{ width: '45px' }}>S.No</th>
+                        <th style={{ width: '120px' }}>Roll No</th>
                         <th>Student Name</th>
                         {isLabOnly ? (
                           <>
                             <th style={{ width: '150px' }}>Lab Attended Hours</th>
                             <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
-                            <th style={{ width: '120px' }}>Result</th>
+                            <th style={{ width: '110px' }}>Result</th>
                           </>
                         ) : withInternal ? (
                           <>
-                            <th style={{ width: '110px' }}>Attd Mark (5)</th>
-                            <th style={{ width: '130px' }}>Activities (95)</th>
-                            {hasLab && (
-                              <th style={{ width: '120px' }}>Lab Mark (50)</th>
-                            )}
-                            {showWrittenExamInPdf && (
-                              <th style={{ width: '120px' }}>Written Exam</th>
-                            )}
-                            <th style={{ width: '140px' }}>Total Internal (100)</th>
+                            <th style={{ width: '130px' }}>Attended Class Hours</th>
+                            <th style={{ width: '120px' }}>Assignment Mark</th>
+                            <th style={{ width: '140px' }}>Internal Written Exam Mark (/ 100)</th>
+                            <th style={{ width: '130px' }}>Total Internal Marks (/ 100)</th>
+                            <th style={{ width: '95px' }}>Result</th>
                           </>
                         ) : (
                           <>
-                            <th style={{ width: '130px' }}>Exam Mark (100)</th>
-                            <th style={{ width: '110px' }}>Result</th>
+                            <th style={{ width: '140px' }}>Attended Class Hours</th>
+                            <th style={{ width: '130px' }}>Activities Mark</th>
+                            <th style={{ width: '150px' }}>Internal Written Test Mark (/ 100)</th>
+                            <th style={{ width: '105px' }}>Result</th>
                           </>
                         )}
                       </tr>
@@ -930,18 +950,18 @@ export default function ReportPreviewModal({
                             </>
                           ) : withInternal ? (
                             <>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
-                              <td style={{ textAlign: 'center' }}>{r.convertedTotal}</td>
-                              {hasLab && (
-                                <td style={{ textAlign: 'center', color: '#0e7490', fontWeight: 600 }}>{r.labConverted}</td>
-                              )}
-                              {showWrittenExamInPdf && (
-                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                              )}
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.totalInternal >= 50 ? '#10b981' : '#ef4444' }}>
+                                {r.examMarkStr === 'AB' || r.examMarkStr === '-' ? 'AB' : (r.totalInternal >= 50 ? 'PASS' : 'FAIL')}
+                              </td>
                             </>
                           ) : (
                             <>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
                                 {r.resultStr}

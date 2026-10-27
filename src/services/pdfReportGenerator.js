@@ -442,23 +442,23 @@ export const generateSubjectMarksListPDF = async ({
     return 0; // Below 80% is 0 mark
   };
 
-  // Prepare Table Headers based on withInternal (With Assignment Marks)
-  // Per official college format: exactly Attendance Mark, Activities (Assignment), and Total Internal Marks
+  // Prepare Table Headers based on withInternal
   const headRow = withInternal ? [
     'S.No',
     'Roll No',
     'Student Name',
-    'Attd Mark\n(Max: 5)',
-    'Activities\n(Assignment Mark)\n(Max: 95)',
-    'Total Internal Marks\n(Act + Attd)\n(Max: 100)'
+    `Attended Class Hours\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
+    'Assignment Mark',
+    'Internal Written Exam Mark\n(/ 100)',
+    'Total Internal Marks\n(/ 100)',
+    'Result\n(Pass / Fail)'
   ] : [
     'S.No',
     'Roll No',
     'Student Name',
-    'Actual Attd\n(Hrs)',
-    `Attended\n(/ ${tHours > 0 ? tHours : 30})`,
-    'Attd\n%',
-    'Written Exam Mark\n(/ 100)',
+    `Attended Class Hours\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
+    'Activities Mark',
+    'Internal Written Test Mark\n(/ 100)',
     'Result\n(Pass / Fail)'
   ];
 
@@ -474,48 +474,45 @@ export const generateSubjectMarksListPDF = async ({
     convertedTotal = Math.round(convertedTotal);
 
     // 2. Attendance & Converted Mark
-    let rawHours = 0;
-    let convertedHours = 0;
-    let pct = 0;
-    let attendanceMark = 0;
-
-    rawHours = parseInt(attendanceData[student.id] || 0, 10);
-    pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-    convertedHours = rawHours;
+    let rawHours = parseInt(attendanceData[student.id] || 0, 10);
+    let pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
     const computedMark = getAttendanceMark(pct);
-    attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
+    let attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
       ? parseFloat(attendanceMarks[student.id])
       : computedMark;
 
     const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
     const numExam = parseFloat(internalExamMark);
-    const internalExamMarkStr = (!isNaN(numExam) && internalExamMark !== null && internalExamMark !== undefined && internalExamMark !== '') 
-      ? Math.round(numExam) 
-      : '-';
+    const isExamAbsent = isNaN(numExam) || internalExamMark === null || internalExamMark === undefined || internalExamMark === '' || internalExamMark === 'AB';
+    const internalExamMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
     const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     if (withInternal) {
       const totalInternal = Math.min(100, convertedTotal + attendanceMark);
+      const isPass = !isExamAbsent && totalInternal >= 50;
+      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
       return [
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanStudentName,
-        attendanceMark,
+        `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
         convertedTotal,
-        totalInternal
+        internalExamMarkStr,
+        totalInternal,
+        resultStr
       ];
     } else {
       // Without internal: Real exam mark and pass/fail status
-      const resultStr = internalExamMarkStr === '-' ? 'AB' : (parseInt(internalExamMarkStr, 10) >= 50 ? 'PASS' : 'FAIL');
+      const isPass = !isExamAbsent && numExam >= 50;
+      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
       return [
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanStudentName,
-        rawHours,
-        `${convertedHours} / ${tHours > 0 ? tHours : '—'}`,
-        `${pct}%`,
-        internalExamMarkStr === '-' ? 'AB' : internalExamMarkStr,
+        `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
+        convertedTotal,
+        internalExamMarkStr,
         resultStr
       ];
     }
@@ -525,36 +522,38 @@ export const generateSubjectMarksListPDF = async ({
     '',
     '',
     'MAX MARKS',
-    '5',
+    `${tHours > 0 ? tHours : '-'} Hrs`,
     '95',
-    '100'
+    '100',
+    '100',
+    '>= 50% PASS'
   ] : [
     '',
     '',
     'MAX MARKS / CRITERIA',
-    tHours > 0 ? `${tHours} Hrs` : '-',
     `${tHours > 0 ? tHours : '-'} Hrs`,
-    '100%',
     '100',
-    '>= 50% Pass'
+    '100',
+    '>= 50% PASS'
   ];
 
   const colStyles = withInternal ? {
-    0: { cellWidth: 12, halign: 'center' },
-    1: { cellWidth: 28, halign: 'center' },
-    2: { cellWidth: 58, halign: 'left' },
+    0: { cellWidth: 10, halign: 'center' },
+    1: { cellWidth: 24, halign: 'center' },
+    2: { cellWidth: 48, halign: 'left' },
     3: { cellWidth: 24, halign: 'center' },
-    4: { cellWidth: 38, halign: 'center' },
-    5: { cellWidth: 30, halign: 'center' }
+    4: { cellWidth: 20, halign: 'center' },
+    5: { cellWidth: 24, halign: 'center' },
+    6: { cellWidth: 22, halign: 'center' },
+    7: { cellWidth: 18, halign: 'center' }
   } : {
     0: { cellWidth: 10, halign: 'center' },
     1: { cellWidth: 26, halign: 'center' },
-    2: { cellWidth: 50, halign: 'left' },
-    3: { cellWidth: 18, halign: 'center' },
-    4: { cellWidth: 22, halign: 'center' },
-    5: { cellWidth: 16, halign: 'center' },
-    6: { cellWidth: 28, halign: 'center' },
-    7: { cellWidth: 20, halign: 'center' }
+    2: { cellWidth: 54, halign: 'left' },
+    3: { cellWidth: 26, halign: 'center' },
+    4: { cellWidth: 24, halign: 'center' },
+    5: { cellWidth: 28, halign: 'center' },
+    6: { cellWidth: 22, halign: 'center' }
   };
 
   const sCount = students.length;
@@ -1245,40 +1244,21 @@ export const generateSubjectMarksListPDF2021 = async ({
       'S.No',
       'Roll No',
       'Student Name',
-      'Attendance\n(Attended Hrs)',
-      hasLab ? `Assignment Marks\n(/${ciaMax})` : `Internal Marks\n(/${ciaMax})`
+      `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
+      `Assignment Mark\n(/ ${ciaMax})`,
+      'Internal Written Exam Mark\n(/ 100)',
+      'Total Internal Marks\n(/ 100)',
+      'Result\n(Pass / Fail)'
     ];
-
-    if (isInternal2 && hasLab) {
-      if (theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf) {
-        headRow.push(
-          'Lab Exam\n(/100)',
-          'Lab Converted\n(/50)',
-          'Total CIA\n(/100)'
-        );
-      } else {
-        headRow.push(
-          'Internal Exam\n(/100)',
-          'Lab Exam\n(/100)',
-          'Lab Converted\n(/50)',
-          'Total CIA\n(/100)'
-        );
-      }
-    } else {
-      headRow.push(
-        `Internal Exam\n(/100)`,
-        `Converted\n(/${examConvertedMax})`,
-        'CIA Mark\n(/100)'
-      );
-    }
   } else {
     // Without internal marks (real exam marks only)
     headRow = [
       'S.No',
       'Roll No',
       'Student Name',
-      'Attendance\n(Attended Hrs)',
-      'Written Exam Mark\n(/100)',
+      `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
+      `Activities Mark\n(/ ${ciaMax})`,
+      'Internal Written Test Mark\n(/ 100)',
       'Result\n(Pass / Fail)'
     ];
   }
@@ -1291,77 +1271,66 @@ export const generateSubjectMarksListPDF2021 = async ({
       attdDisplay = String(attdVal);
     }
 
-    if (withInternal) {
-      // Sum CIA components, cap at ciaMax
-      let rawCIA = 0;
-      (components || []).forEach(c => {
-        const val = parseFloat(marksData[student.id]?.[c.uid || c.id]) || 0;
-        const conducted = parseFloat(c.conductedMax || c.conducted_max) || 100;
-        rawCIA += Math.min(val, conducted);
-      });
-      const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+    // Sum CIA components, cap at ciaMax
+    let rawCIA = 0;
+    (components || []).forEach(c => {
+      const val = parseFloat(marksData[student.id]?.[c.uid || c.id]) || 0;
+      const conducted = parseFloat(c.conductedMax || c.conducted_max) || 100;
+      rawCIA += Math.min(val, conducted);
+    });
+    const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
 
-      // Internal exam
-      const examRaw = parseFloat(internalExamData[student.id]) || 0;
-      const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+    // Internal exam
+    const examRawVal = internalExamData ? internalExamData[student.id] : undefined;
+    const numExam = parseFloat(examRawVal);
+    const isExamAbsent = isNaN(numExam) || examRawVal === null || examRawVal === undefined || examRawVal === '' || examRawVal === 'AB';
+    const examConverted = isExamAbsent ? 0 : Math.round((numExam / 100) * examConvertedMax);
 
-      // Lab exam (Int2 Lab-cum-Theory only)
-      const labExamRaw = parseFloat(labData?.[student.id]?.labMark) || 0;
-      const labExamConverted = Math.round((labExamRaw / 100) * 50);
+    // Lab exam (Int2 Lab-cum-Theory only)
+    const labExamRaw = parseFloat(labData?.[student.id]?.labMark) || 0;
+    const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
-      // Final total
-      let finalTotal;
-      if (isInternal2 && hasLab) {
+    // Final total
+    let finalTotal;
+    if (isInternal2 && hasLab) {
+      if (theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf) {
         finalTotal = Math.min(ciaTotal + labExamConverted, 100);
       } else {
-        finalTotal = Math.min(ciaTotal + examConverted, 100);
+        finalTotal = Math.min(ciaTotal + labExamConverted, 100);
       }
-
-      const row = [
-        idx + 1,
-        student.roll_no || student.rollNo || '-',
-        student.name,
-        attdDisplay,
-        ciaTotal === 0 ? '-' : ciaTotal,
-      ];
-
-      if (isInternal2 && hasLab) {
-        if (theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf) {
-          row.push(
-            labExamRaw === 0 ? '-' : Math.round(labExamRaw),
-            labExamConverted === 0 ? '-' : labExamConverted,
-            finalTotal === 0 ? '-' : finalTotal
-          );
-        } else {
-          row.push(
-            examRaw === 0 ? '-' : Math.round(examRaw),
-            labExamRaw === 0 ? '-' : Math.round(labExamRaw),
-            labExamConverted === 0 ? '-' : labExamConverted,
-            finalTotal === 0 ? '-' : finalTotal
-          );
-        }
-      } else {
-        row.push(
-          examRaw === 0 ? '-' : Math.round(examRaw),
-          examConverted === 0 ? '-' : examConverted,
-          finalTotal === 0 ? '-' : finalTotal
-        );
-      }
-
-      return row;
     } else {
-      // Without internal: Real exam mark and pass/fail status
-      const examRaw = parseFloat(internalExamData ? internalExamData[student.id] : undefined);
-      const examStr = (!isNaN(examRaw) && internalExamData && internalExamData[student.id] !== undefined && internalExamData[student.id] !== '')
-        ? Math.round(examRaw)
-        : 'AB';
-      const resultStr = examStr === 'AB' ? 'AB' : (parseInt(examStr, 10) >= 50 ? 'PASS' : 'FAIL');
+      finalTotal = Math.min(ciaTotal + examConverted, 100);
+    }
+
+    const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
+
+    if (withInternal) {
+      const examDisplay = isExamAbsent ? 'AB' : Math.round(numExam);
+      const isPass = !isExamAbsent && finalTotal >= 50;
+      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
 
       return [
         idx + 1,
         student.roll_no || student.rollNo || '-',
-        student.name,
-        attdDisplay,
+        cleanName,
+        attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
+        ciaTotal,
+        examDisplay,
+        finalTotal,
+        resultStr
+      ];
+    } else {
+      // Without internal: Real exam mark and pass/fail status
+      const examStr = isExamAbsent ? 'AB' : Math.round(numExam);
+      const isPass = !isExamAbsent && numExam >= 50;
+      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
+
+      return [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
+        ciaTotal,
         examStr,
         resultStr
       ];
@@ -1369,43 +1338,28 @@ export const generateSubjectMarksListPDF2021 = async ({
   });
 
   // Column widths (exact 190mm usable width)
-  const numCols = headRow.length;
   let colStyles = {};
   if (withInternal) {
-    if (numCols === 9) {
-      colStyles = {
-        0: { cellWidth: 9, halign: 'center' },
-        1: { cellWidth: 24, halign: 'center' },
-        2: { cellWidth: 43, halign: 'left' },
-        3: { cellWidth: 16, halign: 'center' },
-        4: { cellWidth: 18, halign: 'center' },
-        5: { cellWidth: 20, halign: 'center' },
-        6: { cellWidth: 20, halign: 'center' },
-        7: { cellWidth: 20, halign: 'center' },
-        8: { cellWidth: 20, halign: 'center' },
-      };
-    } else {
-      // 8 columns (9 + 26 + 47 + 18 + 20 + 22 + 24 + 24 = 190mm)
-      colStyles = {
-        0: { cellWidth: 9, halign: 'center' },
-        1: { cellWidth: 26, halign: 'center' },
-        2: { cellWidth: 47, halign: 'left' },
-        3: { cellWidth: 18, halign: 'center' },
-        4: { cellWidth: 20, halign: 'center' },
-        5: { cellWidth: 22, halign: 'center' },
-        6: { cellWidth: 24, halign: 'center' },
-        7: { cellWidth: 24, halign: 'center' },
-      };
-    }
+    colStyles = {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 48, halign: 'left' },
+      3: { cellWidth: 24, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 24, halign: 'center' },
+      6: { cellWidth: 22, halign: 'center' },
+      7: { cellWidth: 18, halign: 'center' }
+    };
   } else {
-    // 6 columns without internal (10 + 26 + 56 + 22 + 46 + 30 = 190mm)
+    // 7 columns without internal (10 + 26 + 54 + 26 + 24 + 28 + 22 = 190mm)
     colStyles = {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 26, halign: 'center' },
-      2: { cellWidth: 56, halign: 'left' },
-      3: { cellWidth: 22, halign: 'center' },
-      4: { cellWidth: 46, halign: 'center' },
-      5: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 54, halign: 'left' },
+      3: { cellWidth: 26, halign: 'center' },
+      4: { cellWidth: 24, halign: 'center' },
+      5: { cellWidth: 28, halign: 'center' },
+      6: { cellWidth: 22, halign: 'center' }
     };
   }
 
