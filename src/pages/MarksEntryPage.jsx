@@ -53,7 +53,7 @@ export default function MarksEntryPage() {
   const [saveErr, setSaveErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [isComponentsDirty, setIsComponentsDirty] = useState(false);
-  const [reportType, setReportType] = useState('subject_analysis');
+  const [reportType, setReportType] = useState('subject_marks');
   const [int1AttendanceData, setInt1AttendanceData] = useState({});
 
   // Lock / Unlock Request State
@@ -671,8 +671,8 @@ export default function MarksEntryPage() {
         return;
       }
 
-      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
-        const withInternal = reportType === 'examcell_legal_with_internal';
+      if (reportType === 'examcell_legal' || reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+        const withInternal = true;
         const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
         const { generateOverallMarksAndAttendancePDF } = await import('../services/pdfReportGenerator');
         await generateOverallMarksAndAttendancePDF({
@@ -726,7 +726,7 @@ export default function MarksEntryPage() {
         return;
       }
 
-      const withInternal = reportType !== 'subject_marks_without_internal';
+      const withInternal = true;
       const { generateSubjectMarksListPDF } = await import('../services/pdfReportGenerator');
       await generateSubjectMarksListPDF({
         subject: selectedSubject,
@@ -827,8 +827,8 @@ export default function MarksEntryPage() {
         return;
       }
 
-      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
-        const withInternal = reportType === 'examcell_legal_with_internal';
+      if (reportType === 'examcell_legal' || reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
+        const withInternal = true;
         const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
         await exportOverallMarksExcel({
           classObj: selectedClass,
@@ -845,7 +845,7 @@ export default function MarksEntryPage() {
         return;
       }
 
-      const withInternal = reportType !== 'subject_marks_without_internal';
+      const withInternal = true;
       await exportSubjectMarksExcel({
         subject: selectedSubject,
         classObj: selectedClass,
@@ -1206,8 +1206,7 @@ export default function MarksEntryPage() {
                   </>
                 ) : (
                   <>
-                    <option value="subject_marks_with_internal">Subject Marks List (With Assignment Marks)</option>
-                    <option value="subject_marks_without_internal">Subject Marks List (Without Assignment Marks)</option>
+                    <option value="subject_marks">Subject Marks Statement (NAC/TLP-07a.20)</option>
                     {['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory'].includes(selectedSubject?.type) && (
                       <option value="lab_marks_only">🔬 Laboratory Marks Statement (Lab Marks &amp; Attended Hrs Only)</option>
                     )}
@@ -1216,8 +1215,7 @@ export default function MarksEntryPage() {
                       <>
                         <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
                         <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
-                        <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Assignment Marks)</option>
-                        <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Assignment Marks)</option>
+                        <option value="examcell_legal">ExamCell Legal Statement</option>
                       </>
                     )}
                   </>
@@ -1314,12 +1312,12 @@ export default function MarksEntryPage() {
         }}
         title={reportType === 'lab_marks_only'
           ? `Laboratory Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
-          : `Report Preview — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
+          : `Subject Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
         subject={selectedSubject}
         classObj={selectedClass}
         staff={{ name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' }}
         assessmentMode={assessmentMode}
-        withInternal={reportType !== 'subject_marks_without_internal'}
+        withInternal={true}
         students={students}
         marksData={marksData}
         attendanceData={attendanceData}

@@ -192,16 +192,17 @@ export const exportSubjectMarksExcel = async ({
   };
 
   const modeLabel = assessmentMode === 'internal1' ? 'INTERNAL ASSESSMENT 1' : 'INTERNAL ASSESSMENT 2';
+  const is2021 = classObj?.regulation === '2021' || subject?.regulation === '2021' || (assessmentMode && String(assessmentMode).includes('2021'));
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
-  const numCols = withInternal ? 8 : 7;
+  const numCols = is2021 ? (withInternal ? 8 : 7) : 6;
 
   // Draw Official College Header (Rows 1-5 + Spacer Row 6)
   await drawExcelCollegeHeader({
     workbook,
     worksheet,
-    title: `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})`,
+    title: is2021 ? `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})` : `${modeLabel} — SUBJECT MARKS LIST`,
     formatNo: 'NAC/TLP-07a.20',
     numCols
   });
@@ -232,7 +233,38 @@ export const exportSubjectMarksExcel = async ({
     const rowNum = 7 + i;
     worksheet.getRow(rowNum).height = 20;
 
-    if (withInternal) {
+    if (!is2021) {
+      // 6 columns total for 2025: col 1 = label1, cols 2-3 = val1, col 4 = label2, cols 5-6 = val2
+      const l1 = worksheet.getCell(rowNum, 1);
+      l1.value = item.label1;
+      l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      worksheet.mergeCells(rowNum, 2, rowNum, 3);
+      const v1 = worksheet.getCell(rowNum, 2);
+      v1.value = item.val1;
+      v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      const l2 = worksheet.getCell(rowNum, 4);
+      l2.value = item.label2;
+      l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      worksheet.mergeCells(rowNum, 5, rowNum, 6);
+      const v2 = worksheet.getCell(rowNum, 5);
+      v2.value = item.val2;
+      v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      for (let c = 1; c <= 6; c++) {
+        applyThinBorders(worksheet.getCell(rowNum, c));
+      }
+    } else if (withInternal) {
       // 8 columns total: col 1-2 = label1, cols 3-4 = val1, col 5-6 = label2, cols 7-8 = val2
       worksheet.mergeCells(rowNum, 1, rowNum, 2);
       const l1 = worksheet.getCell(rowNum, 1);
@@ -304,7 +336,13 @@ export const exportSubjectMarksExcel = async ({
 
   // Table Column Headers (Row 11)
   let headers = [];
-  if (withInternal) {
+  if (!is2021) {
+    // 2025 Autonomous Regulation default headers
+    headers = [
+      'S.No', 'Roll No', 'Student Name',
+      'Attd Mark (Max: 5)', 'Activities / Assignment Marks (Max: 95)', 'Total Internal Marks (Max: 100)'
+    ];
+  } else if (withInternal) {
     headers = [
       'S.No', 'Roll No', 'Student Name', 'Attended Class Hours',
       'Assignment Mark', 'Internal Written Exam Mark (/ 100)',
@@ -351,7 +389,7 @@ export const exportSubjectMarksExcel = async ({
     const examMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
     let totalInternal;
-    if (classObj?.regulation === '2021' || subject?.regulation === '2021') {
+    if (is2021) {
       const ciaMax = hasLab ? 50 : 40;
       const examConvertedMax = hasLab ? 50 : 60;
       const ciaTotal2021 = Math.min(convertedTotal, ciaMax);
@@ -364,7 +402,17 @@ export const exportSubjectMarksExcel = async ({
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     let rowValues = [];
-    if (withInternal) {
+    if (!is2021) {
+      // 2025 default statement
+      rowValues = [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        attendanceMark,
+        convertedTotal,
+        totalInternal
+      ];
+    } else if (withInternal) {
       const isPass = !isExamAbsent && totalInternal >= 50;
       const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
       rowValues = [
@@ -409,13 +457,15 @@ export const exportSubjectMarksExcel = async ({
         cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
 
-      // Highlight Pass/Fail
-      const resultCol = withInternal ? 8 : 7;
-      if (colNumber === resultCol) {
-        if (cell.value === 'PASS') {
-          cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
-        } else if (cell.value === 'FAIL') {
-          cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '991B1B' } };
+      // Highlight Pass/Fail for 2021
+      if (is2021) {
+        const resultCol = withInternal ? 8 : 7;
+        if (colNumber === resultCol) {
+          if (cell.value === 'PASS') {
+            cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
+          } else if (cell.value === 'FAIL') {
+            cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '991B1B' } };
+          }
         }
       }
     });
@@ -425,7 +475,9 @@ export const exportSubjectMarksExcel = async ({
 
   // Criteria Row
   const criteriaRow = worksheet.getRow(currentRow);
-  if (withInternal) {
+  if (!is2021) {
+    criteriaRow.values = ['', '', 'MAX MARKS', 5, 95, 100];
+  } else if (withInternal) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 95, 100, 100, '>= 50% PASS'];
   } else {
     criteriaRow.values = ['', '', 'MAX MARKS / CRITERIA', `${tHours} Hrs`, 100, 100, '>= 50% PASS'];
@@ -441,7 +493,7 @@ export const exportSubjectMarksExcel = async ({
 
   // Signatures
   const sigRow = worksheet.getRow(currentRow);
-  sigRow.values = withInternal 
+  sigRow.values = is2021 && withInternal
     ? ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', '', 'PRINCIPAL']
     : ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', 'PRINCIPAL'];
   sigRow.height = 24;
@@ -453,7 +505,7 @@ export const exportSubjectMarksExcel = async ({
   // Print & Page Setup (Ensures table fits A4 width perfectly without clipping)
   worksheet.pageSetup = {
     paperSize: 9, // A4
-    orientation: withInternal ? 'landscape' : 'landscape',
+    orientation: is2021 ? 'landscape' : 'portrait',
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,
@@ -463,7 +515,16 @@ export const exportSubjectMarksExcel = async ({
   };
 
   // Column Widths with ample space
-  if (withInternal) {
+  if (!is2021) {
+    worksheet.columns = [
+      { width: 7 },   // S.No
+      { width: 18 },  // Roll No
+      { width: 34 },  // Student Name
+      { width: 18 },  // Attd Mark (Max: 5)
+      { width: 34 },  // Activities / Assignment Marks (Max: 95)
+      { width: 26 }   // Total Internal (Max: 100)
+    ];
+  } else if (withInternal) {
     worksheet.columns = [
       { width: 7 },   // S.No
       { width: 18 },  // Roll No

@@ -41,6 +41,7 @@ export default function ReportPreviewModal({
 }) {
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+  const is2021 = regulation === '2021' || classObj?.regulation === '2021' || reportType?.endsWith('_2021');
 
   // 2021 Regulation Theory-cum-Lab in Internal 2 options
   const [theoryCumLabMode, setTheoryCumLabMode] = useState('assignment_lab_only');
@@ -916,20 +917,29 @@ export default function ReportPreviewModal({
                             <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
                             <th style={{ width: '110px' }}>Result</th>
                           </>
-                        ) : withInternal ? (
-                          <>
-                            <th style={{ width: '130px' }}>Attended Class Hours</th>
-                            <th style={{ width: '120px' }}>Assignment Mark</th>
-                            <th style={{ width: '140px' }}>Internal Written Exam Mark (/ 100)</th>
-                            <th style={{ width: '130px' }}>Total Internal Marks (/ 100)</th>
-                            <th style={{ width: '95px' }}>Result</th>
-                          </>
+                        ) : is2021 ? (
+                          withInternal ? (
+                            <>
+                              <th style={{ width: '130px' }}>Attended Class Hours</th>
+                              <th style={{ width: '120px' }}>Assignment Mark</th>
+                              <th style={{ width: '140px' }}>Internal Written Exam Mark (/ 100)</th>
+                              <th style={{ width: '130px' }}>Total Internal Marks (/ 100)</th>
+                              <th style={{ width: '95px' }}>Result</th>
+                            </>
+                          ) : (
+                            <>
+                              <th style={{ width: '140px' }}>Attended Class Hours</th>
+                              <th style={{ width: '130px' }}>Activities Mark</th>
+                              <th style={{ width: '150px' }}>Internal Written Test Mark (/ 100)</th>
+                              <th style={{ width: '105px' }}>Result</th>
+                            </>
+                          )
                         ) : (
+                          // Default 2025 Autonomous Regulation Table
                           <>
-                            <th style={{ width: '140px' }}>Attended Class Hours</th>
-                            <th style={{ width: '130px' }}>Activities Mark</th>
-                            <th style={{ width: '150px' }}>Internal Written Test Mark (/ 100)</th>
-                            <th style={{ width: '105px' }}>Result</th>
+                            <th style={{ width: '130px' }}>Attd Mark (5)</th>
+                            <th style={{ width: '150px' }}>Activities (95)</th>
+                            <th style={{ width: '150px' }}>Total Internal Marks (100)</th>
                           </>
                         )}
                       </tr>
@@ -948,24 +958,33 @@ export default function ReportPreviewModal({
                                 {r.labResult}
                               </td>
                             </>
-                          ) : withInternal ? (
-                            <>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.totalInternal >= 50 ? '#10b981' : '#ef4444' }}>
-                                {r.examMarkStr === 'AB' || r.examMarkStr === '-' ? 'AB' : (r.totalInternal >= 50 ? 'PASS' : 'FAIL')}
-                              </td>
-                            </>
+                          ) : is2021 ? (
+                            withInternal ? (
+                              <>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.totalInternal >= 50 ? '#10b981' : '#ef4444' }}>
+                                  {r.examMarkStr === 'AB' || r.examMarkStr === '-' ? 'AB' : (r.totalInternal >= 50 ? 'PASS' : 'FAIL')}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
+                                  {r.resultStr}
+                                </td>
+                              </>
+                            )
                           ) : (
+                            // Default 2025 Autonomous Regulation Row
                             <>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.resultStr === 'PASS' ? '#10b981' : '#ef4444' }}>
-                                {r.resultStr}
-                              </td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
                             </>
                           )}
                         </tr>

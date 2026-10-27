@@ -401,9 +401,7 @@ export const generateSubjectMarksListPDF = async ({
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   
-  const title = withInternal 
-    ? `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (With Assignment Marks)`
-    : `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List (Without Assignment Marks / Real Exam Marks)`;
+  const title = `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.20', '01', '', '1 of 1');
   
   const isInternal2 = assessmentMode === 'internal2';
@@ -442,24 +440,15 @@ export const generateSubjectMarksListPDF = async ({
     return 0; // Below 80% is 0 mark
   };
 
-  // Prepare Table Headers based on withInternal
-  const headRow = withInternal ? [
+  // Default 2025 Autonomous Regulation College Format:
+  // Attendance Mark (Max: 5), Activities / Assignment Mark (Max: 95), Total Internal Marks (Max: 100)
+  const headRow = [
     'S.No',
     'Roll No',
     'Student Name',
-    `Attended Class Hours\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
-    'Assignment Mark',
-    'Internal Written Exam Mark\n(/ 100)',
-    'Total Internal Marks\n(/ 100)',
-    'Result\n(Pass / Fail)'
-  ] : [
-    'S.No',
-    'Roll No',
-    'Student Name',
-    `Attended Class Hours\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
-    'Activities Mark',
-    'Internal Written Test Mark\n(/ 100)',
-    'Result\n(Pass / Fail)'
+    'Attd Mark\n(Max: 5)',
+    'Activities\n(Assignment Mark)\n(Max: 95)',
+    'Total Internal Marks\n(Act + Attd)\n(Max: 100)'
   ];
 
   // Prepare Table Body
@@ -481,79 +470,35 @@ export const generateSubjectMarksListPDF = async ({
       ? parseFloat(attendanceMarks[student.id])
       : computedMark;
 
-    const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
-    const numExam = parseFloat(internalExamMark);
-    const isExamAbsent = isNaN(numExam) || internalExamMark === null || internalExamMark === undefined || internalExamMark === '' || internalExamMark === 'AB';
-    const internalExamMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
-
+    const totalInternal = Math.min(100, convertedTotal + attendanceMark);
     const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
-    if (withInternal) {
-      const totalInternal = Math.min(100, convertedTotal + attendanceMark);
-      const isPass = !isExamAbsent && totalInternal >= 50;
-      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
-      return [
-        idx + 1,
-        student.roll_no || student.rollNo || '-',
-        cleanStudentName,
-        `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
-        convertedTotal,
-        internalExamMarkStr,
-        totalInternal,
-        resultStr
-      ];
-    } else {
-      // Without internal: Real exam mark and pass/fail status
-      const isPass = !isExamAbsent && numExam >= 50;
-      const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
-      return [
-        idx + 1,
-        student.roll_no || student.rollNo || '-',
-        cleanStudentName,
-        `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
-        convertedTotal,
-        internalExamMarkStr,
-        resultStr
-      ];
-    }
+    return [
+      idx + 1,
+      student.roll_no || student.rollNo || '-',
+      cleanStudentName,
+      attendanceMark,
+      convertedTotal,
+      totalInternal
+    ];
   });
 
-  const footRow = withInternal ? [
+  const footRow = [
     '',
     '',
     'MAX MARKS',
-    `${tHours > 0 ? tHours : '-'} Hrs`,
+    '5',
     '95',
-    '100',
-    '100',
-    '>= 50% PASS'
-  ] : [
-    '',
-    '',
-    'MAX MARKS / CRITERIA',
-    `${tHours > 0 ? tHours : '-'} Hrs`,
-    '100',
-    '100',
-    '>= 50% PASS'
+    '100'
   ];
 
-  const colStyles = withInternal ? {
-    0: { cellWidth: 10, halign: 'center' },
-    1: { cellWidth: 24, halign: 'center' },
-    2: { cellWidth: 48, halign: 'left' },
+  const colStyles = {
+    0: { cellWidth: 12, halign: 'center' },
+    1: { cellWidth: 28, halign: 'center' },
+    2: { cellWidth: 58, halign: 'left' },
     3: { cellWidth: 24, halign: 'center' },
-    4: { cellWidth: 20, halign: 'center' },
-    5: { cellWidth: 24, halign: 'center' },
-    6: { cellWidth: 22, halign: 'center' },
-    7: { cellWidth: 18, halign: 'center' }
-  } : {
-    0: { cellWidth: 10, halign: 'center' },
-    1: { cellWidth: 26, halign: 'center' },
-    2: { cellWidth: 54, halign: 'left' },
-    3: { cellWidth: 26, halign: 'center' },
-    4: { cellWidth: 24, halign: 'center' },
-    5: { cellWidth: 28, halign: 'center' },
-    6: { cellWidth: 22, halign: 'center' }
+    4: { cellWidth: 38, halign: 'center' },
+    5: { cellWidth: 30, halign: 'center' }
   };
 
   const sCount = students.length;
