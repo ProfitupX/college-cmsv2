@@ -1002,14 +1002,14 @@ export default function ReportPreviewModal({
                           ) : is2021 ? (
                             withInternal ? (
                               <>
-                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.totalInternal}</td>
                               </>
                             ) : (
                               <>
-                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                                 <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>
                               </>
@@ -1017,7 +1017,7 @@ export default function ReportPreviewModal({
                           ) : (
                             // Default 2025 Autonomous Regulation Row
                             <>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours} / {r.tHours} Hrs</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rawHours}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.convertedTotal}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.examMarkStr}</td>

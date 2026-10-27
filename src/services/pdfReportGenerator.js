@@ -446,7 +446,7 @@ export const generateSubjectMarksListPDF = async ({
     'S.No',
     'Roll No',
     'Student Name',
-    `Attendance\n(/ ${tHours > 0 ? tHours : 30} Hrs)`,
+    'Attendance\n(Attd Hrs)',
     'Attd Mark\n(Max: 5)',
     'Activities Mark\n(Max: 95)',
     'Internal Exam\n(/ 100)',
@@ -484,7 +484,7 @@ export const generateSubjectMarksListPDF = async ({
       idx + 1,
       student.roll_no || student.rollNo || '-',
       cleanStudentName,
-      `${rawHours} / ${tHours > 0 ? tHours : '-'} Hrs`,
+      rawHours,
       attendanceMark,
       convertedTotal,
       internalExamMarkStr,
@@ -1202,7 +1202,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       'S.No',
       'Roll No',
       'Student Name',
-      `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
+      'Attended Class Hours',
       `Assignment Mark\n(/ ${ciaMax})`,
       'Internal Written Exam Mark\n(/ 100)',
       'Total Internal Marks\n(/ 100)'
@@ -1213,7 +1213,7 @@ export const generateSubjectMarksListPDF2021 = async ({
       'S.No',
       'Roll No',
       'Student Name',
-      `Attended Class Hours\n(/ ${displayTotalHrs} Hrs)`,
+      'Attended Class Hours',
       `Activities Mark\n(/ ${ciaMax})`,
       'Internal Written Test Mark\n(/ 100)'
     ];
@@ -1267,7 +1267,7 @@ export const generateSubjectMarksListPDF2021 = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanName,
-        attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
+        attdDisplay,
         ciaTotal,
         examDisplay,
         finalTotal
@@ -1280,7 +1280,7 @@ export const generateSubjectMarksListPDF2021 = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanName,
-        attdDisplay !== '-' ? `${attdDisplay} / ${displayTotalHrs} Hrs` : '-',
+        attdDisplay,
         ciaTotal,
         examStr
       ];

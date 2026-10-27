@@ -409,7 +409,7 @@ export const exportSubjectMarksExcel = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanName,
-        `${rawHours} / ${tHours} Hrs`,
+        rawHours,
         attendanceMark,
         convertedTotal,
         examMarkStr,
@@ -420,7 +420,7 @@ export const exportSubjectMarksExcel = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanName,
-        `${rawHours} / ${tHours} Hrs`,
+        rawHours,
         convertedTotal,
         examMarkStr,
         totalInternal
@@ -430,7 +430,7 @@ export const exportSubjectMarksExcel = async ({
         idx + 1,
         student.roll_no || student.rollNo || '-',
         cleanName,
-        `${rawHours} / ${tHours} Hrs`,
+        rawHours,
         convertedTotal,
         examMarkStr
       ];
