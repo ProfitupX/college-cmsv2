@@ -15,6 +15,30 @@ async function runMigration(shouldExit = false) {
       console.log('✅ Column target_department already exists in notifications.');
     }
 
+    // 1.1 Ensure staffs table has is_password_changed column
+    const [staffCols] = await db.query("SHOW COLUMNS FROM staffs LIKE 'is_password_changed'");
+    if (staffCols.length === 0) {
+      console.log('Adding missing is_password_changed column to staffs table...');
+      await db.query("ALTER TABLE staffs ADD COLUMN is_password_changed TINYINT(1) NOT NULL DEFAULT 0 AFTER department");
+      console.log('✅ Added is_password_changed column.');
+    }
+
+    // 1.2 Ensure subjects table has int1_hours, int2_hours, lab_hours
+    const [subCols] = await db.query("SHOW COLUMNS FROM subjects");
+    const subColNames = subCols.map(c => c.Field);
+    if (!subColNames.includes('int1_hours')) {
+      await db.query("ALTER TABLE subjects ADD COLUMN int1_hours INT DEFAULT NULL AFTER total_hours");
+      console.log('✅ Added int1_hours column to subjects.');
+    }
+    if (!subColNames.includes('int2_hours')) {
+      await db.query("ALTER TABLE subjects ADD COLUMN int2_hours INT DEFAULT NULL AFTER int1_hours");
+      console.log('✅ Added int2_hours column to subjects.');
+    }
+    if (!subColNames.includes('lab_hours')) {
+      await db.query("ALTER TABLE subjects ADD COLUMN lab_hours INT DEFAULT NULL AFTER int2_hours");
+      console.log('✅ Added lab_hours column to subjects.');
+    }
+
     // 2. Ensure First-Year classes have year_label = 'I' and department = 'Science and Humanities'
     const [shClasses] = await db.query(
       "SELECT id, name, department, year_label FROM classes WHERE id LIKE 'C_SH_%' OR name LIKE 'I Year%'"

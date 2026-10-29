@@ -48,7 +48,7 @@ export default function ManageSubjects() {
       if (cleanLtpc === '2043') return { int1: 15, int2: 15, lab: 60, total: 90 };
       if (cleanLtpc === '1022') return { int1: 15, int2: 15, lab: 15, total: 45 };
       if (cleanLtpc === '3024') return { int1: 30, int2: 30, lab: 15, total: 75 };
-      if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 40, total: 100 };
+      if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 45, total: 105 };
       if (cleanLtpc === '1021') return { int1: 15, int2: 15, lab: 15, total: 45 };
       return { int1: 30, int2: 30, lab: Math.max(0, (h || 100) - 60) || 40, total: h || 100 };
     }

@@ -35,14 +35,22 @@ router.get('/credentials', async (req, res) => {
     rows.forEach(r => {
       const key = (r.email || '').toLowerCase().trim() || r.id;
       if (!seen.has(key)) {
-        seen.set(key, r);
+        seen.set(key, { ...r });
       } else {
-        const prev = seen.get(key);
-        if (r.role === 'hod' && prev.role !== 'hod') {
-          seen.set(key, r);
-        } else if (r.employee_id && !prev.employee_id) {
-          seen.set(key, r);
+        const existing = seen.get(key);
+        // Prioritize any changed or non-default password so it reflects directly in Manage Staffs
+        const existingHasChanged = existing.is_password_changed || (existing.password && existing.password !== 'faculty123');
+        const rHasChanged = r.is_password_changed || (r.password && r.password !== 'faculty123');
+
+        if (rHasChanged && !existingHasChanged) {
+          existing.password = r.password;
+          existing.is_password_changed = r.is_password_changed || 1;
         }
+
+        if (r.role === 'hod') existing.role = 'hod';
+        if (r.employee_id && !existing.employee_id) existing.employee_id = r.employee_id;
+        if (r.designation && !existing.designation) existing.designation = r.designation;
+        if (r.department && !existing.department) existing.department = r.department;
       }
     });
     res.json(Array.from(seen.values()));
@@ -171,10 +179,21 @@ router.put('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'staffId and newPassword are required.' });
     }
 
-    const [result] = await db.execute(
-      'UPDATE staffs SET password = ?, is_password_changed = 0 WHERE id = ?',
-      [newPassword, staffId]
-    );
+    const [staffRows] = await db.execute('SELECT email FROM staffs WHERE id = ?', [staffId]);
+    const staffEmail = (staffRows[0]?.email || '').trim().toLowerCase();
+
+    let result;
+    if (staffEmail) {
+      [result] = await db.execute(
+        'UPDATE staffs SET password = ?, is_password_changed = 0 WHERE id = ? OR (LOWER(email) = ? AND email != "")',
+        [newPassword, staffId, staffEmail]
+      );
+    } else {
+      [result] = await db.execute(
+        'UPDATE staffs SET password = ?, is_password_changed = 0 WHERE id = ?',
+        [newPassword, staffId]
+      );
+    }
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Staff member not found.' });

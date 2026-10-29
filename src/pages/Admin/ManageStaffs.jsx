@@ -30,7 +30,7 @@ export default function ManageStaffs() {
   const [hiddenPasswords, setHiddenPasswords] = useState({});
 
   const togglePasswordVisibility = (id) => {
-    setVisiblePasswords((prev) => ({
+    setHiddenPasswords((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));

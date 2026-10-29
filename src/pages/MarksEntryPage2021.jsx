@@ -309,12 +309,15 @@ export default function MarksEntryPage2021() {
             if (!loadedMarks[m.student_id]) loadedMarks[m.student_id] = {};
             loadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
           });
+          const initialSessionHours = detail.session?.total_hours 
+            ? (parseInt(detail.session.total_hours, 10) <= 60 ? detail.session.total_hours : (assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30)))
+            : (assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30));
           setSessionBulk({
             marks: loadedMarks,
             attendance: detail.attendance || {},
             internalExam: detail.internalExam || {},
             labData: detail.labData || {},
-            totalHours: detail.session.total_hours || ''
+            totalHours: initialSessionHours
           });
           setRemedialAction(detail.session.remedial_action || '');
           setSaved(true);
@@ -323,7 +326,8 @@ export default function MarksEntryPage2021() {
           setCurrentSession(null);
           setSessionStatus('draft');
           setAssessmentComponents([]);
-          setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: 0 });
+          const defaultSessionHours = assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30);
+          setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: defaultSessionHours });
           setRemedialAction('');
           setSaved(false);
           setIsComponentsDirty(false);
@@ -332,6 +336,53 @@ export default function MarksEntryPage2021() {
       .catch((err) => console.error('Failed to load marks session (2021):', err))
       .finally(() => setLoading(false));
   }, [effectiveClassId, effectiveSubjectId, user?.id, subjects, assessmentMode]);
+
+  // Split hours based on LTPC total and subject type (matches 2021 & 2025 college curriculum table)
+  const getHourSplits = (ltpc, type, total) => {
+    const cleanLtpc = String(ltpc || '').trim().replace(/[\s\-]+/g, '');
+    const h = parseInt(total || 0, 10);
+
+    if (['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(type)) {
+      if (cleanLtpc === '2023') return { int1: 15, int2: 15, lab: 30 };
+      if (cleanLtpc === '2043') return { int1: 15, int2: 15, lab: 60 };
+      if (cleanLtpc === '1022') return { int1: 15, int2: 15, lab: 15 };
+      if (cleanLtpc === '3024') return { int1: 30, int2: 30, lab: 15 };
+      if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 45 };
+      if (cleanLtpc === '1021') return { int1: 15, int2: 15, lab: 15 };
+      return { int1: 15, int2: 15, lab: Math.max(0, h - 30) };
+    }
+
+    if (type === 'Theory') {
+      if (cleanLtpc === '3104' || cleanLtpc === '3004') return { int1: 30, int2: 30, lab: 0 };
+      if (cleanLtpc === '1001') return { int1: 7, int2: 8, lab: 0 };
+      if (cleanLtpc === '3003' || cleanLtpc === '2103') return { int1: 25, int2: 20, lab: 0 };
+      if (cleanLtpc === '2002') return { int1: 15, int2: 15, lab: 0 };
+    }
+
+    if (type === 'Practical' || type === 'Laboratory' || type === 'Lab') {
+      if (cleanLtpc === '0042') return { int1: 30, int2: 30, lab: 0 };
+      if (cleanLtpc === '1021') return { int1: 25, int2: 20, lab: 0 };
+      if (cleanLtpc === '0041') return { int1: 30, int2: 30, lab: 0 };
+    }
+
+    if (!h) return { int1: 30, int2: 30, lab: 0 };
+    if (h === 60) return { int1: 30, int2: 30, lab: 0 };
+    if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+    if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+    if (h === 15) return { int1: 7, int2: 8, lab: 0 };
+    return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
+  };
+
+  const defaultSplits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, totalHours) : { int1: 30, int2: 30, lab: 0 };
+  const int1Hours = (selectedSubject?.int1_hours !== null && selectedSubject?.int1_hours !== undefined && selectedSubject?.int1_hours !== '')
+    ? parseInt(selectedSubject.int1_hours, 10)
+    : (defaultSplits.int1 || 30);
+  const int2Hours = (selectedSubject?.int2_hours !== null && selectedSubject?.int2_hours !== undefined && selectedSubject?.int2_hours !== '')
+    ? parseInt(selectedSubject.int2_hours, 10)
+    : (defaultSplits.int2 || 30);
+  const labHours  = (selectedSubject?.lab_hours !== null && selectedSubject?.lab_hours !== undefined && selectedSubject?.lab_hours !== '')
+    ? parseInt(selectedSubject.lab_hours, 10)
+    : (defaultSplits.lab || (isPureLab ? (selectedSubject?.total_hours || 60) : 0));
 
   const handlingFacultyName =
     currentSession?.staff_name ||
@@ -405,12 +456,16 @@ export default function MarksEntryPage2021() {
         };
       });
 
+      const currentAssessmentHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || parseInt(totalHours, 10) || 30;
       const payload = {
         subjectId:    effectiveSubjectId,
         classId:      effectiveClassId,
         staffId:      user.id,
         sessionLabel: assessmentMode,
-        totalHours:   parseInt(totalHours, 10) || 0,
+        totalHours:   parseInt(currentAssessmentHours, 10),
+        int1Hours:    parseInt(int1Hours || 0, 10),
+        int2Hours:    parseInt(int2Hours || 0, 10),
+        labHours:     parseInt(labHours || 0, 10),
         remedialAction,
         components: assessmentComponents.map((c) => ({
           typeId:   c.typeId,
@@ -781,10 +836,10 @@ export default function MarksEntryPage2021() {
         labData,
         assessmentMode,
         components: assessmentComponents,
-        totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
-        int1Hours: 30,
-        int2Hours: 30,
-        labHours: 40,
+        totalHours: parseInt(totalHours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30),
+        int1Hours,
+        int2Hours,
+        labHours,
         int1AttendanceData: {},
         withInternal,
         theoryCumLabMode: options.theoryCumLabMode || 'assignment_lab_only',
@@ -1101,6 +1156,9 @@ export default function MarksEntryPage2021() {
             marksData={marksData}
             attendanceData={attendanceData}
             totalHours={totalHours}
+            int1Hours={int1Hours}
+            int2Hours={int2Hours}
+            labHours={labHours}
             internalExamData={internalExamData}
             labData={labData}
             assessmentMode={assessmentMode}
@@ -1296,10 +1354,10 @@ export default function MarksEntryPage2021() {
         internalExamData={internalExamData}
         labData={labData}
         components={assessmentComponents}
-        totalHours={totalHours || 60}
-        int1Hours={30}
-        int2Hours={30}
-        labHours={totalHours || 60}
+        totalHours={totalHours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30}
+        int1Hours={int1Hours}
+        int2Hours={int2Hours}
+        labHours={labHours}
         int1AttendanceData={{}}
         regulation="2021"
         reportType={reportType}

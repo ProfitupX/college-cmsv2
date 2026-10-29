@@ -47,6 +47,34 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
 
+    // Fetch subject details for accurate hours splits & subject type detection
+    const [subRows] = await conn.execute(
+      'SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours, department FROM subjects WHERE id = ?',
+      [subjectId]
+    );
+    const subObj = subRows.length > 0 ? subRows[0] : {};
+    const isPureLabSubmission = Boolean(
+      subObj.type === 'Practical' ||
+      subObj.type === 'Laboratory' ||
+      subObj.type === 'Lab' ||
+      (subObj.name && subObj.name.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subObj.type))
+    );
+
+    const effInt1Hours = parseInt(req.body.int1Hours ?? subObj.int1_hours ?? 30, 10) || 30;
+    const effInt2Hours = parseInt(req.body.int2Hours ?? subObj.int2_hours ?? 30, 10) || 30;
+    const effLabHours  = parseInt(req.body.labHours ?? subObj.lab_hours ?? 0, 10) || 0;
+
+    let sessionTotalHours = parseInt(totalHours, 10) || 0;
+    if (sessionLabel === 'internal1') {
+      sessionTotalHours = effInt1Hours;
+    } else if (sessionLabel === 'internal2') {
+      sessionTotalHours = effInt2Hours;
+    } else if (isPureLabSubmission) {
+      sessionTotalHours = effLabHours || (sessionTotalHours > 0 ? sessionTotalHours : subObj.total_hours || 60);
+    } else if (!sessionTotalHours) {
+      sessionTotalHours = 30;
+    }
+
     // 1.5 Find existing session to perform safe in-place UPDATE (avoids foreign-key CASCADE wipe)
     const [existingSessions] = await conn.execute(
       `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
@@ -173,7 +201,7 @@ router.post('/submit', async (req, res) => {
         [
           String(staffId),
           totalMax,
-          parseInt(totalHours, 10) || 0,
+          parseInt(sessionTotalHours, 10) || 0,
           parseInt(internal2TotalHours, 10) || 0,
           statusVal,
           avgScore,
@@ -193,7 +221,7 @@ router.post('/submit', async (req, res) => {
           String(staffId), 
           sessionLabel || 'Internal Assessment', 
           totalMax, 
-          parseInt(totalHours, 10) || 0, 
+          parseInt(sessionTotalHours, 10) || 0, 
           parseInt(internal2TotalHours, 10) || 0, 
           statusVal, 
           avgScore, 
@@ -644,11 +672,21 @@ router.post('/request-unlock', async (req, res) => {
       [sessionId]
     );
 
+    let effSubjectId = subjectId;
+    let effClassId = classId;
+    if ((!effSubjectId || !effClassId) && sessionId) {
+      const [sessRows] = await db.execute('SELECT subject_id, class_id FROM marks_sessions WHERE id = ?', [sessionId]);
+      if (sessRows.length > 0) {
+        if (!effSubjectId) effSubjectId = sessRows[0].subject_id;
+        if (!effClassId) effClassId = sessRows[0].class_id;
+      }
+    }
+
     // Insert into mark_unlock_requests
     await db.execute(
       `INSERT INTO mark_unlock_requests (session_id, subject_id, class_id, staff_id, reason, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [sessionId, subjectId || '', classId || '', staffId, reason || 'Requesting edit permission for marks sheet']
+      [sessionId, effSubjectId || '', effClassId || '', staffId, reason || 'Requesting edit permission for marks sheet']
     );
 
     // Get names for notification
@@ -657,14 +695,14 @@ router.post('/request-unlock', async (req, res) => {
     
     let subjectName = 'a subject';
     let subjectDept = null;
-    if (subjectId) {
+    if (effSubjectId) {
        const [subs] = await db.execute(`
          SELECT s.name, s.code, s.department AS sub_dept, s.class_id,
                 c.department AS class_dept, c.year_label
          FROM subjects s
-         LEFT JOIN classes c ON c.id = s.class_id
+         LEFT JOIN classes c ON c.id = COALESCE(?, s.class_id)
          WHERE s.id = ?
-       `, [subjectId]);
+       `, [effClassId, effSubjectId]);
        if (subs[0]) {
          subjectName = `${subs[0].code} ${subs[0].name}`;
          subjectDept = resolveSubjectDepartment(subs[0]);

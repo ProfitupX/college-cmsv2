@@ -202,9 +202,9 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
 
-    // Verify current password and is_password_changed status
+    // Verify current password
     const [rows] = await db.execute(
-      'SELECT id, is_password_changed FROM staffs WHERE id = ? AND password = ?',
+      'SELECT id, email, password FROM staffs WHERE id = ? AND password = ?',
       [userId, oldPassword]
     );
 
@@ -212,15 +212,19 @@ router.post('/change-password', async (req, res) => {
       return res.status(401).json({ error: 'Invalid current password.' });
     }
 
-    if (rows[0].is_password_changed) {
-      return res.status(403).json({ error: 'Password has already been changed once. Please contact admin to reset it.' });
+    const staffEmail = (rows[0]?.email || '').trim().toLowerCase();
+    // Update password for this staff ID and all records sharing this staff email so Manage Staffs reflects it immediately
+    if (staffEmail) {
+      await db.execute(
+        'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ? OR (LOWER(email) = ? AND email != "")',
+        [newPassword, userId, staffEmail]
+      );
+    } else {
+      await db.execute(
+        'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ?',
+        [newPassword, userId]
+      );
     }
-
-    // Update password
-    await db.execute(
-      'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ?',
-      [newPassword, userId]
-    );
 
     res.json({ success: true, message: 'Password updated successfully.' });
   } catch (err) {

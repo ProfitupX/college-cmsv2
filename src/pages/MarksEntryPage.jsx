@@ -341,11 +341,11 @@ export default function MarksEntryPage() {
               setIsComponentsDirty(false);
               
               const activeSub = subjects.find(s => s.id === effectiveSubjectId);
-              if (activeSub && activeSub.total_hours) {
-                setTotalHours(activeSub.total_hours);
-              } else {
-                setTotalHours('');
-              }
+              const activeSplits = activeSub ? getHourSplits(activeSub.ltpc, activeSub.type, activeSub.total_hours) : { int1: 30, int2: 30 };
+              const prescribed = assessmentMode === 'internal2'
+                ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
+                : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
+              setTotalHours(prescribed);
             }
           });
       })
@@ -567,11 +567,11 @@ export default function MarksEntryPage() {
       setSaved(false); 
       setSaveErr(''); 
       setIsComponentsDirty(false);
-      if (selectedSubject && selectedSubject.total_hours) {
-        setTotalHours(selectedSubject.total_hours);
-      } else {
-        setTotalHours('');
-      }
+      const splits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, selectedSubject.total_hours) : { int1: 30, int2: 30 };
+      const prescribed = assessmentMode === 'internal2'
+        ? (selectedSubject?.int2_hours ?? splits.int2 ?? 30)
+        : (selectedSubject?.int1_hours ?? splits.int1 ?? 30);
+      setTotalHours(prescribed);
       alert('Marks have been completely cleared and reset in the database.');
     } catch (err) {
       alert('Failed to reset marks: ' + (err.message || 'Server error'));

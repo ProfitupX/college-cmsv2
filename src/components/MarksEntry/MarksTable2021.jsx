@@ -18,6 +18,7 @@ export default function MarksTable2021({
   attendanceData = {}, totalHours = 0, onAttendanceChange, onTotalHoursChange,
   internalExamData = {}, labData = {},
   assessmentMode = 'internal1', selectedSubject = {},
+  int1Hours = 30, int2Hours = 30, labHours = 0,
   onInternalExamChange, onLabDataChange, isLocked
 }) {
 
@@ -34,7 +35,10 @@ export default function MarksTable2021({
   ));
   const ciaMax    = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
-  const totHours = parseInt(totalHours || selectedSubject?.total_hours || selectedSubject?.lab_hours || 40, 10);
+  const prescribedSessionHours = assessmentMode === 'internal2'
+    ? (selectedSubject?.int2_hours || int2Hours || 30)
+    : (selectedSubject?.int1_hours || int1Hours || 30);
+  const totHours = parseInt(totalHours || (isPureLab ? (selectedSubject?.lab_hours || selectedSubject?.total_hours || 60) : prescribedSessionHours), 10);
 
   return (
     <div className={styles.wrapper}>
