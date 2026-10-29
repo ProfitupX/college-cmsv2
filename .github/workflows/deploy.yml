@@ -78,15 +78,7 @@ jobs:
               if [ -f "/tmp/vps_prod.env" ]; then
                 cp /tmp/vps_prod.env /var/www/markhub/server/.env 2>/dev/null || true
               elif [ ! -f "/var/www/markhub/server/.env" ]; then
-                cat << 'EOF' > /var/www/markhub/server/.env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=markhub_user
-DB_PASSWORD=Nscet@123
-DB_NAME=markhub_db
-PORT=5000
-FRONTEND_URL=https://markhub.nscet.org
-EOF
+                printf "DB_HOST=localhost\nDB_PORT=3306\nDB_USER=markhub_user\nDB_PASSWORD=Nscet@123\nDB_NAME=markhub_db\nPORT=5000\nFRONTEND_URL=https://markhub.nscet.org\n" > /var/www/markhub/server/.env
               fi
 
               if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}/server" ]; then
