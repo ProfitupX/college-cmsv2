@@ -48,7 +48,7 @@ const triggerDownload = async (workbook, filename) => {
     } catch (e) {
       // ignore
     }
-  }, 1500);
+  }, 60000);
 };
 
 const applyThinBorders = (cell) => {
@@ -86,23 +86,29 @@ const drawExcelCollegeHeader = async ({
   // 1. Embed College Logo Banner
   const logoBase64 = await getImageBase64(logoImg);
   if (logoBase64) {
-    const imageId = workbook.addImage({
-      base64: logoBase64,
-      extension: 'jpeg',
-    });
+    try {
+      const imageId = workbook.addImage({
+        base64: logoBase64,
+        extension: 'jpeg',
+      });
 
-    if (numCols > 12) {
-      // Wide layout (ExamCell Legal Statement):
-      const centerCol = Math.max(0.5, Math.floor((startFormatCol - 7) / 2));
-      worksheet.addImage(imageId, {
-        tl: { col: centerCol, row: 0.1 },
-        ext: { width: 500, height: 82 }
-      });
-    } else {
-      worksheet.addImage(imageId, {
-        tl: { col: 0.1, row: 0.1 },
-        ext: { width: 380, height: 80 }
-      });
+      if (numCols > 12) {
+        // Wide layout (ExamCell Legal Statement):
+        const centerCol = Math.max(0, Math.floor((startFormatCol - 7) / 2));
+        worksheet.addImage(imageId, {
+          tl: { col: centerCol, row: 0 },
+          ext: { width: 500, height: 82 },
+          editAs: 'oneCell'
+        });
+      } else {
+        worksheet.addImage(imageId, {
+          tl: { col: 0, row: 0 },
+          ext: { width: 380, height: 80 },
+          editAs: 'oneCell'
+        });
+      }
+    } catch (imgErr) {
+      console.warn('Could not attach logo image to worksheet:', imgErr);
     }
   }
 
@@ -173,7 +179,16 @@ export const exportSubjectMarksExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('Subject Marks List');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
@@ -196,13 +211,14 @@ export const exportSubjectMarksExcel = async ({
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
-  const numCols = is2021 ? (withInternal ? 7 : 6) : 8;
+  // Layout columns: 2025 has 8 columns; 2021 with internal has 7 columns; 2021 without internal has 6 columns
+  const numCols = !is2021 ? 8 : (withInternal ? 7 : 6);
 
   // Draw Official College Header (Rows 1-5 + Spacer Row 6)
   await drawExcelCollegeHeader({
     workbook,
     worksheet,
-    title: is2021 ? `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})` : `${modeLabel} — SUBJECT MARKS LIST`,
+    title: `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})`,
     formatNo: 'NAC/TLP-07a.20',
     numCols
   });
@@ -233,8 +249,8 @@ export const exportSubjectMarksExcel = async ({
     const rowNum = 7 + i;
     worksheet.getRow(rowNum).height = 20;
 
-    if (!is2021) {
-      // 8 columns total for 2025: col 1-2 = label1, cols 3-4 = val1, col 5-6 = label2, cols 7-8 = val2
+    if (numCols === 8) {
+      // 8 columns total: col 1-2 = label1, cols 3-4 = val1, col 5-6 = label2, cols 7-8 = val2
       worksheet.mergeCells(rowNum, 1, rowNum, 2);
       const l1 = worksheet.getCell(rowNum, 1);
       l1.value = item.label1;
@@ -266,7 +282,7 @@ export const exportSubjectMarksExcel = async ({
       for (let c = 1; c <= 8; c++) {
         applyThinBorders(worksheet.getCell(rowNum, c));
       }
-    } else if (withInternal) {
+    } else if (numCols === 7) {
       // 7 columns total: col 1 = label1, cols 2-3 = val1, cols 4-5 = label2, cols 6-7 = val2
       const l1 = worksheet.getCell(rowNum, 1);
       l1.value = item.label1;
@@ -404,7 +420,6 @@ export const exportSubjectMarksExcel = async ({
 
     let rowValues = [];
     if (!is2021) {
-      // 2025 statement (8 columns)
       rowValues = [
         idx + 1,
         student.roll_no || student.rollNo || '-',
@@ -453,6 +468,11 @@ export const exportSubjectMarksExcel = async ({
       } else {
         cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
+
+      // Highlight Total Internal column
+      if (colNumber === numCols && (withInternal || !is2021)) {
+        cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E40AF' } };
+      }
     });
 
     currentRow++;
@@ -460,12 +480,13 @@ export const exportSubjectMarksExcel = async ({
 
   // Criteria Row
   const criteriaRow = worksheet.getRow(currentRow);
+  const maxAssignment = is2021 ? (hasLab ? 50 : 40) : 95;
   if (!is2021) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
   } else if (withInternal) {
-    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 95, 100, 100];
+    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, maxAssignment, 100, 100];
   } else {
-    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 100, 100];
+    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, maxAssignment, 100];
   }
   criteriaRow.height = 20;
   criteriaRow.eachCell((cell) => {
@@ -478,25 +499,25 @@ export const exportSubjectMarksExcel = async ({
 
   // Signatures
   const sigRow = worksheet.getRow(currentRow);
-  sigRow.values = is2021 && withInternal
-    ? ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', 'PRINCIPAL']
-    : ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', 'PRINCIPAL'];
+  if (numCols === 8) {
+    sigRow.values = ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', '', 'PRINCIPAL'];
+  } else if (numCols === 7) {
+    sigRow.values = ['', 'SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', 'PRINCIPAL'];
+  } else {
+    sigRow.values = ['SUBJECT FACULTY', '', 'CLASS IN-CHARGE', '', 'HOD', 'PRINCIPAL'];
+  }
   sigRow.height = 24;
   sigRow.eachCell((cell) => {
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
-  // Print & Page Setup (Ensures table fits A4 width perfectly without clipping)
+  // Print & Page Setup (Clean A4 settings without fitToHeight: 0 infinite loop)
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
     horizontalCentered: true,
-    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
-    printTitlesRow: '11:11'
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 }
   };
 
   // Column Widths with ample space
@@ -505,11 +526,11 @@ export const exportSubjectMarksExcel = async ({
       { width: 7 },   // S.No
       { width: 18 },  // Roll No
       { width: 34 },  // Student Name
-      { width: 22 },  // Attended Class Hours
+      { width: 18 },  // Attended Hrs
       { width: 18 },  // Attd Mark (Max: 5)
       { width: 22 },  // Activities Mark (Max: 95)
-      { width: 26 },  // Internal Exam Mark (/ 100)
-      { width: 26 }   // Total Internal (Max: 100)
+      { width: 22 },  // Internal Mark
+      { width: 24 }   // Activities Mark Total
     ];
   } else if (withInternal) {
     worksheet.columns = [
@@ -519,7 +540,7 @@ export const exportSubjectMarksExcel = async ({
       { width: 22 },  // Attended Class Hours
       { width: 18 },  // Assignment Mark
       { width: 28 },  // Internal Written Exam Mark (/ 100)
-      { width: 26 }   // Total Internal Marks (/ 100)
+      { width: 24 }   // Total Internal Marks (/ 100)
     ];
   } else {
     worksheet.columns = [
@@ -527,7 +548,7 @@ export const exportSubjectMarksExcel = async ({
       { width: 18 },  // Roll No
       { width: 34 },  // Student Name
       { width: 22 },  // Attended Class Hours
-      { width: 22 },  // Activities Mark
+      { width: 20 },  // Activities Mark
       { width: 28 }   // Internal Written Test Mark (/ 100)
     ];
   }
@@ -554,7 +575,16 @@ export const exportLaboratoryMarksExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('Laboratory Marks');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
   const prescribedLabHours = parseInt(labHours || 0, 10) || 40;
@@ -684,12 +714,8 @@ export const exportLaboratoryMarksExcel = async ({
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
     horizontalCentered: true,
-    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
-    printTitlesRow: '11:11'
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 }
   };
 
   worksheet.columns = [
@@ -720,7 +746,16 @@ export const exportOverallMarksExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('ExamCell Legal Statement');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
   const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name?.toUpperCase() !== 'LIBRARY');
@@ -982,12 +1017,8 @@ export const exportOverallMarksExcel = async ({
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'landscape',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
     horizontalCentered: true,
-    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 },
-    printTitlesRow: '11:12'
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 }
   };
 
   // Set Column Widths
@@ -1022,7 +1053,16 @@ export const exportSubjectAnalysisExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('Subject Analysis');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || user?.name || 'Faculty Staff';
   const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
@@ -1285,12 +1325,8 @@ export const exportSubjectAnalysisExcel = async ({
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
     horizontalCentered: true,
-    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 },
-    printTitlesRow: '20:20'
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 }
   };
 
   worksheet.columns = [
@@ -1324,7 +1360,16 @@ export const exportConsolidatedMarksExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('Consolidated Marks');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
   if (selectedSubjectIds && selectedSubjectIds.length > 0) {
@@ -1484,12 +1529,8 @@ export const exportConsolidatedMarksExcel = async ({
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'landscape',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
     horizontalCentered: true,
-    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 },
-    printTitlesRow: '11:11'
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4 }
   };
 
   worksheet.getColumn(1).width = 7;
@@ -1520,7 +1561,16 @@ export const exportClassAnalysisExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
+  workbook.views = [
+    {
+      x: 0, y: 0, width: 10000, height: 20000,
+      firstSheet: 0, activeTab: 0, visibility: 'visible'
+    }
+  ];
   const worksheet = workbook.addWorksheet('Class Performance');
+  worksheet.views = [
+    { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
 
   let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
   if (selectedSubjectIds && selectedSubjectIds.length > 0) {
