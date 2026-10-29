@@ -1186,7 +1186,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Staff Name         : ${staffName}`, 14, y);
   doc.text(`Academic Year  : 2026 - 2027`, 120, y);
   y += 5;
-  const displayTotalHrs = parseInt(totalHours || session?.total_hours || subject?.total_hours || prescribedHours || 30, 10);
+  const displayTotalHrs = parseInt((isInternal2 ? subject?.int2_hours : subject?.int1_hours) || prescribedHours || 30, 10);
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${displayTotalHrs}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
@@ -1246,9 +1246,16 @@ export const generateSubjectMarksListPDF2021 = async ({
     const labExamRaw = parseFloat(labData?.[student.id]?.labMark) || 0;
     const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
+    // Pure lab support in 2021 single subject report
+    const isSubjectPureLab = ['Practical', 'Laboratory', 'Lab'].includes(subject?.type) || (subject?.name?.toLowerCase().includes('laboratory') && !hasLab);
     // Final total
     let finalTotal;
-    if (isInternal2 && hasLab) {
+    if (isSubjectPureLab) {
+      const pureLabVal = (labData?.[student.id]?.labMark !== undefined && labData?.[student.id]?.labMark !== null && labData?.[student.id]?.labMark !== '')
+        ? parseFloat(labData[student.id].labMark)
+        : (numExam !== undefined && !isNaN(numExam) ? numExam : null);
+      finalTotal = (pureLabVal !== null && !isNaN(pureLabVal)) ? Math.min(100, Math.round(pureLabVal)) : 0;
+    } else if (isInternal2 && hasLab) {
       if (theoryCumLabMode === 'assignment_lab_only' && !showWrittenExamInPdf) {
         finalTotal = Math.min(ciaTotal + labExamConverted, 100);
       } else {
@@ -1261,7 +1268,12 @@ export const generateSubjectMarksListPDF2021 = async ({
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     if (withInternal) {
-      const examDisplay = isExamAbsent ? 'AB' : Math.round(numExam);
+      const pureLabVal = (labData?.[student.id]?.labMark !== undefined && labData?.[student.id]?.labMark !== null && labData?.[student.id]?.labMark !== '')
+        ? parseFloat(labData[student.id].labMark)
+        : (numExam !== undefined && !isNaN(numExam) ? numExam : null);
+      const examDisplay = isSubjectPureLab
+        ? ((pureLabVal !== null && !isNaN(pureLabVal)) ? Math.round(pureLabVal) : 'AB')
+        : (isExamAbsent ? 'AB' : Math.round(numExam));
 
       return [
         idx + 1,
@@ -1612,12 +1624,25 @@ export const generateOverallMarksAndAttendancePDF = async ({
     const subTotal = parseInt(sub.total_hours) || 60;
     const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
     let wHrs = 30;
-    if (sessionLabel === 'internal1') {
-      wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
-    } else if (sessionLabel === 'internal2') {
-      wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+    if (is2021) {
+      // 2021 Regulation: strictly particular internal hours (30 hrs), never total 105 hrs
+      wHrs = parseInt(
+        (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
+        (hourSplits ? (sessionLabel === 'internal2' ? hourSplits.int2 : hourSplits.int1) : 30) ||
+        30,
+        10
+      );
+      if (wHrs > 60 || wHrs === subTotal) {
+        wHrs = 30;
+      }
     } else {
-      wHrs = subTotal;
+      if (sessionLabel === 'internal1') {
+        wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
+      } else if (sessionLabel === 'internal2') {
+        wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+      } else {
+        wHrs = subTotal;
+      }
     }
     headRow1.push({ content: `${sub.code}\n(TH = ${wHrs})`, colSpan: colsPerSub, styles: { halign: 'center' } });
   });
@@ -1670,13 +1695,26 @@ export const generateOverallMarksAndAttendancePDF = async ({
       const subTotal = parseInt(sub.total_hours) || 60;
       const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
       
-      let wHrs = 45;
-      if (sessionLabel === 'internal1') {
-        wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
-      } else if (sessionLabel === 'internal2') {
-        wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+      let wHrs = 30;
+      if (is2021) {
+        // 2021 Regulation: strictly particular internal hours (30 hrs), never total 105 hrs
+        wHrs = parseInt(
+          (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
+          (hourSplits ? (sessionLabel === 'internal2' ? hourSplits.int2 : hourSplits.int1) : 30) ||
+          30,
+          10
+        );
+        if (wHrs > 60 || wHrs === subTotal) {
+          wHrs = 30;
+        }
       } else {
-        wHrs = subTotal;
+        if (sessionLabel === 'internal1') {
+          wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
+        } else if (sessionLabel === 'internal2') {
+          wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
+        } else {
+          wHrs = subTotal;
+        }
       }
 
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
@@ -1698,6 +1736,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
         });
         
         const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) || (sub.name?.toLowerCase().includes('laboratory') && !isLabType);
         const ciaMax = isLabType ? 50 : 40;
         const examConvertedMax = isLabType ? 50 : 60;
         const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
@@ -1708,7 +1747,16 @@ export const generateOverallMarksAndAttendancePDF = async ({
         const labExamRaw = parseFloat(att?.lab_mark) || 0;
         const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
-        if (isLabType && sessionLabel === 'internal2') {
+        if (isPureLab) {
+          // Direct lab mark (e.g. VLSI Laboratory)
+          if (att?.lab_mark !== null && att?.lab_mark !== undefined && att?.lab_mark !== '') {
+            score = parseFloat(att.lab_mark);
+          } else if (att?.internal_exam_mark !== null && att?.internal_exam_mark !== undefined && att?.internal_exam_mark !== '') {
+            score = parseFloat(att.internal_exam_mark);
+          } else {
+            score = null;
+          }
+        } else if (isLabType && sessionLabel === 'internal2') {
           score = Math.min(ciaTotal + labExamConverted, 100);
         } else {
           score = Math.min(ciaTotal + examConverted, 100);

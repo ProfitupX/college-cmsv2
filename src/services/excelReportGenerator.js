@@ -825,7 +825,7 @@ export const exportOverallMarksExcel = async ({
   targetSubjects.forEach((sub) => {
     const startCol = colIdx;
     const subPrescribed = parseInt(
-      (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || sub.total_hours || 30,
+      (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || 60) / 2)) || 30,
       10
     );
     if (is2021) {
@@ -905,10 +905,13 @@ export const exportOverallMarksExcel = async ({
           }
         }
 
-        if (is2021) {
-          const isLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
-          const ciaMax = isLab ? 50 : 40;
-          const examMax = isLab ? 50 : 60;
+        const isLabTypeCum = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
+        const isPureLabSub = ['Practical', 'Laboratory', 'Lab'].includes(sub.type || '') || (sub.name?.toLowerCase().includes('laboratory') && !isLabTypeCum);
+        if (isPureLabSub) {
+          markVal = (examMark !== null && !isNaN(examMark)) ? Math.round(examMark) : '-';
+        } else if (is2021) {
+          const ciaMax = isLabTypeCum ? 50 : 40;
+          const examMax = isLabTypeCum ? 50 : 60;
           const ciaTotal = Math.min(Math.round(sumAssignment), ciaMax);
           const examConverted = (examMark !== null && !isNaN(examMark)) ? Math.round((examMark / 100) * examMax) : 0;
           if (examMark === null && markRecs.length === 0) {
@@ -927,7 +930,7 @@ export const exportOverallMarksExcel = async ({
         }
       }
 
-      const subPrescribed = parseInt(sess?.total_hours || (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || 30, 10);
+      const subPrescribed = parseInt((sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || sess?.total_hours || 60) / 2)) || 30, 10);
       totalAttendedHoursAll += attHrs;
       totalPrescribedHoursAll += subPrescribed;
 

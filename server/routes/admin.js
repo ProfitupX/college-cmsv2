@@ -27,7 +27,7 @@ router.get('/staffs', async (req, res) => {
 router.get('/credentials', async (req, res) => {
   try {
     const [rows] = await db.execute(
-      'SELECT id, name, short_name, designation, role, email, employee_id, department, is_password_changed FROM staffs ORDER BY name ASC'
+      'SELECT id, name, short_name, designation, role, email, password, employee_id, department, is_password_changed FROM staffs ORDER BY name ASC'
     );
     // Deduplicate by email so Manage Staffs displays a single unified entry per person
     const seen = new Map();

@@ -388,14 +388,22 @@ export default function MarksEntryPage2021() {
       });
 
       // For 2021 reg — attendance recorded for tracking (0 marks weight), along with internalExam and labData
-      const attendancePayload = students.map(st => ({
-        studentId: st.id,
-        hoursAttended: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
-        actualTakenHours: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
-        internalExamMark: internalExamData[st.id] || '',
-        labAttendance: 0,
-        labMark: (labData[st.id] && labData[st.id].labMark) || ''
-      }));
+      const attendancePayload = students.map(st => {
+        const rawAttd = attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' 
+          ? parseInt(attendanceData[st.id], 10) || 0 
+          : (parseInt(labData[st.id]?.labAttendance, 10) || 0);
+        const rawLabMark = (labData[st.id] && labData[st.id].labMark !== undefined && labData[st.id].labMark !== '')
+          ? labData[st.id].labMark
+          : (internalExamData[st.id] || '');
+        return {
+          studentId: st.id,
+          hoursAttended: rawAttd,
+          actualTakenHours: rawAttd,
+          internalExamMark: rawLabMark || internalExamData[st.id] || '',
+          labAttendance: rawAttd,
+          labMark: rawLabMark
+        };
+      });
 
       const payload = {
         subjectId:    effectiveSubjectId,

@@ -410,8 +410,19 @@ export default function ReportsPage() {
         }
       }
 
+      const isSubPureLab = Boolean(
+        sub && (
+          sub.type === 'Practical' ||
+          sub.type === 'Laboratory' ||
+          sub.type === 'Lab' ||
+          (sub.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type))
+        )
+      );
+
       setPreviewPayload({
         is2021,
+        isPureLab: isSubPureLab,
+        reportType: isSubPureLab ? 'lab_marks_only' : 'subject_marks_list',
         subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
         classObj: cls,
         staff: staffObj,
@@ -491,6 +502,13 @@ export default function ReportsPage() {
             }
           }
         }
+      } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only') {
+        const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
+        await generateLaboratoryMarksOnlyPDF({
+          subject, classObj, staff, session, students,
+          attendanceData, labData, internalExamData,
+          totalHours, labHours, assessmentMode, user
+        });
       } else if (is2021) {
         await generateSubjectMarksListPDF2021({
           subject, classObj, staff, session, students, marksData, attendanceData,
@@ -564,6 +582,12 @@ export default function ReportsPage() {
             await new Promise(r => setTimeout(r, 300));
           }
         }
+      } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only') {
+        await exportLaboratoryMarksExcel({
+          subject, classObj, staff, session, students,
+          attendanceData, labData, internalExamData,
+          totalHours, labHours, assessmentMode, user
+        });
       } else {
         await exportSubjectMarksExcel({
           subject, classObj, staff, session, students, marksData, attendanceData,
@@ -611,7 +635,29 @@ export default function ReportsPage() {
 
       const withInternal = mode === 'with_internal';
 
-      if (is2021) {
+      const isSingleSubPureLab = Boolean(
+        sub && (
+          sub.type === 'Practical' ||
+          sub.type === 'Laboratory' ||
+          sub.type === 'Lab' ||
+          (sub.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type))
+        )
+      );
+
+      if (isSingleSubPureLab) {
+        const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
+        await generateLaboratoryMarksOnlyPDF({
+          subject: sub, classObj: cls, staff: staffObj, session: currentSession,
+          students,
+          attendanceData: detail?.attendance || {},
+          labData: detail?.labData || {},
+          internalExamData: detail?.internalExam || {},
+          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 40, 10),
+          labHours: 40,
+          assessmentMode: sessionMode,
+          user
+        });
+      } else if (is2021) {
         await generateSubjectMarksListPDF2021({
           subject: sub, classObj: cls, staff: staffObj, session: currentSession,
           students, marksData: marksObj, attendanceData: detail?.attendance || {},
@@ -1428,7 +1474,8 @@ export default function ReportsPage() {
           executePreviewExcel(opts);
           setPreviewModalOpen(false);
         }}
-        reportType={previewPayload?.reportType || 'subject_marks'}
+        reportType={previewPayload?.reportType || (previewPayload?.isPureLab ? 'lab_marks_only' : 'subject_marks')}
+        isLabOnly={previewPayload?.isPureLab}
         title={
           previewPayload?.reportType === 'subject_analysis' ? `Subject Test Analysis (NAC/TLP-07a.21) — ${previewPayload?.subject?.code || ''}` :
           previewPayload?.reportType === 'examcell_legal' ? `ExamCell Legal Statement — ${previewPayload?.classObj?.name || ''}` :

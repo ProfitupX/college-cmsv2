@@ -6,7 +6,9 @@ import {
   Edit2, 
   Loader, 
   AlertTriangle, 
-  UploadCloud, 
+  UploadCloud,
+  Eye,
+  EyeOff,
   RotateCcw, 
   CheckCircle2 
 } from 'lucide-react';
@@ -25,6 +27,14 @@ export default function ManageStaffs() {
   const [showUpload, setShowUpload] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  const togglePasswordVisibility = (id) => {
+    setVisiblePasswords((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
 
   const [formData, setFormData] = useState({
@@ -33,7 +43,7 @@ export default function ManageStaffs() {
     short_name: '',
     designation: '',
     email: '',
-
+    password: '',
     role: 'faculty',
     employee_id: '',
     department: '',
@@ -125,7 +135,7 @@ export default function ManageStaffs() {
       short_name: s.short_name || '',
       designation: s.designation || '',
       email: s.email || '',
-
+      password: s.password || '',
       role: s.role || 'faculty',
       employee_id: s.employee_id || '',
       department: s.department || '',
@@ -142,7 +152,7 @@ export default function ManageStaffs() {
       short_name: '',
       designation: '',
       email: '',
-
+      password: 'faculty123',
       role: 'faculty',
       employee_id: '',
       department: '',
@@ -296,6 +306,16 @@ export default function ManageStaffs() {
 
 
 
+                        <div>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Password</label>
+              <input
+                type="text"
+                placeholder={isEditing ? 'Enter new password or leave current' : 'Password (e.g. faculty123)'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              />
+            </div>
+
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Role</label>
               <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
@@ -326,6 +346,7 @@ export default function ManageStaffs() {
             <th>Staff ID / Name</th>
             <th>Designation & Department</th>
             <th>Email Address</th>
+            <th>Password</th>
             <th>Role</th>
             <th>Actions</th>
           </tr>
@@ -379,6 +400,48 @@ export default function ManageStaffs() {
                   <span style={{ fontWeight: 500, color: 'var(--primary)' }}>{s.email}</span>
                 </td>
 
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        background: 'var(--bg)',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.85rem',
+                        border: '1px solid var(--border-solid)',
+                        letterSpacing: visiblePasswords[s.id] ? 'normal' : '2px',
+                      }}
+                    >
+                      {visiblePasswords[s.id] ? (s.password || '••••••••') : '••••••••'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility(s.id)}
+                      title={visiblePasswords[s.id] ? 'Hide password' : 'Show password'}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '2px',
+                      }}
+                    >
+                      {visiblePasswords[s.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: '2px' }}>
+                    {s.is_password_changed ? (
+                      <span style={{ fontSize: '0.68rem', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        ● Changed by Staff
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        ○ Default
+                      </span>
+                    )}
+                  </div>
+                </td>
 
                 <td>
                   <span

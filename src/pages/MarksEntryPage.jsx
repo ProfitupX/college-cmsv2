@@ -453,15 +453,23 @@ export default function MarksEntryPage() {
         });
       });
 
-      const attendancePayload = students.map(st => ({
-        studentId: st.id,
-        hoursAttended: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
-        actualTakenHours: attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' ? parseInt(attendanceData[st.id], 10) || 0 : 0,
-        int1AttendanceHours: int1AttendanceData[st.id] !== undefined && int1AttendanceData[st.id] !== '' ? parseInt(int1AttendanceData[st.id], 10) || 0 : 0,
-        internalExamMark: internalExamData[st.id] || '',
-        labAttendance: (labData[st.id] && labData[st.id].labAttendance) || 0,
-        labMark: (labData[st.id] && labData[st.id].labMark) || ''
-      }));
+      const attendancePayload = students.map(st => {
+        const rawAttd = attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' 
+          ? parseInt(attendanceData[st.id], 10) || 0 
+          : (parseInt(labData[st.id]?.labAttendance, 10) || 0);
+        const rawLabMark = (labData[st.id] && labData[st.id].labMark !== undefined && labData[st.id].labMark !== '')
+          ? labData[st.id].labMark
+          : (internalExamData[st.id] || '');
+        return {
+          studentId: st.id,
+          hoursAttended: rawAttd,
+          actualTakenHours: rawAttd,
+          int1AttendanceHours: int1AttendanceData[st.id] !== undefined && int1AttendanceData[st.id] !== '' ? parseInt(int1AttendanceData[st.id], 10) || 0 : 0,
+          internalExamMark: rawLabMark || internalExamData[st.id] || '',
+          labAttendance: rawAttd,
+          labMark: rawLabMark
+        };
+      });
 
       const currentAssessmentHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || parseInt(totalHours, 10) || 30;
       const payload = {

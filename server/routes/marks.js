@@ -9,8 +9,9 @@ function resolveSubjectDepartment(sub) {
   if (sub.year_label === 'I' || sub.class_dept === 'Science and Humanities' || sub.sub_dept === 'Science and Humanities' || sub.class_dept === 'First Year') {
     return 'Science and Humanities';
   }
-  if (sub.sub_dept && sub.sub_dept.trim()) return sub.sub_dept.trim();
+  // Prioritize class department (the department taking the subject) so the class's HOD has authority
   if (sub.class_dept && sub.class_dept.trim()) return sub.class_dept.trim();
+  if (sub.sub_dept && sub.sub_dept.trim()) return sub.sub_dept.trim();
 
   // Infer from subject code prefix
   const code = (sub.code || '').toUpperCase().trim();
@@ -69,7 +70,7 @@ router.post('/submit', async (req, res) => {
         await conn.commit();
         return res.json({ success: true, message: 'Marks sheet cleared successfully.' });
       }
-      const hasAttendance = attendance && Array.isArray(attendance) && attendance.some(a => (a.hoursAttended || a.actualTakenHours || a.internalExamMark));
+      const hasAttendance = attendance && Array.isArray(attendance) && attendance.some(a => (a.hoursAttended || a.actualTakenHours || a.internalExamMark || a.labMark || a.labAttendance));
       if (!hasAttendance) {
         await conn.commit();
         return res.json({ success: true, message: 'No changes made.' });
@@ -146,7 +147,17 @@ router.post('/submit', async (req, res) => {
       }
     }
 
-    const avgScore = (Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1)) || 0;
+    let labAvgScore = 0;
+    if (isPureLabSubmission && attendance && Array.isArray(attendance)) {
+      let lSum = 0;
+      let lCount = 0;
+      attendance.forEach(a => {
+        const v = parseFloat(a.labMark !== undefined && a.labMark !== null && a.labMark !== '' ? a.labMark : a.internalExamMark);
+        if (!isNaN(v)) { lSum += v; lCount++; }
+      });
+      labAvgScore = lCount > 0 ? (lSum / lCount) : 0;
+    }
+    const avgScore = isPureLabSubmission ? labAvgScore : ((Object.values(studentTotals).reduce((s, t) => s + t, 0) / (studentCount || 1)) || 0);
 
     // 2. Safe Session Upsert (never wipe or change sessionId if it already exists)
     const statusVal = actionType === 'frozen' ? 'locked' : (existingSession?.status === 'locked' ? 'locked' : 'draft');
@@ -295,13 +306,13 @@ router.post('/submit', async (req, res) => {
             savedHours,
             savedHours,
             attMark,
-            a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark))
-              ? parseFloat(a.internalExamMark) 
-              : null,
-            labHrs,
-            a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark))
+            (a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark)))
+              ? parseFloat(a.internalExamMark)
+              : (isPureLabSubmission && a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark)) ? parseFloat(a.labMark) : null),
+            labHrs > 0 ? labHrs : (savedHours > 0 ? savedHours : 0),
+            (a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark)))
               ? parseFloat(a.labMark)
-              : null
+              : (isPureLabSubmission && a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark)) ? parseFloat(a.internalExamMark) : null)
           ]
         );
       }
@@ -696,10 +707,12 @@ router.get('/unlock-requests', async (req, res) => {
       const depLower = department.trim().toLowerCase();
       const isFirstYear = depLower.includes('science') || depLower.includes('humanities') || depLower.includes('first year') || depLower === 's&h';
       if (isFirstYear) {
-        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR sub.department = 'Science and Humanities' OR st.department = 'Science and Humanities')`;
+        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR cl.department = 'First Year')`;
       } else {
-        sql += ` WHERE ((cl.department LIKE ? OR sub.department LIKE ? OR st.department LIKE ?) AND (cl.year_label IN ('II', 'III', 'IV') OR cl.year_label IS NULL))`;
-        params.push(`%${department}%`, `%${department}%`, `%${department}%`);
+        // Strictly the department of the class taking the subject!
+        // (e.g. If an AIDS staff takes an IT subject/class, only the IT HOD receives and approves unlock requests)
+        sql += ` WHERE (cl.department LIKE ? AND (cl.year_label IN ('II', 'III', 'IV') OR cl.year_label IS NULL))`;
+        params.push(`%${department}%`);
       }
     }
     sql += ` ORDER BY ur.requested_at DESC`;

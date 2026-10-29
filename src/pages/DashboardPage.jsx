@@ -579,6 +579,13 @@ export default function DashboardPage() {
             await new Promise(r => setTimeout(r, 350));
           }
         }
+      } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only' || ['Practical', 'Laboratory', 'Lab'].includes(subject?.type) || (subject?.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type))) {
+        const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
+        await generateLaboratoryMarksOnlyPDF({
+          subject, classObj, staff, session, students,
+          attendanceData, labData, internalExamData,
+          totalHours, labHours, assessmentMode, user
+        });
       } else if (is2021) {
         await generateSubjectMarksListPDF2021({
           subject, classObj, staff, session, students, marksData, attendanceData,
@@ -650,6 +657,12 @@ export default function DashboardPage() {
             await new Promise(r => setTimeout(r, 300));
           }
         }
+      } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only' || ['Practical', 'Laboratory', 'Lab'].includes(subject?.type) || (subject?.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type))) {
+        await exportLaboratoryMarksExcel({
+          subject, classObj, staff, session, students,
+          attendanceData, labData, internalExamData,
+          totalHours, labHours, assessmentMode, user
+        });
       } else {
         await exportSubjectMarksExcel({
           subject, classObj, staff, session, students, marksData, attendanceData,
@@ -1635,6 +1648,7 @@ export default function DashboardPage() {
           setPreviewModalOpen(false);
         }}
         reportType={previewPayload?.reportType || 'subject_marks'}
+        isLabOnly={['Practical', 'Laboratory', 'Lab'].includes(previewPayload?.subject?.type) || (previewPayload?.subject?.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(previewPayload?.subject?.type))}
         title={
           previewPayload?.reportType === 'subject_analysis' ? `Subject Test Analysis (NAC/TLP-07a.21) — ${previewPayload?.subject?.code || ''}` :
           previewPayload?.reportType === 'examcell_legal' ? `ExamCell Legal Statement — ${previewPayload?.classObj?.name || ''}` :

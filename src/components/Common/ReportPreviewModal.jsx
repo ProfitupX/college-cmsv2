@@ -41,6 +41,14 @@ export default function ReportPreviewModal({
 }) {
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+  const isPureLabSubject = Boolean(
+    isLabOnly ||
+    reportType === 'lab_marks_only' ||
+    subject?.type === 'Practical' ||
+    subject?.type === 'Laboratory' ||
+    subject?.type === 'Lab' ||
+    (subject?.name?.toLowerCase().includes('laboratory') && !hasLab)
+  );
   const is2021 = regulation === '2021' || classObj?.regulation === '2021' || reportType?.endsWith('_2021');
 
   // 2021 Regulation Theory-cum-Lab in Internal 2 options
@@ -65,7 +73,8 @@ export default function ReportPreviewModal({
     reportType === 'subject_marks' ||
     reportType?.startsWith('subject_marks_') ||
     reportType === 'lab_marks_only' ||
-    isLabOnly
+    isLabOnly ||
+    isPureLabSubject
   );
 
   // 1. Single Subject Marks Rows
@@ -375,6 +384,8 @@ export default function ReportPreviewModal({
             );
             if (attRec.internal_exam_mark !== null && attRec.internal_exam_mark !== undefined && attRec.internal_exam_mark !== '') {
               examMarkVal = Math.round(parseFloat(attRec.internal_exam_mark));
+            } else if (attRec.lab_mark !== null && attRec.lab_mark !== undefined && attRec.lab_mark !== '') {
+              examMarkVal = Math.round(parseFloat(attRec.lab_mark));
             }
           }
           const markRecs = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
@@ -384,7 +395,10 @@ export default function ReportPreviewModal({
             actMarkVal = Math.round(sum);
           }
 
-          if (is2021) {
+          const isPureLabSub = ['Practical', 'Laboratory', 'Lab'].includes(sub.type || '') || (sub.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || ''));
+          if (isPureLabSub) {
+            markVal = examMarkVal;
+          } else if (is2021) {
             const isLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
             const ciaMax = isLab ? 50 : 40;
             const examMax = isLab ? 50 : 60;
@@ -400,7 +414,7 @@ export default function ReportPreviewModal({
           }
         }
 
-        const subPrescribed = parseInt(sess?.total_hours || (assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) || 30, 10);
+        const subPrescribed = parseInt((assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || 60) / 2)) || 30, 10);
         totalAttendedHours += attHrs;
         totalPrescribedHours += subPrescribed;
 
@@ -714,7 +728,7 @@ export default function ReportPreviewModal({
                     <th>Student Name</th>
                     {multiSubjectRows.targetSubs.map(s => {
                       const subPrescribed = parseInt(
-                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || s.total_hours || 30,
+                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || (is2021 ? 30 : Math.ceil((s.total_hours || 60) / 2)) || 30,
                         10
                       );
                       return (
@@ -956,7 +970,7 @@ export default function ReportPreviewModal({
                         <th style={{ width: '45px' }}>S.No</th>
                         <th style={{ width: '120px' }}>Roll No</th>
                         <th>Student Name</th>
-                        {isLabOnly ? (
+                        {(isLabOnly || isPureLabSubject) ? (
                           <>
                             <th style={{ width: '150px' }}>Lab Attended Hours</th>
                             <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
@@ -994,7 +1008,7 @@ export default function ReportPreviewModal({
                           <td style={{ textAlign: 'center' }}>{r.sNo}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
                           <td>{r.name}</td>
-                          {isLabOnly ? (
+                          {(isLabOnly || isPureLabSubject) ? (
                             <>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
