@@ -571,8 +571,8 @@ export default function MarksEntryPage2021() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
-          labHours: 40,
+          totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10),
+          labHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10),
           assessmentMode,
           targetPages: options.targetPages || 'auto',
           user
@@ -1296,10 +1296,10 @@ export default function MarksEntryPage2021() {
         internalExamData={internalExamData}
         labData={labData}
         components={assessmentComponents}
-        totalHours={totalHours}
+        totalHours={totalHours || 60}
         int1Hours={30}
         int2Hours={30}
-        labHours={40}
+        labHours={totalHours || 60}
         int1AttendanceData={{}}
         regulation="2021"
         reportType={reportType}

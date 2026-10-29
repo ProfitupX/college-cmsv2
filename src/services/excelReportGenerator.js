@@ -587,7 +587,7 @@ export const exportLaboratoryMarksExcel = async ({
   ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
-  const prescribedLabHours = parseInt(labHours || 0, 10) || 40;
+  const prescribedLabHours = parseInt(totalHours || session?.total_hours || subject?.total_hours || subject?.lab_hours || labHours || 60, 10) || 60;
   const numCols = 6;
 
   // Draw Official College Header
@@ -631,19 +631,35 @@ export const exportLaboratoryMarksExcel = async ({
   // Rows (Starting Row 12)
   let currentRow = 12;
   students.forEach((student, idx) => {
+    const sId = student.id || student.student_id;
+    const sRoll = student.roll_no || student.rollNo;
+
     let attendedHours = 0;
-    if (labData[student.id]?.labAttendance !== undefined && labData[student.id]?.labAttendance !== null && labData[student.id]?.labAttendance !== '') {
-      attendedHours = parseInt(labData[student.id].labAttendance, 10);
-    } else if (attendanceData[student.id] !== undefined && attendanceData[student.id] !== null && attendanceData[student.id] !== '') {
-      attendedHours = parseInt(attendanceData[student.id], 10);
+    const rawAtt =
+      labData[sId]?.labAttendance ??
+      labData[String(sId)]?.labAttendance ??
+      labData[sRoll]?.labAttendance ??
+      attendanceData[sId] ??
+      attendanceData[String(sId)] ??
+      attendanceData[sRoll] ??
+      '';
+
+    if (rawAtt !== undefined && rawAtt !== null && rawAtt !== '') {
+      attendedHours = parseInt(rawAtt, 10) || 0;
     }
     const cleanHours = Math.min(attendedHours, prescribedLabHours);
 
     let rawLabMark = null;
-    if (labData[student.id]?.labMark !== undefined && labData[student.id]?.labMark !== null && labData[student.id]?.labMark !== '') {
-      rawLabMark = labData[student.id].labMark;
-    } else if (internalExamData[student.id] !== undefined && internalExamData[student.id] !== null && internalExamData[student.id] !== '') {
-      rawLabMark = internalExamData[student.id];
+    const candidateMark =
+      labData[sId]?.labMark ??
+      labData[String(sId)]?.labMark ??
+      labData[sRoll]?.labMark ??
+      internalExamData[sId] ??
+      internalExamData[String(sId)] ??
+      internalExamData[sRoll];
+
+    if (candidateMark !== undefined && candidateMark !== null && candidateMark !== '') {
+      rawLabMark = candidateMark;
     }
 
     const numMark = parseFloat(rawLabMark);

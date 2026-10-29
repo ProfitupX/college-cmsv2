@@ -700,7 +700,7 @@ router.get('/unlock-requests', async (req, res) => {
       FROM mark_unlock_requests ur
       JOIN staffs st ON st.id = ur.staff_id
       LEFT JOIN subjects sub ON sub.id = ur.subject_id
-      LEFT JOIN classes cl ON cl.id = ur.class_id
+      LEFT JOIN classes cl ON (cl.id = ur.class_id OR cl.id = sub.class_id)
     `;
     const params = [];
     if (department) {

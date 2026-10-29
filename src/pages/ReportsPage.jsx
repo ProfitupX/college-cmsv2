@@ -652,8 +652,8 @@ export default function ReportsPage() {
           attendanceData: detail?.attendance || {},
           labData: detail?.labData || {},
           internalExamData: detail?.internalExam || {},
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 40, 10),
-          labHours: 40,
+          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
+          labHours: parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
           assessmentMode: sessionMode,
           user
         });

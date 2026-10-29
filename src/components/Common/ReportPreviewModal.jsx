@@ -122,18 +122,34 @@ export default function ReportPreviewModal({
       const isPass = !isExamAbsent && (withInternal ? totalInternal >= 50 : numExam >= 50);
       const resultStr = isExamAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL');
 
+      const sId = student.id || student.student_id;
+      const sRoll = student.roll_no || student.rollNo;
+
       let attendedLabHours = 0;
-      if (labData[student.id]?.labAttendance !== undefined && labData[student.id]?.labAttendance !== null && labData[student.id]?.labAttendance !== '') {
-        attendedLabHours = parseInt(labData[student.id].labAttendance, 10);
-      } else if (attendanceData[student.id] !== undefined && attendanceData[student.id] !== null && attendanceData[student.id] !== '') {
-        attendedLabHours = parseInt(attendanceData[student.id], 10);
+      const rawLabAtt =
+        labData[sId]?.labAttendance ??
+        labData[String(sId)]?.labAttendance ??
+        labData[sRoll]?.labAttendance ??
+        attendanceData[sId] ??
+        attendanceData[String(sId)] ??
+        attendanceData[sRoll] ??
+        '';
+
+      if (rawLabAtt !== undefined && rawLabAtt !== null && rawLabAtt !== '') {
+        attendedLabHours = parseInt(rawLabAtt, 10) || 0;
       }
 
       let labRawMark = null;
-      if (labData[student.id]?.labMark !== undefined && labData[student.id]?.labMark !== null && labData[student.id]?.labMark !== '') {
-        labRawMark = labData[student.id].labMark;
-      } else if (internalExamData[student.id] !== undefined && internalExamData[student.id] !== null && internalExamData[student.id] !== '') {
-        labRawMark = internalExamData[student.id];
+      const candidateLabMark =
+        labData[sId]?.labMark ??
+        labData[String(sId)]?.labMark ??
+        labData[sRoll]?.labMark ??
+        internalExamData[sId] ??
+        internalExamData[String(sId)] ??
+        internalExamData[sRoll];
+
+      if (candidateLabMark !== undefined && candidateLabMark !== null && candidateLabMark !== '') {
+        labRawMark = candidateLabMark;
       }
       const numLabMark = parseFloat(labRawMark);
       const isLabAbsent = isNaN(numLabMark) || labRawMark === null || labRawMark === '' || labRawMark === 'AB';
@@ -974,6 +990,7 @@ export default function ReportPreviewModal({
                           <>
                             <th style={{ width: '150px' }}>Lab Attended Hours</th>
                             <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
+                            <th style={{ width: '120px' }}>Result</th>
                           </>
                         ) : is2021 ? (
                           withInternal ? (
@@ -1012,6 +1029,9 @@ export default function ReportPreviewModal({
                             <>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
                               <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#16a34a' : (r.labResult === 'FAIL' ? '#dc2626' : '#64748b') }}>
+                                {r.labResult}
+                              </td>
                             </>
                           ) : is2021 ? (
                             withInternal ? (

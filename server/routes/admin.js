@@ -31,6 +31,7 @@ router.get('/credentials', async (req, res) => {
     );
     // Deduplicate by email so Manage Staffs displays a single unified entry per person
     const seen = new Map();
+    rows.forEach(r => { if (!r.password) r.password = 'faculty123'; });
     rows.forEach(r => {
       const key = (r.email || '').toLowerCase().trim() || r.id;
       if (!seen.has(key)) {

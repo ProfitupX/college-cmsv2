@@ -1623,26 +1623,16 @@ export const generateOverallMarksAndAttendancePDF = async ({
   targetSubjects.forEach(sub => {
     const subTotal = parseInt(sub.total_hours) || 60;
     const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
+    const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
     let wHrs = 30;
-    if (is2021) {
-      // 2021 Regulation: strictly particular internal hours (30 hrs), never total 105 hrs
-      wHrs = parseInt(
-        (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
-        (hourSplits ? (sessionLabel === 'internal2' ? hourSplits.int2 : hourSplits.int1) : 30) ||
-        30,
-        10
-      );
-      if (wHrs > 60 || wHrs === subTotal) {
-        wHrs = 30;
-      }
+    const configuredHrs = isInternal2
+      ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null))
+      : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null));
+
+    if (configuredHrs && configuredHrs > 0 && configuredHrs <= 60) {
+      wHrs = configuredHrs;
     } else {
-      if (sessionLabel === 'internal1') {
-        wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
-      } else if (sessionLabel === 'internal2') {
-        wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
-      } else {
-        wHrs = subTotal;
-      }
+      wHrs = 30;
     }
     headRow1.push({ content: `${sub.code}\n(TH = ${wHrs})`, colSpan: colsPerSub, styles: { halign: 'center' } });
   });
@@ -1694,27 +1684,16 @@ export const generateOverallMarksAndAttendancePDF = async ({
       // Use standardized subject hours based on LTPC for overall reports
       const subTotal = parseInt(sub.total_hours) || 60;
       const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
-      
+      const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
       let wHrs = 30;
-      if (is2021) {
-        // 2021 Regulation: strictly particular internal hours (30 hrs), never total 105 hrs
-        wHrs = parseInt(
-          (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
-          (hourSplits ? (sessionLabel === 'internal2' ? hourSplits.int2 : hourSplits.int1) : 30) ||
-          30,
-          10
-        );
-        if (wHrs > 60 || wHrs === subTotal) {
-          wHrs = 30;
-        }
+      const configuredHrs = isInternal2
+        ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null))
+        : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null));
+
+      if (configuredHrs && configuredHrs > 0 && configuredHrs <= 60) {
+        wHrs = configuredHrs;
       } else {
-        if (sessionLabel === 'internal1') {
-          wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
-        } else if (sessionLabel === 'internal2') {
-          wHrs = hourSplits.int2 || Math.floor(subTotal / 2);
-        } else {
-          wHrs = subTotal;
-        }
+        wHrs = 30;
       }
 
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
@@ -2094,11 +2073,17 @@ export const generateLaboratoryMarksOnlyPDF = async ({
   await drawCollegeHeader(doc, title, 'NAC/TLP-LAB.01', '01', '', '1 of 1');
 
   // Determine prescribed lab hours:
-  let prescribedLabHours = parseInt(labHours || 0, 10);
+  let prescribedLabHours = parseInt(
+    totalHours ||
+    session?.total_hours ||
+    subject?.total_hours ||
+    subject?.lab_hours ||
+    labHours ||
+    60,
+    10
+  );
   if (!prescribedLabHours || prescribedLabHours <= 0) {
-    const rawTot = parseInt(totalHours || subject?.total_hours || 60, 10);
-    const splits = getHourSplits(subject?.ltpc, subject?.type, rawTot);
-    prescribedLabHours = splits.lab > 0 ? splits.lab : (subject?.type === 'Practical' ? 40 : 30);
+    prescribedLabHours = 60;
   }
 
   let y = 46;
@@ -2131,19 +2116,35 @@ export const generateLaboratoryMarksOnlyPDF = async ({
   ];
 
   const bodyRows = students.map((st, idx) => {
+    const sId = st.id || st.student_id;
+    const sRoll = st.roll_no || st.rollNo;
+
     let attendedHours = 0;
-    if (labData[st.id]?.labAttendance !== undefined && labData[st.id]?.labAttendance !== null && labData[st.id]?.labAttendance !== '') {
-      attendedHours = parseInt(labData[st.id].labAttendance, 10);
-    } else if (attendanceData[st.id] !== undefined && attendanceData[st.id] !== null && attendanceData[st.id] !== '') {
-      attendedHours = parseInt(attendanceData[st.id], 10);
+    const rawAtt =
+      labData[sId]?.labAttendance ??
+      labData[String(sId)]?.labAttendance ??
+      labData[sRoll]?.labAttendance ??
+      attendanceData[sId] ??
+      attendanceData[String(sId)] ??
+      attendanceData[sRoll] ??
+      '';
+
+    if (rawAtt !== undefined && rawAtt !== null && rawAtt !== '') {
+      attendedHours = parseInt(rawAtt, 10) || 0;
     }
     const cleanHours = Math.min(attendedHours, prescribedLabHours);
 
     let rawLabMark = null;
-    if (labData[st.id]?.labMark !== undefined && labData[st.id]?.labMark !== null && labData[st.id]?.labMark !== '') {
-      rawLabMark = labData[st.id].labMark;
-    } else if (internalExamData[st.id] !== undefined && internalExamData[st.id] !== null && internalExamData[st.id] !== '') {
-      rawLabMark = internalExamData[st.id];
+    const candidateMark =
+      labData[sId]?.labMark ??
+      labData[String(sId)]?.labMark ??
+      labData[sRoll]?.labMark ??
+      internalExamData[sId] ??
+      internalExamData[String(sId)] ??
+      internalExamData[sRoll];
+
+    if (candidateMark !== undefined && candidateMark !== null && candidateMark !== '') {
+      rawLabMark = candidateMark;
     }
 
     const numMark = parseFloat(rawLabMark);
@@ -2154,7 +2155,7 @@ export const generateLaboratoryMarksOnlyPDF = async ({
 
     return [
       idx + 1,
-      st.roll_no || st.rollNo || '-',
+      sRoll || '-',
       cleanName,
       `${cleanHours} / ${prescribedLabHours}`,
       markDisplay,

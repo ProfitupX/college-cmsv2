@@ -27,7 +27,7 @@ export default function ManageStaffs() {
   const [showUpload, setShowUpload] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [hiddenPasswords, setHiddenPasswords] = useState({});
 
   const togglePasswordVisibility = (id) => {
     setVisiblePasswords((prev) => ({
@@ -410,15 +410,15 @@ export default function ManageStaffs() {
                         borderRadius: '4px',
                         fontSize: '0.85rem',
                         border: '1px solid var(--border-solid)',
-                        letterSpacing: visiblePasswords[s.id] ? 'normal' : '2px',
+                        letterSpacing: hiddenPasswords[s.id] ? '2px' : 'normal',
                       }}
                     >
-                      {visiblePasswords[s.id] ? (s.password || '••••••••') : '••••••••'}
+                      {hiddenPasswords[s.id] ? '••••••••' : (s.password || 'faculty123')}
                     </span>
                     <button
                       type="button"
                       onClick={() => togglePasswordVisibility(s.id)}
-                      title={visiblePasswords[s.id] ? 'Hide password' : 'Show password'}
+                      title={hiddenPasswords[s.id] ? 'Show password' : 'Hide password'}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -427,7 +427,7 @@ export default function ManageStaffs() {
                         padding: '2px',
                       }}
                     >
-                      {visiblePasswords[s.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {hiddenPasswords[s.id] ? <Eye size={16} /> : <EyeOff size={16} />}
                     </button>
                   </div>
                   <div style={{ marginTop: '2px' }}>
