@@ -156,9 +156,14 @@ export const generateSubjectAnalysisPDF = async ({
   doc.text(`Staff Name            : ${staffName}`, 14, y);
   doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
-  const analysisPrescribedHrs = (assessmentMode === 'internal2')
-    ? (parseInt(subject?.int2_hours, 10) || 30)
-    : (parseInt(subject?.int1_hours, 10) || 30);
+  const analysisPrescribedHrs = parseInt(
+    totalHours ||
+    session?.total_hours ||
+    ((assessmentMode === 'internal2')
+      ? (subject?.int2_hours || 30)
+      : (subject?.int1_hours || 30)),
+    10
+  );
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${analysisPrescribedHrs}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
@@ -411,9 +416,14 @@ export const generateSubjectMarksListPDF = async ({
   // Internal 1: strictly int1Hours (default 30 hrs)
   // Internal 2: strictly int2Hours (default 30 hrs)
   // (Laboratory hours are never added here; Lab has its own Laboratory Marks Statement)
-  const tHours = isInternal2
-    ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
-    : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
+  const tHours = parseInt(
+    totalHours ||
+    session?.total_hours ||
+    (isInternal2
+      ? (subject?.int2_hours || int2Hours || 30)
+      : (subject?.int1_hours || int1Hours || 30)),
+    10
+  );
 
   const totHoursDisplay = tHours;
 
@@ -1186,7 +1196,14 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Staff Name         : ${staffName}`, 14, y);
   doc.text(`Academic Year  : 2026 - 2027`, 120, y);
   y += 5;
-  const displayTotalHrs = parseInt((isInternal2 ? subject?.int2_hours : subject?.int1_hours) || prescribedHours || 30, 10);
+  const displayTotalHrs = parseInt(
+    totalHours ||
+    session?.total_hours ||
+    (isInternal2 ? subject?.int2_hours : subject?.int1_hours) ||
+    prescribedHours ||
+    30,
+    10
+  );
   doc.text(`Subject              : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${displayTotalHrs}`, 14, y);
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
@@ -1517,17 +1534,19 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 // ─────────────────────────────────────────────────────────────
 // Helper function to split hours based on LTPC and subject type
 const getHourSplits = (ltpc, type, total) => {
-  const cleanLtpc = (ltpc || '').trim().replace(/-/g, '');
-  const h = parseInt(total || 0);
+  const cleanLtpc = String(ltpc || '').trim().replace(/[\s-]+/g, '');
+  let h = parseInt(total || 0, 10);
+  if (h > 0 && h <= 10) h = h * 15;
+  if (!h || h <= 0) h = 60;
 
-  if (type === 'Lab-cum-Theory' || type === 'Theory-cum-Lab' || type === 'Lab cum Theory' || type === 'Theory cum Lab') {
+  if (['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(type)) {
     if (cleanLtpc === '2023') return { int1: 15, int2: 15, lab: 30 };
     if (cleanLtpc === '2043') return { int1: 15, int2: 15, lab: 60 };
     if (cleanLtpc === '1022') return { int1: 15, int2: 15, lab: 15 };
     if (cleanLtpc === '3024') return { int1: 30, int2: 30, lab: 15 };
     if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 45 };
     if (cleanLtpc === '1021') return { int1: 15, int2: 15, lab: 15 };
-    return { int1: 15, int2: 15, lab: Math.max(0, h - 30) };
+    return { int1: 30, int2: 30, lab: Math.max(0, h - 60) || 30 };
   }
 
   if (type === 'Theory') {
@@ -1535,15 +1554,23 @@ const getHourSplits = (ltpc, type, total) => {
     if (cleanLtpc === '1001') return { int1: 7, int2: 8, lab: 0 };
     if (cleanLtpc === '3003' || cleanLtpc === '2103') return { int1: 25, int2: 20, lab: 0 };
     if (cleanLtpc === '2002') return { int1: 15, int2: 15, lab: 0 };
+    if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+    if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+    if (h === 15) return { int1: 7, int2: 8, lab: 0 };
+    return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
   }
 
-  if (type === 'Practical') {
+  if (type === 'Practical' || type === 'Laboratory' || type === 'Lab') {
     if (cleanLtpc === '0042') return { int1: 30, int2: 30, lab: 0 };
     if (cleanLtpc === '1021') return { int1: 25, int2: 20, lab: 0 };
     if (cleanLtpc === '0041') return { int1: 30, int2: 30, lab: 0 };
+    if (cleanLtpc === '0021') return { int1: 15, int2: 15, lab: 0 };
+    if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+    if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+    return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
   }
 
-  if (!h) return { int1: 0, int2: 0, lab: 0 };
+  if (!h) return { int1: 30, int2: 30, lab: 0 };
   if (h === 60) return { int1: 30, int2: 30, lab: 0 };
   if (h === 45) return { int1: 25, int2: 20, lab: 0 };
   if (h === 30) return { int1: 15, int2: 15, lab: 0 };

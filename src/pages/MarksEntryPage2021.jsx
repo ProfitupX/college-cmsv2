@@ -315,7 +315,7 @@ export default function MarksEntryPage2021() {
             ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
             : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
           const sessHours = parseInt(detail.session?.total_hours, 10);
-          const finalSessionHours = prescribed > 10 ? prescribed : (sessHours > 10 ? sessHours : 30);
+          const finalSessionHours = (sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30);
 
           setSessionBulk({
             marks: loadedMarks,
@@ -453,7 +453,7 @@ export default function MarksEntryPage2021() {
         };
       });
 
-      const currentAssessmentHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || parseInt(totalHours, 10) || 30;
+      const currentAssessmentHours = parseInt(totalHours, 10) || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
       const payload = {
         subjectId:    effectiveSubjectId,
         classId:      effectiveClassId,
@@ -715,7 +715,7 @@ export default function MarksEntryPage2021() {
         students,
         marksData,
         attendanceData,
-        totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
+        totalHours: parseInt(totalHours || currentSession?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30),
         internalExamData,
         labData,
         assessmentMode,
@@ -743,7 +743,7 @@ export default function MarksEntryPage2021() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours: parseInt(totalHours || currentSession?.total_hours || 0),
+          totalHours: parseInt(totalHours || currentSession?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30),
           labHours: 40,
           assessmentMode,
           user

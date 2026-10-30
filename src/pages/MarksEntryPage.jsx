@@ -329,7 +329,7 @@ export default function MarksEntryPage() {
                 ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
                 : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
               const sessHours = parseInt(detail.session.total_hours, 10);
-              const finalSessionHours = prescribed > 10 ? prescribed : (sessHours > 10 ? sessHours : 30);
+              const finalSessionHours = (sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30);
 
               setSessionBulk({
                 marks: loadedMarks,
@@ -468,7 +468,7 @@ export default function MarksEntryPage() {
         };
       });
 
-      const currentAssessmentHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || parseInt(totalHours, 10) || 30;
+      const currentAssessmentHours = parseInt(totalHours, 10) || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
       const payload = {
         subjectId:     effectiveSubjectId,
         classId:       effectiveClassId,

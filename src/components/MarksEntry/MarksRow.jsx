@@ -116,9 +116,22 @@ export default function MarksRow({
               className={`${styles.input} ${pureLabAttdNum > pureLabHoursMax ? styles.inputError : ''}`}
               value={pureLabAttdRaw}
               onChange={(e) => {
-                const val = e.target.value;
+                let val = e.target.value;
+                if (val !== '') {
+                  const n = parseFloat(val);
+                  if (!isNaN(n) && pureLabHoursMax > 0 && n > pureLabHoursMax) val = String(pureLabHoursMax);
+                  else if (!isNaN(n) && n < 0) val = '0';
+                }
                 onAttendanceChange && onAttendanceChange(val);
                 onLabDataChange && onLabDataChange('labAttendance', val);
+              }}
+              onKeyDown={(e) => {
+                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  const sel = window.getSelection()?.toString();
+                  if (!sel && pureLabAttdNum >= pureLabHoursMax) {
+                    e.preventDefault();
+                  }
+                }
               }}
               disabled={isLocked}
               placeholder="Attended Hrs"
@@ -147,9 +160,22 @@ export default function MarksRow({
               className={`${styles.input} ${pureLabMarkNum > 100 ? styles.inputError : ''}`}
               value={pureLabMarkRaw}
               onChange={(e) => {
-                const val = e.target.value;
+                let val = e.target.value;
+                if (val !== '') {
+                  const n = parseFloat(val);
+                  if (!isNaN(n) && n > 100) val = '100';
+                  else if (!isNaN(n) && n < 0) val = '0';
+                }
                 onInternalExamChange && onInternalExamChange(val);
                 onLabDataChange && onLabDataChange('labMark', val);
+              }}
+              onKeyDown={(e) => {
+                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  const sel = window.getSelection()?.toString();
+                  if (!sel && pureLabMarkNum >= 100) {
+                    e.preventDefault();
+                  }
+                }
               }}
               disabled={isLocked}
               placeholder="Lab Mark / 100"
@@ -233,6 +259,14 @@ export default function MarksRow({
                   }
                   onMarkChange(student.id, comp.uid, v);
                 }}
+                onKeyDown={(e) => {
+                  if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                    const sel = window.getSelection()?.toString();
+                    if (!sel && parseFloat(val) >= conductedMax) {
+                      e.preventDefault();
+                    }
+                  }
+                }}
                 disabled={isLocked}
                 placeholder="—"
               />
@@ -274,6 +308,14 @@ export default function MarksRow({
                   }
                   onAttendanceChange(val);
                 }}
+                onKeyDown={(e) => {
+                  if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                    const sel = window.getSelection()?.toString();
+                    if (!sel && parseFloat(attendanceHours) >= currentMaxAttd) {
+                      e.preventDefault();
+                    }
+                  }
+                }}
                 disabled={isLocked}
                 placeholder="—"
               />
@@ -312,6 +354,14 @@ export default function MarksRow({
                   return;
                 }
                 onLabDataChange && onLabDataChange('labAttendance', val);
+              }}
+              onKeyDown={(e) => {
+                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  const sel = window.getSelection()?.toString();
+                  if (!sel && parseFloat(labData?.labAttendance) >= maxLabHours) {
+                    e.preventDefault();
+                  }
+                }
               }}
               disabled={isLocked}
               placeholder="—"
@@ -354,6 +404,14 @@ export default function MarksRow({
               }
               onInternalExamChange(v);
             }}
+            onKeyDown={(e) => {
+              if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                const sel = window.getSelection()?.toString();
+                if (!sel && parseFloat(internalExamMark) >= 100) {
+                  e.preventDefault();
+                }
+              }
+            }}
             disabled={isLocked}
             placeholder="—"
           />
@@ -382,6 +440,14 @@ export default function MarksRow({
                   else if (!isNaN(n) && n < 0) v = '0';
                 }
                 onLabDataChange('labMark', v);
+              }}
+              onKeyDown={(e) => {
+                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  const sel = window.getSelection()?.toString();
+                  if (!sel && parseFloat(labData?.labMark) >= 100) {
+                    e.preventDefault();
+                  }
+                }
               }}
               disabled={isLocked}
               placeholder="—"

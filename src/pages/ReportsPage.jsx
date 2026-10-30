@@ -661,7 +661,7 @@ export default function ReportsPage() {
         await generateSubjectMarksListPDF2021({
           subject: sub, classObj: cls, staff: staffObj, session: currentSession,
           students, marksData: marksObj, attendanceData: detail?.attendance || {},
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 0),
+          totalHours: parseInt(currentSession?.total_hours || (sessionMode === 'internal2' ? sub?.int2_hours : sub?.int1_hours) || (sub?.total_hours ? Math.ceil(sub.total_hours / 2) : 30), 10),
           internalExamData: detail?.internalExam || {},
           labData: detail?.labData || {}, assessmentMode: sessionMode,
           components: componentsList, withInternal, user
