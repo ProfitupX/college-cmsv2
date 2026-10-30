@@ -44,7 +44,9 @@ router.get('/credentials', async (req, res) => {
 
         if (rHasChanged && !existingHasChanged) {
           existing.password = r.password;
-          existing.is_password_changed = r.is_password_changed || 1;
+          existing.is_password_changed = (existing.is_password_changed || r.is_password_changed) ? 1 : 0;
+        } else if (r.is_password_changed) {
+          existing.is_password_changed = 1;
         }
 
         if (r.role === 'hod') existing.role = 'hod';
