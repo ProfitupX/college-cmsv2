@@ -100,53 +100,29 @@ export default function MarksTable({
                   </th>
                 ))}
 
-                {/* Attendance Columns based on assessment mode */}
-                {assessmentMode === 'internal1' ? (
+                {/* Attendance Column (Single clean attendance column for both Int 1 & Int 2) */}
+                <th className={`${styles.th} ${styles.attendanceTh}`}>
+                  <div className={styles.thContent}>
+                    <span className={styles.thIcon}>📅</span>
+                    <span className={styles.thLabel}>
+                      Attendance
+                    </span>
+                    <div className={styles.globalHoursWrap}>
+                      <label>Total Classes:</label>
+                      <div className={styles.lockedHours} title={`Total Class Hours: ${displayHours}`}>{displayHours}</div>
+                    </div>
+                  </div>
+                </th>
+
+                {/* Lab Attendance Header (if Lab-cum-Theory / Theory-cum-Lab) */}
+                {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
                   <th className={`${styles.th} ${styles.attendanceTh}`}>
                     <div className={styles.thContent}>
-                      <span className={styles.thIcon}>📅</span>
-                      <span className={styles.thLabel}>
-                        Attendance
-                      </span>
-                      <div className={styles.globalHoursWrap}>
-                        <label>Total Classes:</label>
-                        <div className={styles.lockedHours} title="Standard Total Class Hours: 30">{int1Hours || 30}</div>
-                      </div>
+                      <span className={styles.thIcon}>🧑‍🔬</span>
+                      <span className={styles.thLabel}>Lab Attd</span>
+                      <div className={styles.thSub}>Max: {labHours || 30}</div>
                     </div>
                   </th>
-                ) : (
-                  <>
-                    {/* Read-Only Int 1 Attendance Header */}
-                    <th className={`${styles.th} ${styles.attendanceTh}`}>
-                      <div className={styles.thContent}>
-                        <span className={styles.thIcon}>📅</span>
-                        <span className={styles.thLabel}>Int 1 Attd</span>
-                        <div className={styles.thSub}>Max: {int1Hours || 30}</div>
-                      </div>
-                    </th>
-
-                    {/* Int 2 Attendance Header */}
-                    <th className={`${styles.th} ${styles.attendanceTh}`}>
-                      <div className={styles.thContent}>
-                        <span className={styles.thIcon}>📅</span>
-                        <span className={styles.thLabel}>
-                          Int 2 Attd
-                        </span>
-                        <div className={styles.thSub}>Max: {int2Hours || 30}</div>
-                      </div>
-                    </th>
-
-                    {/* Lab Attendance Header (if Lab-cum-Theory / Theory-cum-Lab) */}
-                    {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
-                      <th className={`${styles.th} ${styles.attendanceTh}`}>
-                        <div className={styles.thContent}>
-                          <span className={styles.thIcon}>🧑‍🔬</span>
-                          <span className={styles.thLabel}>Lab Attd</span>
-                          <div className={styles.thSub}>Max: {labHours || 30}</div>
-                        </div>
-                      </th>
-                    )}
-                  </>
                 )}
 
                 {/* Activities Total - ALWAYS visible */}

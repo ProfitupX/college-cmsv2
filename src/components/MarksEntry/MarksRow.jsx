@@ -238,66 +238,16 @@ export default function MarksRow({
       })}
 
       {/* Attendance Cells */}
-      {assessmentMode === 'internal1' ? (
-        <td className={styles.inputCell}>
-          <div className={styles.inputWrap}>
-            <input
-              type="number"
-              min="0"
-              max={maxAttdHours}
-              className={`${styles.input} ${parseFloat(attendanceHours) > maxAttdHours ? styles.inputError : ''}`}
-              value={attendanceHours}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  onAttendanceChange('');
-                  return;
-                }
-                const num = parseFloat(val);
-                if (!isNaN(num) && num > maxAttdHours) {
-                  onAttendanceChange(String(maxAttdHours));
-                  return;
-                }
-                if (!isNaN(num) && num < 0) {
-                  onAttendanceChange('0');
-                  return;
-                }
-                onAttendanceChange(val);
-              }}
-              disabled={isLocked}
-              placeholder="—"
-            />
-            <span className={styles.inputMax}>/{maxAttdHours}</span>
-            {parseFloat(attendanceHours) > maxAttdHours && (
-              <span className={styles.errorTip}>Max: {maxAttdHours}</span>
-            )}
-          </div>
-        </td>
-      ) : (
-        <>
-          {/* Read-Only Int 1 Attendance Column */}
-          <td className={styles.inputCell}>
-            <div className={styles.inputWrap}>
-              <input
-                type="number"
-                className={`${styles.input} ${styles.readOnlyInput}`}
-                value={int1AttendanceHours || 0}
-                readOnly
-                disabled
-                title="Attendance from Internal Assessment 1"
-              />
-              <span className={styles.inputMax}>/{maxAttdHours}</span>
-            </div>
-          </td>
-
-          {/* Int 2 Attendance Input Column */}
+      {(() => {
+        const currentMaxAttd = (assessmentMode === 'internal2' ? maxInt2Hours : maxAttdHours) || 30;
+        return (
           <td className={styles.inputCell}>
             <div className={styles.inputWrap}>
               <input
                 type="number"
                 min="0"
-                max={maxInt2Hours}
-                className={`${styles.input} ${parseFloat(attendanceHours) > maxInt2Hours ? styles.inputError : ''}`}
+                max={currentMaxAttd}
+                className={`${styles.input} ${parseFloat(attendanceHours) > currentMaxAttd ? styles.inputError : ''}`}
                 value={attendanceHours}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -306,8 +256,8 @@ export default function MarksRow({
                     return;
                   }
                   const num = parseFloat(val);
-                  if (!isNaN(num) && num > maxInt2Hours) {
-                    onAttendanceChange(String(maxInt2Hours));
+                  if (!isNaN(num) && num > currentMaxAttd) {
+                    onAttendanceChange(String(currentMaxAttd));
                     return;
                   }
                   if (!isNaN(num) && num < 0) {
@@ -319,51 +269,51 @@ export default function MarksRow({
                 disabled={isLocked}
                 placeholder="—"
               />
-              <span className={styles.inputMax}>/{maxInt2Hours}</span>
-              {parseFloat(attendanceHours) > maxInt2Hours && (
-                <span className={styles.errorTip}>Max: {maxInt2Hours}</span>
+              <span className={styles.inputMax}>/{currentMaxAttd}</span>
+              {parseFloat(attendanceHours) > currentMaxAttd && (
+                <span className={styles.errorTip}>Max: {currentMaxAttd}</span>
               )}
             </div>
           </td>
+        );
+      })()}
 
-          {/* Lab Attendance Input Column (if Lab-cum-Theory / Theory-cum-Lab) */}
-          {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
-            <td className={styles.inputCell}>
-              <div className={styles.inputWrap}>
-                <input
-                  type="number"
-                  min="0"
-                  max={maxLabHours}
-                  className={`${styles.input} ${parseFloat(labData?.labAttendance) > maxLabHours ? styles.inputError : ''}`}
-                  value={labData?.labAttendance || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') {
-                      onLabDataChange('labAttendance', '');
-                      return;
-                    }
-                    const num = parseFloat(val);
-                    if (!isNaN(num) && num > maxLabHours) {
-                      onLabDataChange('labAttendance', String(maxLabHours));
-                      return;
-                    }
-                    if (!isNaN(num) && num < 0) {
-                      onLabDataChange('labAttendance', '0');
-                      return;
-                    }
-                    onLabDataChange('labAttendance', val);
-                  }}
-                  disabled={isLocked}
-                  placeholder="—"
-                />
-                <span className={styles.inputMax}>/{maxLabHours}</span>
-                {parseFloat(labData?.labAttendance) > maxLabHours && (
-                  <span className={styles.errorTip}>Max: {maxLabHours}</span>
-                )}
-              </div>
-            </td>
-          )}
-        </>
+      {/* Lab Attendance Input Column (if Lab-cum-Theory / Theory-cum-Lab) */}
+      {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
+        <td className={styles.inputCell}>
+          <div className={styles.inputWrap}>
+            <input
+              type="number"
+              min="0"
+              max={maxLabHours}
+              className={`${styles.input} ${parseFloat(labData?.labAttendance) > maxLabHours ? styles.inputError : ''}`}
+              value={labData?.labAttendance !== undefined ? labData.labAttendance : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  onLabDataChange && onLabDataChange('labAttendance', '');
+                  return;
+                }
+                const num = parseFloat(val);
+                if (!isNaN(num) && num > maxLabHours) {
+                  onLabDataChange && onLabDataChange('labAttendance', String(maxLabHours));
+                  return;
+                }
+                if (!isNaN(num) && num < 0) {
+                  onLabDataChange && onLabDataChange('labAttendance', '0');
+                  return;
+                }
+                onLabDataChange && onLabDataChange('labAttendance', val);
+              }}
+              disabled={isLocked}
+              placeholder="—"
+            />
+            <span className={styles.inputMax}>/{maxLabHours}</span>
+            {parseFloat(labData?.labAttendance) > maxLabHours && (
+              <span className={styles.errorTip}>Max: {maxLabHours}</span>
+            )}
+          </div>
+        </td>
       )}
 
       {/* Activities / Component Total */}
