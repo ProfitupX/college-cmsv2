@@ -130,31 +130,49 @@ export default function ManageSubjects() {
     setSubmitting(true);
     setError('');
     try {
+      const i1Num = formData.int1_hours !== undefined && formData.int1_hours !== '' ? parseInt(formData.int1_hours, 10) : null;
+      const i2Num = formData.int2_hours !== undefined && formData.int2_hours !== '' ? parseInt(formData.int2_hours, 10) : null;
+      const lbNum = formData.lab_hours !== undefined && formData.lab_hours !== '' ? parseInt(formData.lab_hours, 10) : 0;
+      const totNum = formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null;
+      const staffName = staffsList.find(s => s.id === formData.faculty_id)?.name || formData.faculty_name;
+
+      const payload = {
+        int1_hours: i1Num,
+        int2_hours: i2Num,
+        lab_hours:  lbNum,
+        total_hours: totNum,
+        faculty_id: formData.faculty_id,
+        faculty_name: staffName,
+        class_id:   formData.class_id,
+        code:       formData.code,
+        ltpc:       formData.ltpc,
+        type:       formData.type
+      };
+
       if (isEditing) {
         await subjectsAPI.update(formData.id, formData);
-        await settingsAPI.saveSubjectAllocation(formData.id, {
-          int1_hours: formData.int1_hours !== undefined && formData.int1_hours !== '' ? parseInt(formData.int1_hours, 10) : null,
-          int2_hours: formData.int2_hours !== undefined && formData.int2_hours !== '' ? parseInt(formData.int2_hours, 10) : null,
-          lab_hours:  formData.lab_hours !== undefined && formData.lab_hours !== '' ? parseInt(formData.lab_hours, 10) : 0,
-          total_hours: formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null,
-          faculty_id: formData.faculty_id,
-          class_id:   formData.class_id,
-          ltpc:       formData.ltpc,
-          type:       formData.type
-        });
+        await settingsAPI.saveSubjectAllocation(formData.id, payload);
       } else {
         await subjectsAPI.create(formData);
-        await settingsAPI.saveSubjectAllocation(formData.id, {
-          int1_hours: formData.int1_hours !== undefined && formData.int1_hours !== '' ? parseInt(formData.int1_hours, 10) : null,
-          int2_hours: formData.int2_hours !== undefined && formData.int2_hours !== '' ? parseInt(formData.int2_hours, 10) : null,
-          lab_hours:  formData.lab_hours !== undefined && formData.lab_hours !== '' ? parseInt(formData.lab_hours, 10) : 0,
-          total_hours: formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null,
-          faculty_id: formData.faculty_id,
-          class_id:   formData.class_id,
-          ltpc:       formData.ltpc,
-          type:       formData.type
-        });
+        await settingsAPI.saveSubjectAllocation(formData.id, payload);
       }
+
+      // Optimistically update subjects list so changes reflect instantly in table
+      setSubjects(prev => prev.map(s => {
+        if (s.id === formData.id || s.code === formData.code) {
+          return {
+            ...s,
+            ...formData,
+            int1_hours: i1Num ?? s.int1_hours,
+            int2_hours: i2Num ?? s.int2_hours,
+            lab_hours: lbNum,
+            total_hours: totNum ?? s.total_hours,
+            faculty_name: staffName
+          };
+        }
+        return s;
+      }));
+
       setShowForm(false);
       loadData();
     } catch (err) {

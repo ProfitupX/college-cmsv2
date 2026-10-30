@@ -276,7 +276,7 @@ export default function MarksEntryPage2021() {
 
         setSubjects((prev) =>
           prev.map((s) => {
-            if (String(s.id) === String(effectiveSubjectId) || String(s.code) === String(alloc.code)) {
+            if (String(s.id) === String(effectiveSubjectId) || String(s.code) === String(alloc.code) || String(s.code) === String(effectiveSubjectId)) {
               return {
                 ...s,
                 int1_hours: i1 !== undefined && i1 !== null ? parseInt(i1, 10) : s.int1_hours,
@@ -288,9 +288,15 @@ export default function MarksEntryPage2021() {
             return s;
           })
         );
+
+        const targetHours = assessmentMode === 'internal2' ? i2 : i1;
+        if (targetHours && parseInt(targetHours, 10) > 0) {
+          setTotalHours(parseInt(targetHours, 10));
+          setSessionBulk((prev) => ({ ...prev, totalHours: parseInt(targetHours, 10) }));
+        }
       }
     }).catch(() => {});
-  }, [effectiveSubjectId]);
+  }, [effectiveSubjectId, assessmentMode]);
 
   // ── Load existing session when subject or mode changes ────
   useEffect(() => {

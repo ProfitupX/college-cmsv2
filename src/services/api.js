@@ -100,14 +100,25 @@ const mergeSubjectAllocations = (subs, allocs) => {
   if (!Array.isArray(subs) || !allocs) return subs;
   return subs.map(s => {
     if (!s) return s;
-    const a = allocs[s.id] || allocs[s.code];
+    const cleanId = String(s.id || '').replace(/[\s\-]+/g, '');
+    const cleanCode = String(s.code || '').replace(/[\s\-]+/g, '');
+    const a = allocs[s.id] || allocs[s.code] || allocs[cleanId] || allocs[cleanCode] ||
+              Object.values(allocs).find(x => x && (x.code === s.code || x.id === s.id));
     if (!a) return s;
+
+    const i1 = a.int1 !== undefined && a.int1 !== null && a.int1 !== '' ? a.int1 : a.int1_hours;
+    const i2 = a.int2 !== undefined && a.int2 !== null && a.int2 !== '' ? a.int2 : a.int2_hours;
+    const lb = a.lab !== undefined && a.lab !== null && a.lab !== '' ? a.lab : a.lab_hours;
+    const tot = a.total !== undefined && a.total !== null && a.total !== '' ? a.total : a.total_hours;
+
     return {
       ...s,
-      int1_hours: a.int1_hours !== undefined && a.int1_hours !== null && a.int1_hours !== '' ? parseInt(a.int1_hours, 10) : s.int1_hours,
-      int2_hours: a.int2_hours !== undefined && a.int2_hours !== null && a.int2_hours !== '' ? parseInt(a.int2_hours, 10) : s.int2_hours,
-      lab_hours:  a.lab_hours !== undefined && a.lab_hours !== null && a.lab_hours !== '' ? parseInt(a.lab_hours, 10) : s.lab_hours,
-      total_hours: a.total_hours !== undefined && a.total_hours !== null && a.total_hours !== '' ? parseInt(a.total_hours, 10) : s.total_hours,
+      int1_hours: i1 !== undefined && i1 !== null && i1 !== '' ? parseInt(i1, 10) : s.int1_hours,
+      int2_hours: i2 !== undefined && i2 !== null && i2 !== '' ? parseInt(i2, 10) : s.int2_hours,
+      lab_hours:  lb !== undefined && lb !== null && lb !== '' ? parseInt(lb, 10) : s.lab_hours,
+      total_hours: tot !== undefined && tot !== null && tot !== '' ? parseInt(tot, 10) : s.total_hours,
+      int1: i1 !== undefined && i1 !== null && i1 !== '' ? parseInt(i1, 10) : s.int1_hours,
+      int2: i2 !== undefined && i2 !== null && i2 !== '' ? parseInt(i2, 10) : s.int2_hours,
       faculty_id: a.faculty_id || s.faculty_id,
       faculty_name: a.faculty_name || s.faculty_name,
       faculty_designation: a.faculty_designation || s.faculty_designation,
@@ -424,15 +435,30 @@ export const settingsAPI = {
   setEnv: (content, adminPassword) => post('/settings/env', { value: content, adminPassword }),
   getSubjectAllocation: async (subjectId) => {
     if (!subjectId) return null;
+    const cleanId = String(subjectId).replace(/[\s\-]+/g, '');
     try {
       const res = await get(`/settings/subj_alloc_${subjectId}`);
       if (res && res.value) {
-        return typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+        const p = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+        if (p) {
+          const i1 = p.int1 !== undefined && p.int1 !== null ? p.int1 : p.int1_hours;
+          const i2 = p.int2 !== undefined && p.int2 !== null ? p.int2 : p.int2_hours;
+          const lb = p.lab !== undefined && p.lab !== null ? p.lab : p.lab_hours;
+          const tot = p.total !== undefined && p.total !== null ? p.total : p.total_hours;
+          return { ...p, int1: i1, int2: i2, lab: lb, total: tot, int1_hours: i1, int2_hours: i2, lab_hours: lb, total_hours: tot };
+        }
       }
     } catch (e) {}
     try {
       const all = await settingsAPI.getSubjectAllocations();
-      if (all && all[subjectId]) return all[subjectId];
+      const matched = all?.[subjectId] || all?.[cleanId] || Object.values(all || {}).find(x => x && (x.code === subjectId || x.id === subjectId));
+      if (matched) {
+        const i1 = matched.int1 !== undefined && matched.int1 !== null ? matched.int1 : matched.int1_hours;
+        const i2 = matched.int2 !== undefined && matched.int2 !== null ? matched.int2 : matched.int2_hours;
+        const lb = matched.lab !== undefined && matched.lab !== null ? matched.lab : matched.lab_hours;
+        const tot = matched.total !== undefined && matched.total !== null ? matched.total : matched.total_hours;
+        return { ...matched, int1: i1, int2: i2, lab: lb, total: tot, int1_hours: i1, int2_hours: i2, lab_hours: lb, total_hours: tot };
+      }
     } catch (e) {}
     return null;
   },
@@ -447,16 +473,32 @@ export const settingsAPI = {
   },
   saveSubjectAllocation: async (subjectId, allocData) => {
     try {
+      const i1 = allocData.int1_hours !== undefined && allocData.int1_hours !== '' ? parseInt(allocData.int1_hours, 10) : allocData.int1;
+      const i2 = allocData.int2_hours !== undefined && allocData.int2_hours !== '' ? parseInt(allocData.int2_hours, 10) : allocData.int2;
+      const lb = allocData.lab_hours !== undefined && allocData.lab_hours !== '' ? parseInt(allocData.lab_hours, 10) : (allocData.lab || 0);
+      const tot = allocData.total_hours !== undefined && allocData.total_hours !== '' ? parseInt(allocData.total_hours, 10) : allocData.total;
+
       const compact = {
-        int1: allocData.int1_hours !== undefined && allocData.int1_hours !== '' ? parseInt(allocData.int1_hours, 10) : allocData.int1,
-        int2: allocData.int2_hours !== undefined && allocData.int2_hours !== '' ? parseInt(allocData.int2_hours, 10) : allocData.int2,
-        lab:  allocData.lab_hours !== undefined && allocData.lab_hours !== '' ? parseInt(allocData.lab_hours, 10) : (allocData.lab || 0),
-        total: allocData.total_hours !== undefined && allocData.total_hours !== '' ? parseInt(allocData.total_hours, 10) : allocData.total,
+        int1: i1,
+        int2: i2,
+        lab: lb,
+        total: tot,
+        int1_hours: i1,
+        int2_hours: i2,
+        lab_hours: lb,
+        total_hours: tot,
         faculty_id: allocData.faculty_id,
+        faculty_name: allocData.faculty_name,
         class_id: allocData.class_id,
-        code: allocData.code
+        code: allocData.code,
+        id: subjectId
       };
+
+      const cleanId = String(subjectId).replace(/[\s\-]+/g, '');
       await post(`/settings/subj_alloc_${subjectId}`, { value: JSON.stringify(compact) }).catch(() => {});
+      if (cleanId !== subjectId) {
+        await post(`/settings/subj_alloc_${cleanId}`, { value: JSON.stringify(compact) }).catch(() => {});
+      }
       if (allocData.code && allocData.code !== subjectId) {
         await post(`/settings/subj_alloc_${allocData.code}`, { value: JSON.stringify(compact) }).catch(() => {});
       }
@@ -468,11 +510,15 @@ export const settingsAPI = {
           current = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
         }
       } catch (e) {}
-      current[subjectId] = {
-        ...(current[subjectId] || {}),
-        ...compact,
-        updatedAt: Date.now()
-      };
+
+      current[subjectId] = { ...(current[subjectId] || {}), ...compact, updatedAt: Date.now() };
+      if (cleanId !== subjectId) {
+        current[cleanId] = current[subjectId];
+      }
+      if (allocData.code) {
+        current[allocData.code] = current[subjectId];
+      }
+
       await post('/settings/subject_allocations', { value: JSON.stringify(current) }).catch(() => {});
       allocationsCache = current;
       allocationsCacheTime = Date.now();
