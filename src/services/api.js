@@ -76,12 +76,91 @@ export const classesAPI = {
 // ─────────────────────────────────────────
 // SUBJECTS
 // ─────────────────────────────────────────
+// Subject Allocations In-Memory Cache (for real-time persistence across all roles)
+let allocationsCache = null;
+let allocationsCacheTime = 0;
+
+export const fetchAllocationsCached = async () => {
+  const now = Date.now();
+  if (allocationsCache && (now - allocationsCacheTime < 10000)) {
+    return allocationsCache;
+  }
+  try {
+    const res = await get('/settings/subject_allocations');
+    if (res && res.value) {
+      allocationsCache = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+      allocationsCacheTime = now;
+      return allocationsCache;
+    }
+  } catch (e) {}
+  return allocationsCache || {};
+};
+
+const mergeSubjectAllocations = (subs, allocs) => {
+  if (!Array.isArray(subs) || !allocs) return subs;
+  return subs.map(s => {
+    if (!s) return s;
+    const a = allocs[s.id] || allocs[s.code];
+    if (!a) return s;
+    return {
+      ...s,
+      int1_hours: a.int1_hours !== undefined && a.int1_hours !== null && a.int1_hours !== '' ? parseInt(a.int1_hours, 10) : s.int1_hours,
+      int2_hours: a.int2_hours !== undefined && a.int2_hours !== null && a.int2_hours !== '' ? parseInt(a.int2_hours, 10) : s.int2_hours,
+      lab_hours:  a.lab_hours !== undefined && a.lab_hours !== null && a.lab_hours !== '' ? parseInt(a.lab_hours, 10) : s.lab_hours,
+      total_hours: a.total_hours !== undefined && a.total_hours !== null && a.total_hours !== '' ? parseInt(a.total_hours, 10) : s.total_hours,
+      faculty_id: a.faculty_id || s.faculty_id,
+      faculty_name: a.faculty_name || s.faculty_name,
+      faculty_designation: a.faculty_designation || s.faculty_designation,
+      class_id:   a.class_id || s.class_id,
+      ltpc:       a.ltpc || s.ltpc,
+      type:       a.type || s.type
+    };
+  });
+};
+
 export const subjectsAPI = {
-  getAll:       ()          => get('/subjects'),
-  getByClass:   (classId)   => get(`/subjects?classId=${classId}`),
-  getByFaculty: (facultyId) => get(`/subjects?facultyId=${facultyId}`),
+  getAll: async () => {
+    const [subs, allocs] = await Promise.all([
+      get('/subjects'),
+      fetchAllocationsCached().catch(() => ({}))
+    ]);
+    return mergeSubjectAllocations(subs, allocs);
+  },
+  getByClass: async (classId) => {
+    const [subs, allocs] = await Promise.all([
+      get(`/subjects?classId=${classId}`),
+      fetchAllocationsCached().catch(() => ({}))
+    ]);
+    return mergeSubjectAllocations(subs, allocs);
+  },
+  getByFaculty: async (facultyId) => {
+    const [subs, allocs] = await Promise.all([
+      get(`/subjects?facultyId=${facultyId}`),
+      fetchAllocationsCached().catch(() => ({}))
+    ]);
+    return mergeSubjectAllocations(subs, allocs);
+  },
   create:       (data)      => post('/subjects', data),
-  update:       (id, data)  => put(`/subjects/${id}`, data),
+  update:       async (id, data) => {
+    const res = await put(`/subjects/${id}`, data);
+    allocationsCache = null;
+    try {
+      await settingsAPI.saveSubjectAllocation(id, {
+        int1_hours: data.int1_hours !== undefined && data.int1_hours !== '' ? parseInt(data.int1_hours, 10) : null,
+        int2_hours: data.int2_hours !== undefined && data.int2_hours !== '' ? parseInt(data.int2_hours, 10) : null,
+        lab_hours:  data.lab_hours !== undefined && data.lab_hours !== '' ? parseInt(data.lab_hours, 10) : 0,
+        total_hours: data.total_hours !== undefined && data.total_hours !== '' ? parseInt(data.total_hours, 10) : null,
+        faculty_id: data.faculty_id,
+        faculty_name: data.faculty_name,
+        class_id:   data.class_id,
+        ltpc:       data.ltpc,
+        type:       data.type
+      });
+    } catch (allocErr) {
+      console.warn('Failed to persist subject allocation:', allocErr);
+    }
+    return res;
+  },
   delete:       (id)        => remove(`/subjects/${id}`),
 };
 
@@ -342,7 +421,67 @@ export const settingsAPI = {
   getDeadline: () => get('/settings/marks_entry_deadline'),
   setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr }),
   getEnv: () => get('/settings/env'),
-  setEnv: (content, adminPassword) => post('/settings/env', { value: content, adminPassword })
+  setEnv: (content, adminPassword) => post('/settings/env', { value: content, adminPassword }),
+  getSubjectAllocation: async (subjectId) => {
+    if (!subjectId) return null;
+    try {
+      const res = await get(`/settings/subj_alloc_${subjectId}`);
+      if (res && res.value) {
+        return typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+      }
+    } catch (e) {}
+    try {
+      const all = await settingsAPI.getSubjectAllocations();
+      if (all && all[subjectId]) return all[subjectId];
+    } catch (e) {}
+    return null;
+  },
+  getSubjectAllocations: async () => {
+    try {
+      const res = await get('/settings/subject_allocations');
+      if (res && res.value) {
+        return typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+      }
+    } catch (e) {}
+    return {};
+  },
+  saveSubjectAllocation: async (subjectId, allocData) => {
+    try {
+      const compact = {
+        int1: allocData.int1_hours !== undefined && allocData.int1_hours !== '' ? parseInt(allocData.int1_hours, 10) : allocData.int1,
+        int2: allocData.int2_hours !== undefined && allocData.int2_hours !== '' ? parseInt(allocData.int2_hours, 10) : allocData.int2,
+        lab:  allocData.lab_hours !== undefined && allocData.lab_hours !== '' ? parseInt(allocData.lab_hours, 10) : (allocData.lab || 0),
+        total: allocData.total_hours !== undefined && allocData.total_hours !== '' ? parseInt(allocData.total_hours, 10) : allocData.total,
+        faculty_id: allocData.faculty_id,
+        class_id: allocData.class_id,
+        code: allocData.code
+      };
+      await post(`/settings/subj_alloc_${subjectId}`, { value: JSON.stringify(compact) }).catch(() => {});
+      if (allocData.code && allocData.code !== subjectId) {
+        await post(`/settings/subj_alloc_${allocData.code}`, { value: JSON.stringify(compact) }).catch(() => {});
+      }
+
+      let current = {};
+      try {
+        const res = await get('/settings/subject_allocations');
+        if (res && res.value) {
+          current = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+        }
+      } catch (e) {}
+      current[subjectId] = {
+        ...(current[subjectId] || {}),
+        ...compact,
+        updatedAt: Date.now()
+      };
+      await post('/settings/subject_allocations', { value: JSON.stringify(current) }).catch(() => {});
+      allocationsCache = current;
+      allocationsCacheTime = Date.now();
+      return compact;
+    } catch (e) {
+      console.error('Failed to save subject_allocations:', e);
+      throw e;
+    }
+  }
 };
 
 export const remarksAPI = {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Loader, AlertTriangle, ClipboardEdit, UploadCloud } from 'lucide-react';
-import { subjectsAPI, classesAPI, staffsAPI } from '../../services/api';
+import { subjectsAPI, classesAPI, staffsAPI, settingsAPI } from '../../services/api';
 import AdminToolbar from '../../components/Admin/AdminToolbar';
 import BulkUploadModal from '../../components/Admin/BulkUploadModal';
 import styles from './AdminPages.module.css';
@@ -132,8 +132,28 @@ export default function ManageSubjects() {
     try {
       if (isEditing) {
         await subjectsAPI.update(formData.id, formData);
+        await settingsAPI.saveSubjectAllocation(formData.id, {
+          int1_hours: formData.int1_hours !== undefined && formData.int1_hours !== '' ? parseInt(formData.int1_hours, 10) : null,
+          int2_hours: formData.int2_hours !== undefined && formData.int2_hours !== '' ? parseInt(formData.int2_hours, 10) : null,
+          lab_hours:  formData.lab_hours !== undefined && formData.lab_hours !== '' ? parseInt(formData.lab_hours, 10) : 0,
+          total_hours: formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null,
+          faculty_id: formData.faculty_id,
+          class_id:   formData.class_id,
+          ltpc:       formData.ltpc,
+          type:       formData.type
+        });
       } else {
         await subjectsAPI.create(formData);
+        await settingsAPI.saveSubjectAllocation(formData.id, {
+          int1_hours: formData.int1_hours !== undefined && formData.int1_hours !== '' ? parseInt(formData.int1_hours, 10) : null,
+          int2_hours: formData.int2_hours !== undefined && formData.int2_hours !== '' ? parseInt(formData.int2_hours, 10) : null,
+          lab_hours:  formData.lab_hours !== undefined && formData.lab_hours !== '' ? parseInt(formData.lab_hours, 10) : 0,
+          total_hours: formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null,
+          faculty_id: formData.faculty_id,
+          class_id:   formData.class_id,
+          ltpc:       formData.ltpc,
+          type:       formData.type
+        });
       }
       setShowForm(false);
       loadData();

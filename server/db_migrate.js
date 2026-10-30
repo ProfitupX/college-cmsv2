@@ -15,6 +15,14 @@ async function runMigration(shouldExit = false) {
       console.log('✅ Column target_department already exists in notifications.');
     }
 
+    // 1.0 Ensure system_settings has LONGTEXT for setting_value
+    try {
+      await db.query("ALTER TABLE system_settings MODIFY COLUMN setting_value LONGTEXT NOT NULL");
+      console.log('✅ system_settings.setting_value modified to LONGTEXT.');
+    } catch (e) {
+      console.log('system_settings modify note:', e.message);
+    }
+
     // 1.1 Ensure staffs table has is_password_changed column
     const [staffCols] = await db.query("SHOW COLUMNS FROM staffs LIKE 'is_password_changed'");
     if (staffCols.length === 0) {

@@ -203,8 +203,14 @@ export default function MarksEntryPage() {
       );
 
       let visibleSubs = subsList;
-      if (!isElevated && !isCoordinator && user?.assignedSubjectIds?.length > 0) {
-        visibleSubs = subsList.filter(s => s && user.assignedSubjectIds.map(String).includes(String(s.id)));
+      if (!isElevated && !isCoordinator) {
+        visibleSubs = subsList.filter(s => {
+          if (!s) return false;
+          const matchFacultyId = String(s.faculty_id) === String(user?.id);
+          const matchFacultyName = s.faculty_name && user?.name && s.faculty_name.toLowerCase().trim() === user.name.toLowerCase().trim();
+          const matchAssignedList = (user?.assignedSubjectIds || []).map(String).includes(String(s.id));
+          return matchFacultyId || matchFacultyName || matchAssignedList;
+        });
       }
 
       // Restore target subject reliably from incoming state, query params, or existing selection
@@ -251,6 +257,34 @@ export default function MarksEntryPage() {
       setReportType('lab_marks_only');
     }
   }, [isPureLab]);
+
+  // Synchronize custom admin LTPC splits and hours allocation in real-time
+  useEffect(() => {
+    if (!effectiveSubjectId) return;
+    settingsAPI.getSubjectAllocation(effectiveSubjectId).then((alloc) => {
+      if (alloc) {
+        const i1 = alloc.int1 !== undefined && alloc.int1 !== null ? alloc.int1 : alloc.int1_hours;
+        const i2 = alloc.int2 !== undefined && alloc.int2 !== null ? alloc.int2 : alloc.int2_hours;
+        const lb = alloc.lab !== undefined && alloc.lab !== null ? alloc.lab : alloc.lab_hours;
+        const tot = alloc.total !== undefined && alloc.total !== null ? alloc.total : alloc.total_hours;
+
+        setSubjects((prev) =>
+          prev.map((s) => {
+            if (String(s.id) === String(effectiveSubjectId) || String(s.code) === String(alloc.code)) {
+              return {
+                ...s,
+                int1_hours: i1 !== undefined && i1 !== null ? parseInt(i1, 10) : s.int1_hours,
+                int2_hours: i2 !== undefined && i2 !== null ? parseInt(i2, 10) : s.int2_hours,
+                lab_hours:  lb !== undefined && lb !== null ? parseInt(lb, 10) : s.lab_hours,
+                total_hours: tot !== undefined && tot !== null ? parseInt(tot, 10) : s.total_hours,
+              };
+            }
+            return s;
+          })
+        );
+      }
+    }).catch(() => {});
+  }, [effectiveSubjectId]);
 
   // ── Load existing session when subject or mode changes ────────
   useEffect(() => {
@@ -329,7 +363,8 @@ export default function MarksEntryPage() {
                 ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
                 : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
               const sessHours = parseInt(detail.session.total_hours, 10);
-              const finalSessionHours = (sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30);
+              const hasAdminAllocation = (assessmentMode === 'internal2' ? activeSub?.int2_hours : activeSub?.int1_hours) > 0;
+              const finalSessionHours = hasAdminAllocation ? prescribed : ((sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30));
 
               setSessionBulk({
                 marks: loadedMarks,
@@ -421,7 +456,7 @@ export default function MarksEntryPage() {
     return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
   };
 
-  const defaultSplits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, totalHours) : { int1: 30, int2: 30, lab: 0 };
+  const defaultSplits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, selectedSubject.total_hours) : { int1: 30, int2: 30, lab: 0 };
   const int1Hours = (selectedSubject?.int1_hours !== null && selectedSubject?.int1_hours !== undefined && selectedSubject?.int1_hours !== '')
     ? parseInt(selectedSubject.int1_hours, 10)
     : (defaultSplits.int1 || 30);
