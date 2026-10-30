@@ -15,12 +15,19 @@ import ManageSubjects from './pages/Admin/ManageSubjects';
 import ManageStudents from './pages/Admin/ManageStudents';
 import StaffClasses from './pages/Admin/StaffClasses';
 import MarksEntryPage2021 from './pages/MarksEntryPage2021';
+import ErrorBoundary from './ErrorBoundary.jsx';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return <Layout>{children}</Layout>;
+  return (
+    <Layout>
+      <ErrorBoundary section="page">
+        {children}
+      </ErrorBoundary>
+    </Layout>
+  );
 }
 
 // Public Route — redirects to dashboard if already logged in
@@ -35,7 +42,13 @@ function AdminRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
-  return <Layout>{children}</Layout>;
+  return (
+    <Layout>
+      <ErrorBoundary section="page">
+        {children}
+      </ErrorBoundary>
+    </Layout>
+  );
 }
 
 function AppRoutes() {
