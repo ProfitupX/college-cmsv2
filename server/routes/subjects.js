@@ -91,26 +91,73 @@ router.post('/', async (req, res) => {
 
 // PUT /api/subjects/:id
 router.put('/:id', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const { code, name, acronym, type, department, semester, ltpc, total_hours, int1_hours, int2_hours, lab_hours, faculty_id, class_id } = req.body;
-    await db.execute(
+    const subjectId = req.params.id;
+
+    await conn.beginTransaction();
+
+    // 1. Get current subject data to see if faculty_id changed
+    const [subRows] = await conn.execute('SELECT faculty_id FROM subjects WHERE id = ?', [subjectId]);
+    const oldFacultyId = subRows[0]?.faculty_id;
+    const newFacultyId = faculty_id || null;
+
+    const pTotal = total_hours !== undefined && total_hours !== '' ? parseInt(total_hours, 10) : null;
+    const pInt1 = int1_hours !== undefined && int1_hours !== '' ? parseInt(int1_hours, 10) : null;
+    const pInt2 = int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null;
+    const pLab = lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null;
+
+    // 2. Update subjects table
+    await conn.execute(
       `UPDATE subjects 
        SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
            total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
        WHERE id = ?`,
       [
         code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
-        total_hours !== undefined && total_hours !== '' ? parseInt(total_hours, 10) : null,
-        int1_hours !== undefined && int1_hours !== '' ? parseInt(int1_hours, 10) : null,
-        int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null,
-        lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null,
-        faculty_id || null, class_id || null, req.params.id
+        pTotal, pInt1, pInt2, pLab,
+        newFacultyId, class_id || null, subjectId
       ]
     );
-    res.json({ success: true });
+
+    // 3. TRANSFERRING INCLUDING THINGS:
+    // If faculty changed, transfer marks sessions, draft records, and pending unlock requests
+    if (newFacultyId && String(oldFacultyId) !== String(newFacultyId)) {
+      await conn.execute(
+        `UPDATE marks_sessions SET staff_id = ? WHERE subject_id = ?`,
+        [String(newFacultyId), String(subjectId)]
+      );
+
+      await conn.execute(
+        `UPDATE mark_unlock_requests SET staff_id = ? WHERE subject_id = ? AND status = 'pending'`,
+        [String(newFacultyId), String(subjectId)]
+      );
+    }
+
+    // 4. Update session hours if int1_hours / int2_hours / lab_hours were updated
+    if (pInt1 !== null) {
+      await conn.execute(
+        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1' AND status = 'draft'`,
+        [pInt1, String(subjectId)]
+      );
+    }
+    if (pInt2 !== null) {
+      const i2Cum = (pInt1 || 0) + pInt2 + (pLab || 0);
+      await conn.execute(
+        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2' AND status = 'draft'`,
+        [i2Cum, pInt2, String(subjectId)]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Subject updated and all relating sessions transferred successfully.' });
   } catch (err) {
+    await conn.rollback();
     console.error('PUT /subjects error:', err);
     res.status(500).json({ error: 'Failed to update subject.' });
+  } finally {
+    conn.release();
   }
 });
 

@@ -93,9 +93,10 @@ router.post('/credentials', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // PUT /api/admin/credentials/:id
-// Update email, password, role, etc. for a staff account
+// Update email, password, role, posting, designation, etc. for a staff account and synchronize across all associated records
 // ─────────────────────────────────────────────────────────────
 router.put('/credentials/:id', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const { id } = req.params;
     const { email, password, name, short_name, designation, role, employee_id, department } = req.body;
@@ -104,8 +105,24 @@ router.put('/credentials/:id', async (req, res) => {
       return res.status(400).json({ error: 'Email address is required.' });
     }
 
+    await conn.beginTransaction();
+
+    // 1. Fetch current staff row to retrieve existing email, name, role, department
+    const [existingRows] = await conn.execute(
+      'SELECT id, name, short_name, designation, role, class_role, email, employee_id, department FROM staffs WHERE id = ?',
+      [id]
+    );
+
+    const oldStaff = existingRows[0] || {};
+    const oldEmail = (oldStaff.email || '').trim().toLowerCase();
+    const newEmail = email.trim().toLowerCase();
+    const cleanRole = role || oldStaff.role || 'faculty';
+    const cleanDept = department !== undefined ? department : oldStaff.department;
+    const cleanName = name || oldStaff.name;
+
+    // 2. Build multi-field update statement
     let sql = `UPDATE staffs SET email = ?, role = ?`;
-    const params = [email, role || 'faculty'];
+    const params = [newEmail, cleanRole];
 
     if (password) {
       sql += `, password = ?, is_password_changed = 0`;
@@ -131,40 +148,96 @@ router.put('/credentials/:id', async (req, res) => {
       sql += `, department = ?`;
       params.push(department);
     }
-
-    sql += ` WHERE id = ?`;
-    params.push(id);
-
-    const [result] = await db.execute(sql, params);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Staff member not found.' });
+    if (cleanRole === 'class_coordinator') {
+      sql += `, class_role = 'Class Coordinator'`;
     }
 
-    res.json({ success: true, message: 'Staff credentials updated successfully.' });
+    // Synchronize across all duplicate rows matching ID, old email, or new email
+    sql += ` WHERE id = ?`;
+    params.push(id);
+    if (oldEmail) {
+      sql += ` OR (LOWER(email) = ? AND email != '')`;
+      params.push(oldEmail);
+    }
+    if (newEmail && newEmail !== oldEmail) {
+      sql += ` OR (LOWER(email) = ? AND email != '')`;
+      params.push(newEmail);
+    }
+
+    await conn.execute(sql, params);
+
+    // 3. If name changed and staff was class coordinator in any class, update classes table as well
+    if (cleanName && oldStaff.name && oldStaff.name !== cleanName) {
+      await conn.execute(
+        `UPDATE classes SET class_coordinator = ? WHERE class_coordinator = ?`,
+        [cleanName, oldStaff.name]
+      );
+      await conn.execute(
+        `UPDATE classes SET asst_coordinator = ? WHERE asst_coordinator = ?`,
+        [cleanName, oldStaff.name]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Staff credentials and posting updated successfully across all records.' });
   } catch (err) {
+    await conn.rollback();
     console.error('PUT /admin/credentials error:', err);
     res.status(500).json({ error: err.message || 'Failed to update staff credentials.' });
+  } finally {
+    conn.release();
   }
 });
 
 // ─────────────────────────────────────────────────────────────
 // DELETE /api/admin/credentials/:id
-// Delete staff account
+// Delete staff account and safely decouple linked assignments
 // ─────────────────────────────────────────────────────────────
 router.delete('/credentials/:id', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const { id } = req.params;
-    const [result] = await db.execute('DELETE FROM staffs WHERE id = ?', [id]);
-    
-    if (result.affectedRows === 0) {
+    await conn.beginTransaction();
+
+    const [staffRows] = await conn.execute('SELECT id, name, email FROM staffs WHERE id = ?', [id]);
+    if (staffRows.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ error: 'Staff member not found.' });
     }
 
+    const staffEmail = (staffRows[0]?.email || '').trim().toLowerCase();
+    const staffName = staffRows[0]?.name;
+
+    // Safely reassign subjects to NULL so subject references don't fail
+    await conn.execute('UPDATE subjects SET faculty_id = NULL WHERE faculty_id = ?', [id]);
+    if (staffEmail) {
+      await conn.execute(
+        'UPDATE subjects SET faculty_id = NULL WHERE faculty_id IN (SELECT id FROM staffs WHERE LOWER(email) = ?)',
+        [staffEmail]
+      );
+    }
+
+    // Clear class coordinator reference if assigned
+    if (staffName) {
+      await conn.execute('UPDATE classes SET class_coordinator = NULL WHERE class_coordinator = ?', [staffName]);
+      await conn.execute('UPDATE classes SET asst_coordinator = NULL WHERE asst_coordinator = ?', [staffName]);
+    }
+
+    // Delete staff record(s)
+    if (staffEmail) {
+      await conn.execute('DELETE FROM staffs WHERE id = ? OR (LOWER(email) = ? AND email != "")', [id, staffEmail]);
+    } else {
+      await conn.execute('DELETE FROM staffs WHERE id = ?', [id]);
+    }
+
+    await conn.commit();
     res.json({ success: true, message: 'Staff account deleted successfully.' });
   } catch (err) {
+    await conn.rollback();
     console.error('DELETE /admin/credentials error:', err);
     res.status(500).json({ error: 'Failed to delete staff account.' });
+  } finally {
+    conn.release();
   }
 });
 

@@ -55,17 +55,70 @@ router.post('/', async (req, res) => {
 
 // PUT /api/classes/:id
 router.put('/:id', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const { name, department, semester, year_label, section, room_no, academic_year, batch, class_coordinator, asst_coordinator } = req.body;
-    await db.execute(
+    const classId = req.params.id;
+
+    await conn.beginTransaction();
+
+    // 1. Fetch previous coordinator
+    const [prevRows] = await conn.execute('SELECT class_coordinator, asst_coordinator FROM classes WHERE id = ?', [classId]);
+    const oldCoord = prevRows[0]?.class_coordinator;
+
+    // 2. Update class record
+    await conn.execute(
       `UPDATE classes SET name=?, department=?, semester=?, year_label=?, section=?, room_no=?, academic_year=?, batch=?, class_coordinator=?, asst_coordinator=?
        WHERE id = ?`,
-      [name, department || null, semester || null, year_label || null, section || null, room_no || null, academic_year || null, batch || null, class_coordinator || null, asst_coordinator || null, req.params.id]
+      [name, department || null, semester || null, year_label || null, section || null, room_no || null, academic_year || null, batch || null, class_coordinator || null, asst_coordinator || null, classId]
     );
-    res.json({ success: true });
+
+    // 3. TRANSFERRING INCLUDING THINGS for Class In-Charge:
+    // If a new class coordinator was assigned, grant them 'Class Coordinator' class_role in staffs
+    if (class_coordinator) {
+      const [matchedStaffs] = await conn.execute(
+        `SELECT id, email FROM staffs WHERE name = ? OR short_name = ? OR id = ?`,
+        [class_coordinator, class_coordinator, class_coordinator]
+      );
+      if (matchedStaffs.length > 0) {
+        const staffEmail = (matchedStaffs[0].email || '').trim().toLowerCase();
+        if (staffEmail) {
+          await conn.execute(
+            `UPDATE staffs SET class_role = 'Class Coordinator' WHERE LOWER(email) = ? OR id = ?`,
+            [staffEmail, matchedStaffs[0].id]
+          );
+        } else {
+          await conn.execute(
+            `UPDATE staffs SET class_role = 'Class Coordinator' WHERE id = ?`,
+            [matchedStaffs[0].id]
+          );
+        }
+      }
+    }
+
+    // 4. If old coordinator was changed, check if they still coordinate any other class
+    if (oldCoord && oldCoord !== class_coordinator) {
+      const [otherClasses] = await conn.execute(
+        `SELECT COUNT(*) as count FROM classes WHERE (class_coordinator = ? OR asst_coordinator = ?) AND id != ?`,
+        [oldCoord, oldCoord, classId]
+      );
+      if (otherClasses[0]?.count === 0) {
+        // Revert class_role if not primary coordinator role
+        await conn.execute(
+          `UPDATE staffs SET class_role = NULL WHERE (name = ? OR short_name = ? OR id = ?) AND role != 'class_coordinator'`,
+          [oldCoord, oldCoord, oldCoord]
+        );
+      }
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Class and coordinator posting updated successfully.' });
   } catch (err) {
+    await conn.rollback();
     console.error('PUT /classes error:', err);
     res.status(500).json({ error: 'Failed to update class.' });
+  } finally {
+    conn.release();
   }
 });
 

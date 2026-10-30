@@ -161,12 +161,18 @@ export default function ManageSubjects() {
   };
 
   const openEdit = (s) => {
+    const splits = getHourSplitsFromLtpc(s.ltpc, s.type, s.total_hours);
+    const i1 = s.int1_hours !== null && s.int1_hours !== undefined && s.int1_hours !== '' ? s.int1_hours : (splits.int1 ?? 30);
+    const i2 = s.int2_hours !== null && s.int2_hours !== undefined && s.int2_hours !== '' ? s.int2_hours : (splits.int2 ?? 30);
+    const lb = s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== '' ? s.lab_hours : (splits.lab ?? 0);
+    const tot = s.total_hours !== null && s.total_hours !== undefined && s.total_hours !== '' ? s.total_hours : (splits.total || ((parseInt(i1, 10) || 0) + (parseInt(i2, 10) || 0) + (parseInt(lb, 10) || 0)));
+
     setFormData({
       ...s,
-      int1_hours: s.int1_hours !== null && s.int1_hours !== undefined ? s.int1_hours : '',
-      int2_hours: s.int2_hours !== null && s.int2_hours !== undefined ? s.int2_hours : '',
-      lab_hours: s.lab_hours !== null && s.lab_hours !== undefined ? s.lab_hours : '',
-      total_hours: s.total_hours !== null && s.total_hours !== undefined ? s.total_hours : ''
+      int1_hours: i1,
+      int2_hours: i2,
+      lab_hours: lb,
+      total_hours: tot
     });
     setIsEditing(true);
     setShowForm(true);
