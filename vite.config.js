@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 const buildTime = Date.now();
 
@@ -20,6 +20,18 @@ export default defineConfig({
   ],
   define: {
     __APP_BUILD_TIME__: buildTime
+  },
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-reports': ['jspdf', 'jspdf-autotable', 'xlsx', 'exceljs'],
+          'vendor-charts': ['recharts'],
+          'vendor-ui': ['lucide-react', 'framer-motion']
+        }
+      }
+    }
   }
-})
-
+});
