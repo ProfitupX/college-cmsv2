@@ -90,10 +90,9 @@ export default function DashboardPage() {
       classesAPI.getAll().catch(() => [])
     ];
 
-    if (user?.role === 'hod') {
-      promises.push(marksAPI.getUnlockRequests(user.department).catch(() => []));
-    } else if (user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
-      promises.push(marksAPI.getUnlockRequests('all').catch(() => []));
+    if (user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
+      // Fetch all requests and route strictly to the class's department HOD
+      promises.push(marksAPI.getUnlockRequests().catch(() => []));
     } else {
       promises.push(Promise.resolve([]));
     }
@@ -199,7 +198,44 @@ export default function DashboardPage() {
           setDeadline(dl.value);
           setNewDeadline(dl.value);
         }
-        setUnlockRequests(requests.filter(r => r.status === 'pending'));
+        const pending = (requests || []).filter(r => r.status === 'pending');
+        if (user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
+          setUnlockRequests(pending);
+        } else if (user?.role === 'hod') {
+          // Strictly route to Class Department HOD (e.g. Mechanical staff teaching AI&DS class goes to AI&DS HOD only)
+          const norm = (d) => {
+            if (!d) return '';
+            const s = String(d).toLowerCase().trim();
+            if (s.includes('artificial') || s.includes('data') || s.includes('aids') || s.includes('ai&ds') || s.startsWith('ad')) return 'aids';
+            if (s.includes('information') || s === 'it') return 'it';
+            if (s.includes('computer') || s === 'cse') return 'cse';
+            if (s.includes('mech')) return 'mech';
+            if (s.includes('civil')) return 'civil';
+            if (s.includes('electrical') || s === 'eee') return 'eee';
+            if (s.includes('electronic') || s === 'ece') return 'ece';
+            if (s.includes('science') || s.includes('humanities') || s === 's&h') return 'sh';
+            return s;
+          };
+
+          const userDeptNorm = norm(user?.department);
+
+          const filtered = pending.filter(r => {
+            const reqClass = (loadedClasses || []).find(c => c.id === r.class_id || c.name === r.class_name);
+            const classDeptNorm = norm(reqClass?.department || r.class_department);
+            const classNameNorm = norm(r.class_name || reqClass?.name);
+
+            // 1. Direct class department match
+            if (userDeptNorm && classDeptNorm && userDeptNorm === classDeptNorm) return true;
+
+            // 2. Class name prefix / acronym match (e.g. "AD - IV Year" belongs to AI&DS)
+            if (userDeptNorm && classNameNorm && userDeptNorm === classNameNorm) return true;
+
+            return false;
+          });
+          setUnlockRequests(filtered);
+        } else {
+          setUnlockRequests([]);
+        }
       })
       .catch(() => setError('Could not load dashboard data. Is the API server running?'))
       .finally(() => setLoading(false));
