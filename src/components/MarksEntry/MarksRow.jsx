@@ -33,9 +33,9 @@ export default function MarksRow({
   let cumulativeMaxHours = 0;
 
   // Max allowed hours (strictly 30 or LTPC prescribed, cannot exceed)
-  const maxAttdHours = parseInt(int1Hours || displayHours || 30, 10);
-  const maxInt2Hours = parseInt(int2Hours || displayHours || 30, 10);
-  const maxLabHours  = parseInt(labHours || 30, 10);
+  const maxAttdHours = Math.max(7, parseInt(int1Hours || displayHours || 30, 10));
+  const maxInt2Hours = Math.max(7, parseInt(int2Hours || displayHours || 30, 10));
+  const maxLabHours  = Math.max(0, parseInt(labHours || 0, 10));
 
   if (assessmentMode === 'internal1') {
     const baseHours = maxAttdHours;
@@ -239,7 +239,7 @@ export default function MarksRow({
 
       {/* Attendance Cells */}
       {(() => {
-        const currentMaxAttd = (assessmentMode === 'internal2' ? maxInt2Hours : maxAttdHours) || 30;
+        const currentMaxAttd = Math.max(7, (assessmentMode === 'internal2' ? maxInt2Hours : maxAttdHours) || 30);
         return (
           <td className={styles.inputCell}>
             <div className={styles.inputWrap}>

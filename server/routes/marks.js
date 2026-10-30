@@ -399,13 +399,19 @@ router.post('/submit', async (req, res) => {
     // 6. Notifications for Freeze action
     if (actionType === 'frozen') {
       try {
+        let effClassId = classId;
+        if (!effClassId && sessionId) {
+          const [sessRows] = await db.execute('SELECT class_id FROM marks_sessions WHERE id = ?', [sessionId]);
+          if (sessRows.length > 0 && sessRows[0].class_id) effClassId = sessRows[0].class_id;
+        }
+
         const [subRows] = await db.execute(`
           SELECT s.code, s.name, s.department AS sub_dept, s.class_id,
                  c.department AS class_dept, c.year_label, c.name AS class_name, c.class_coordinator
           FROM subjects s 
           LEFT JOIN classes c ON c.id = COALESCE(?, s.class_id)
           WHERE s.id = ?
-        `, [classId || null, subjectId]);
+        `, [effClassId || null, subjectId]);
         const sub = subRows.length > 0 ? subRows[0] : null;
         const subName = sub ? `${sub.code} ${sub.name}` : 'A Subject';
         let coordNotified = false;
@@ -701,22 +707,20 @@ router.post('/request-unlock', async (req, res) => {
 
     let effSubjectId = subjectId;
     let effClassId = classId;
-    if ((!effSubjectId || !effClassId) && sessionId) {
+    if (sessionId) {
       const [sessRows] = await db.execute('SELECT subject_id, class_id FROM marks_sessions WHERE id = ?', [sessionId]);
       if (sessRows.length > 0) {
-        if (!effSubjectId) effSubjectId = sessRows[0].subject_id;
-        if (!effClassId) effClassId = sessRows[0].class_id;
+        if (sessRows[0].class_id) effClassId = sessRows[0].class_id;
+        if (sessRows[0].subject_id) effSubjectId = sessRows[0].subject_id;
       }
     }
 
-    // Resolve target class directly
+    // Resolve target class directly from session's class_id
     const [classRows] = await db.execute(
       `SELECT c.id, c.name, c.department, c.year_label 
        FROM classes c 
-       WHERE c.id = ? 
-          OR c.id = (SELECT class_id FROM subjects WHERE id = ?)
-          OR c.id = (SELECT class_id FROM marks_sessions WHERE id = ?)`,
-      [effClassId || '', effSubjectId || '', sessionId]
+       WHERE c.id = ? OR c.id = (SELECT class_id FROM subjects WHERE id = ?)`,
+      [effClassId || '', effSubjectId || '']
     );
     const targetClass = classRows[0] || null;
     const finalClassId = targetClass?.id || effClassId || '';
@@ -781,25 +785,49 @@ router.get('/unlock-requests', async (req, res) => {
       LEFT JOIN marks_sessions ms ON ms.id = ur.session_id
       LEFT JOIN staffs st ON (st.id = ur.staff_id OR LOWER(st.email) = LOWER(ur.staff_id))
       LEFT JOIN subjects sub ON (sub.id = ur.subject_id OR sub.id = ms.subject_id)
-      LEFT JOIN classes cl ON (cl.id = ur.class_id OR cl.id = ms.class_id OR cl.id = sub.class_id)
+      LEFT JOIN classes cl ON cl.id = COALESCE(NULLIF(ur.class_id, ''), ms.class_id, sub.class_id)
+      WHERE ur.status = 'pending'
     `;
     const params = [];
-    if (department && department.trim()) {
+    if (department && department.trim() && department.trim().toLowerCase() !== 'all') {
       const depLower = department.trim().toLowerCase();
       const isFirstYear = depLower.includes('science') || depLower.includes('humanities') || depLower.includes('first year') || depLower === 's&h';
       
       if (isFirstYear) {
         // Science & Humanities HOD receives requests for all Year I classes across all branches
-        sql += ` WHERE (cl.year_label = 'I' OR LOWER(cl.department) = 'science and humanities' OR LOWER(cl.department) = 'first year' OR LOWER(cl.name) LIKE '%i year%' OR LOWER(cl.name) LIKE '%1st year%')`;
+        sql += ` AND (cl.year_label = 'I' OR LOWER(cl.department) = 'science and humanities' OR LOWER(cl.department) = 'first year' OR LOWER(cl.name) LIKE '%i year%' OR LOWER(cl.name) LIKE '%1st year%')`;
       } else {
         // Class Department HOD receives requests for ALL classes belonging to their department
-        // regardless of which staff member or department staff teaches the subject!
-        sql += ` WHERE (
-          (LOWER(cl.department) LIKE ? OR LOWER(cl.name) LIKE ?)
+        const deptAliases = [department.trim()];
+        if (depLower.includes('computer') || depLower === 'cse') {
+          deptAliases.push('Computer Science and Engineering', 'CSE', 'Computer Science & Engineering', 'CS');
+        } else if (depLower.includes('information') || depLower === 'it') {
+          deptAliases.push('Information Technology', 'IT');
+        } else if (depLower.includes('electronic') || depLower === 'ece') {
+          deptAliases.push('Electronics and Communication Engineering', 'ECE', 'Electronics & Communication Engineering', 'EC');
+        } else if (depLower.includes('electrical') || depLower === 'eee') {
+          deptAliases.push('Electrical and Electronics Engineering', 'EEE', 'Electrical & Electronics Engineering', 'EE');
+        } else if (depLower.includes('mechanical') || depLower === 'mech') {
+          deptAliases.push('Mechanical Engineering', 'MECH', 'Mech', 'ME');
+        } else if (depLower.includes('civil')) {
+          deptAliases.push('Civil Engineering', 'CIVIL', 'Civil', 'CE');
+        } else if (depLower.includes('intelligence') || depLower.includes('ai') || depLower.includes('data')) {
+          deptAliases.push('Artificial Intelligence and Data Science', 'AI&DS', 'AIDS', 'AI & DS', 'AD');
+        }
+
+        const uniqueAliases = Array.from(new Set(deptAliases));
+        const placeholders = uniqueAliases.map(() => '?').join(', ');
+        const likeClauses = uniqueAliases.map(() => 'LOWER(cl.department) LIKE ? OR LOWER(cl.name) LIKE ?').join(' OR ');
+
+        sql += ` AND (
+          (LOWER(cl.department) IN (${placeholders}) OR ${likeClauses})
           AND (cl.year_label != 'I' OR cl.year_label IS NULL)
           AND (LOWER(cl.department) != 'science and humanities' OR cl.department IS NULL)
         )`;
-        params.push(`%${depLower}%`, `%${depLower}%`);
+        params.push(
+          ...uniqueAliases.map(d => d.toLowerCase()),
+          ...uniqueAliases.flatMap(d => [`%${d.toLowerCase()}%`, `%${d.toLowerCase()}%`])
+        );
       }
     }
     sql += ` ORDER BY ur.requested_at DESC`;

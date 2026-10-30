@@ -309,16 +309,22 @@ export default function MarksEntryPage2021() {
             if (!loadedMarks[m.student_id]) loadedMarks[m.student_id] = {};
             loadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
           });
-          const initialSessionHours = detail.session?.total_hours 
-            ? (parseInt(detail.session.total_hours, 10) <= 60 ? detail.session.total_hours : (assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30)))
-            : (assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30));
+          const activeSub = subjects.find(s => s && String(s.id) === String(effectiveSubjectId)) || selectedSubject;
+          const activeSplits = activeSub ? getHourSplits(activeSub.ltpc, activeSub.type, activeSub.total_hours) : { int1: 30, int2: 30 };
+          const prescribed = assessmentMode === 'internal2'
+            ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
+            : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
+          const sessHours = parseInt(detail.session?.total_hours, 10);
+          const finalSessionHours = prescribed > 10 ? prescribed : (sessHours > 10 ? sessHours : 30);
+
           setSessionBulk({
             marks: loadedMarks,
             attendance: detail.attendance || {},
             internalExam: detail.internalExam || {},
             labData: detail.labData || {},
-            totalHours: initialSessionHours
+            totalHours: finalSessionHours
           });
+          setTotalHours(finalSessionHours);
           setRemedialAction(detail.session.remedial_action || '');
           setSaved(true);
           setIsComponentsDirty(false);
@@ -326,8 +332,13 @@ export default function MarksEntryPage2021() {
           setCurrentSession(null);
           setSessionStatus('draft');
           setAssessmentComponents([]);
-          const defaultSessionHours = assessmentMode === 'internal2' ? (selectedSubject?.int2_hours || 30) : (selectedSubject?.int1_hours || 30);
+          const activeSub = subjects.find(s => s && String(s.id) === String(effectiveSubjectId)) || selectedSubject;
+          const activeSplits = activeSub ? getHourSplits(activeSub.ltpc, activeSub.type, activeSub.total_hours) : { int1: 30, int2: 30 };
+          const defaultSessionHours = assessmentMode === 'internal2'
+            ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
+            : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
           setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: defaultSessionHours });
+          setTotalHours(defaultSessionHours);
           setRemedialAction('');
           setSaved(false);
           setIsComponentsDirty(false);
@@ -340,7 +351,9 @@ export default function MarksEntryPage2021() {
   // Split hours based on LTPC total and subject type (matches 2021 & 2025 college curriculum table)
   const getHourSplits = (ltpc, type, total) => {
     const cleanLtpc = String(ltpc || '').trim().replace(/[\s\-]+/g, '');
-    const h = parseInt(total || 0, 10);
+    let h = parseInt(total || 0, 10);
+    if (h > 0 && h <= 10) h = h * 15;
+    if (!h || h <= 0) h = 60;
 
     if (['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(type)) {
       if (cleanLtpc === '2023') return { int1: 15, int2: 15, lab: 30 };
@@ -349,7 +362,7 @@ export default function MarksEntryPage2021() {
       if (cleanLtpc === '3024') return { int1: 30, int2: 30, lab: 15 };
       if (cleanLtpc === '3045') return { int1: 30, int2: 30, lab: 45 };
       if (cleanLtpc === '1021') return { int1: 15, int2: 15, lab: 15 };
-      return { int1: 15, int2: 15, lab: Math.max(0, h - 30) };
+      return { int1: 30, int2: 30, lab: Math.max(0, h - 60) || 30 };
     }
 
     if (type === 'Theory') {
@@ -357,12 +370,20 @@ export default function MarksEntryPage2021() {
       if (cleanLtpc === '1001') return { int1: 7, int2: 8, lab: 0 };
       if (cleanLtpc === '3003' || cleanLtpc === '2103') return { int1: 25, int2: 20, lab: 0 };
       if (cleanLtpc === '2002') return { int1: 15, int2: 15, lab: 0 };
+      if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+      if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+      if (h === 15) return { int1: 7, int2: 8, lab: 0 };
+      return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
     }
 
     if (type === 'Practical' || type === 'Laboratory' || type === 'Lab') {
       if (cleanLtpc === '0042') return { int1: 30, int2: 30, lab: 0 };
       if (cleanLtpc === '1021') return { int1: 25, int2: 20, lab: 0 };
       if (cleanLtpc === '0041') return { int1: 30, int2: 30, lab: 0 };
+      if (cleanLtpc === '0021') return { int1: 15, int2: 15, lab: 0 };
+      if (h === 45) return { int1: 25, int2: 20, lab: 0 };
+      if (h === 30) return { int1: 15, int2: 15, lab: 0 };
+      return { int1: Math.ceil(h / 2), int2: Math.floor(h / 2), lab: 0 };
     }
 
     if (!h) return { int1: 30, int2: 30, lab: 0 };
@@ -498,9 +519,11 @@ export default function MarksEntryPage2021() {
             setAssessmentComponents(reloadedComps);
 
             const reloadedMarks = {};
-            freshDetail.marks.forEach(m => {
-              if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
-              reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+            (Array.isArray(freshDetail?.marks) ? freshDetail.marks : []).forEach(m => {
+              if (m && m.student_id) {
+                if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
+                reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+              }
             });
             setSessionBulk({
               marks: reloadedMarks,
@@ -898,6 +921,18 @@ export default function MarksEntryPage2021() {
     setSaved(false);
     setSaveErr('');
   };
+
+  const selectedClassObj = classes.find(c => c && String(c.id) === String(effectiveClassId));
+  const userDept = (user?.department || '').trim().toLowerCase();
+  const classDept = (selectedClassObj?.department || '').trim().toLowerCase();
+  const className = (selectedClassObj?.name || '').trim().toLowerCase();
+
+  const isClassDeptHod = user?.role === 'hod' && Boolean(
+    (classDept && userDept && classDept === userDept) ||
+    (selectedClassObj?.year_label === 'I' && (userDept.includes('science') || userDept.includes('humanities'))) ||
+    (!classDept && userDept && className && className.includes(userDept.split(' ')[0]))
+  );
+  const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isClassDeptHod);
 
   const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';

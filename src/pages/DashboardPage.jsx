@@ -92,6 +92,8 @@ export default function DashboardPage() {
 
     if (user?.role === 'hod') {
       promises.push(marksAPI.getUnlockRequests(user.department).catch(() => []));
+    } else if (user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
+      promises.push(marksAPI.getUnlockRequests('all').catch(() => []));
     } else {
       promises.push(Promise.resolve([]));
     }

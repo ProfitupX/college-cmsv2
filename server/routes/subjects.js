@@ -135,18 +135,49 @@ router.put('/:id', async (req, res) => {
       );
     }
 
-    // 4. Update session hours if int1_hours / int2_hours / lab_hours were updated
-    if (pInt1 !== null) {
+    // 4. Update session hours across all marks sessions for this subject
+    let finalInt1 = pInt1;
+    let finalInt2 = pInt2;
+    let finalLab = pLab;
+
+    if (finalInt1 === null || finalInt2 === null) {
+      const cleanLtpc = String(ltpc || '').trim().replace(/[\s\-]+/g, '');
+      let h = pTotal || 60;
+      if (h > 0 && h <= 10) h = h * 15;
+      if (cleanLtpc === '3104' || cleanLtpc === '3004') { finalInt1 = 30; finalInt2 = 30; finalLab = 0; }
+      else if (cleanLtpc === '1001') { finalInt1 = 7; finalInt2 = 8; finalLab = 0; }
+      else if (cleanLtpc === '3003' || cleanLtpc === '2103') { finalInt1 = 25; finalInt2 = 20; finalLab = 0; }
+      else if (cleanLtpc === '2002') { finalInt1 = 15; finalInt2 = 15; finalLab = 0; }
+      else if (cleanLtpc === '3045') { finalInt1 = 30; finalInt2 = 30; finalLab = 45; }
+      else if (cleanLtpc === '3024') { finalInt1 = 30; finalInt2 = 30; finalLab = 15; }
+      else if (cleanLtpc === '2023') { finalInt1 = 15; finalInt2 = 15; finalLab = 30; }
+      else if (cleanLtpc === '2043') { finalInt1 = 15; finalInt2 = 15; finalLab = 60; }
+      else if (cleanLtpc === '1022') { finalInt1 = 15; finalInt2 = 15; finalLab = 15; }
+      else if (cleanLtpc === '0042' || cleanLtpc === '0041') { finalInt1 = 30; finalInt2 = 30; finalLab = 0; }
+      else {
+        finalInt1 = finalInt1 ?? Math.ceil(h / 2) ?? 30;
+        finalInt2 = finalInt2 ?? Math.floor(h / 2) ?? 30;
+        finalLab = finalLab ?? 0;
+      }
+    }
+
+    if (finalInt1 !== null) {
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1' AND status = 'draft'`,
-        [pInt1, String(subjectId)]
+        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1'`,
+        [finalInt1, String(subjectId)]
       );
     }
-    if (pInt2 !== null) {
-      const i2Cum = (pInt1 || 0) + pInt2 + (pLab || 0);
+    if (finalInt2 !== null) {
+      const i2Cum = (finalInt1 || 0) + finalInt2 + (finalLab || 0);
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2' AND status = 'draft'`,
-        [i2Cum, pInt2, String(subjectId)]
+        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2'`,
+        [i2Cum, finalInt2, String(subjectId)]
+      );
+    }
+    if (finalLab !== null && finalLab > 0) {
+      await conn.execute(
+        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label IN ('lab', 'practical')`,
+        [finalLab, String(subjectId)]
       );
     }
 

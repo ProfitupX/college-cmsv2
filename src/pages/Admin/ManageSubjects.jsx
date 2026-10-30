@@ -35,6 +35,9 @@ export default function ManageSubjects() {
   const getHourSplitsFromLtpc = (ltpc, type, total) => {
     const cleanLtpc = String(ltpc || '').trim().replace(/[\s\-]+/g, '');
     let h = parseInt(total || 0, 10);
+    if (h > 0 && h <= 10) {
+      h = h * 15;
+    }
     if (!h && cleanLtpc.length >= 3) {
       const parts = cleanLtpc.split('');
       const l = parseFloat(parts[0]) || 0;
