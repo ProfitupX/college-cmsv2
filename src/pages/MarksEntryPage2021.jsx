@@ -982,9 +982,9 @@ export default function MarksEntryPage2021() {
             <div className={styles.lockBanner}>
               <div className={styles.lockBannerLeft}>
                 <Lock size={18} />
-                <span>This Marks Sheet is <strong>Locked</strong> after submission. {user?.role === 'hod' || user?.role === 'admin' ? 'You can unlock it.' : 'Changes require HOD approval.'}</span>
+                <span>This Marks Sheet is <strong>Locked</strong> after submission. {canDirectlyUnlock ? 'You can unlock it.' : 'Changes require Class HOD approval.'}</span>
               </div>
-              {user?.role === 'hod' || user?.role === 'admin' ? (
+              {canDirectlyUnlock ? (
                 <button className={styles.requestUnlockBtn} onClick={handleUnlockSheet}>
                   <Key size={14} /> Unlock Sheet
                 </button>

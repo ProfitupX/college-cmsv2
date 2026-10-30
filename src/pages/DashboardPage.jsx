@@ -1596,7 +1596,7 @@ export default function DashboardPage() {
             {unlockRequests.map((req) => (
               <div key={req.id} className={styles.requestItem}>
                 <div className={styles.requestInfo}>
-                  <strong>{req.staff_name}</strong> requested to unlock <strong>{req.subject_code || req.subject_name}</strong> ({req.class_name})
+                  <strong>{req.staff_name}</strong> {req.staff_department ? <span style={{ opacity: 0.8, fontSize: '0.85em' }}>({req.staff_department})</span> : ''} requested to unlock <strong>{req.subject_code ? `${req.subject_code} ` : ''}{req.subject_name}</strong> for class <strong>{req.class_name}</strong>
                 </div>
                 <div className={styles.requestReason}>
                   "{req.reason}"

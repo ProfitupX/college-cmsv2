@@ -3,17 +3,40 @@ import db from '../db.js';
 
 const router = express.Router();
 
-// Helper to resolve accurate department for notification targeting
+// Helper to resolve accurate department for notification targeting:
+// RULE: The Class's Department HOD ALWAYS has authority over freeze & unfreeze for their classes!
 function resolveSubjectDepartment(sub) {
   if (!sub) return 'College Administration';
-  if (sub.year_label === 'I' || sub.class_dept === 'Science and Humanities' || sub.sub_dept === 'Science and Humanities' || sub.class_dept === 'First Year') {
+
+  // 1. Year I classes are managed by Science and Humanities
+  if (sub.year_label === 'I' || sub.class_dept === 'First Year' || (sub.class_name && (sub.class_name.includes('I Year') || sub.class_name.includes('1st Year')))) {
     return 'Science and Humanities';
   }
-  // Prioritize class department (the department taking the subject) so the class's HOD has authority
-  if (sub.class_dept && sub.class_dept.trim()) return sub.class_dept.trim();
+
+  // 2. Class Department ALWAYS takes absolute precedence for Year II, III, IV
+  if (sub.class_dept && sub.class_dept.trim()) {
+    const cd = sub.class_dept.trim();
+    if (cd !== 'Science and Humanities' || sub.year_label === 'I') {
+      return cd;
+    }
+  }
+
+  // 3. Infer from class name if available
+  if (sub.class_name) {
+    const cName = sub.class_name.toUpperCase();
+    if (cName.includes('IT') || cName.includes('INFORMATION')) return 'Information Technology';
+    if (cName.includes('CSE') || cName.includes('COMPUTER')) return 'Computer Science and Engineering';
+    if (cName.includes('AI') || cName.includes('AD') || cName.includes('DATA')) return 'Artificial Intelligence and Data Science';
+    if (cName.includes('ECE') || cName.includes('ELECTRONIC')) return 'Electronics and Communication Engineering';
+    if (cName.includes('EEE') || cName.includes('ELECTRICAL')) return 'Electrical and Electronics Engineering';
+    if (cName.includes('MECH')) return 'Mechanical Engineering';
+    if (cName.includes('CIVIL')) return 'Civil Engineering';
+  }
+
+  // 4. Fallback to subject department
   if (sub.sub_dept && sub.sub_dept.trim()) return sub.sub_dept.trim();
 
-  // Infer from subject code prefix
+  // 5. Fallback to code prefix
   const code = (sub.code || '').toUpperCase().trim();
   if (code.startsWith('CS') || code.startsWith('CCS') || code.startsWith('CB')) return 'Computer Science and Engineering';
   if (code.startsWith('IT') || code.startsWith('CW')) return 'Information Technology';
@@ -380,26 +403,30 @@ router.post('/submit', async (req, res) => {
           SELECT s.code, s.name, s.department AS sub_dept, s.class_id,
                  c.department AS class_dept, c.year_label, c.name AS class_name, c.class_coordinator
           FROM subjects s 
-          LEFT JOIN classes c ON c.id = s.class_id 
+          LEFT JOIN classes c ON c.id = COALESCE(?, s.class_id)
           WHERE s.id = ?
-        `, [subjectId]);
+        `, [classId || null, subjectId]);
         const sub = subRows.length > 0 ? subRows[0] : null;
         const subName = sub ? `${sub.code} ${sub.name}` : 'A Subject';
         let coordNotified = false;
         
-        // Resolve true department: prioritize subject department, fallback to class department / S&H / code prefix
+        // Resolve true department: ALWAYS the class department
         const dept = resolveSubjectDepartment(sub);
 
-        // Notify HOD of the subject's related department ONLY
+        // Fetch staff name who froze the marks
+        const [freezerRows] = await db.execute('SELECT name FROM staffs WHERE id = ?', [staffId]);
+        const freezerName = freezerRows[0]?.name || 'the subject staff';
+
+        // Notify HOD of the CLASS department ONLY
         await db.execute(
           `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('hod', ?, 'Marks Frozen', ?, '/dashboard')`,
-          [dept, `Marks for ${subName} (${sessionLabel}) have been frozen by the subject staff.`]
+          [dept, `Marks for ${subName} (${sub?.class_name || 'Class'}) have been frozen by ${freezerName}.`]
         );
 
         // Notify College Administration / Leadership
         await db.execute(
           `INSERT INTO notifications (target_role, title, message, link) VALUES ('admin', 'Subject Marks Finalized', ?, '/dashboard')`,
-          [`Marks for ${subName} (${sessionLabel}) have been frozen and finalized.`]
+          [`Marks for ${subName} (${sub?.class_name || sessionLabel}) have been frozen and finalized by ${freezerName}.`]
         );
         
         // Notify Specific Class Coordinator
@@ -424,7 +451,7 @@ router.post('/submit', async (req, res) => {
         if (!coordNotified) {
           await db.execute(
             `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('class_coordinator', ?, 'Class Subject Marks Frozen', ?, '/reports')`,
-            [dept, `Marks for ${subName} have been frozen. You can now view the updated class performance.`]
+            [dept, `Marks for ${subName} (${sub?.class_name || 'Class'}) have been frozen. You can now view the updated class performance.`]
           );
         }
       } catch (notifErr) {
@@ -682,11 +709,23 @@ router.post('/request-unlock', async (req, res) => {
       }
     }
 
-    // Insert into mark_unlock_requests
+    // Resolve target class directly
+    const [classRows] = await db.execute(
+      `SELECT c.id, c.name, c.department, c.year_label 
+       FROM classes c 
+       WHERE c.id = ? 
+          OR c.id = (SELECT class_id FROM subjects WHERE id = ?)
+          OR c.id = (SELECT class_id FROM marks_sessions WHERE id = ?)`,
+      [effClassId || '', effSubjectId || '', sessionId]
+    );
+    const targetClass = classRows[0] || null;
+    const finalClassId = targetClass?.id || effClassId || '';
+
+    // Insert into mark_unlock_requests with guaranteed class_id
     await db.execute(
       `INSERT INTO mark_unlock_requests (session_id, subject_id, class_id, staff_id, reason, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [sessionId, effSubjectId || '', effClassId || '', staffId, reason || 'Requesting edit permission for marks sheet']
+      [sessionId, effSubjectId || '', finalClassId, staffId, reason || 'Requesting edit permission for marks sheet']
     );
 
     // Get names for notification
@@ -694,28 +733,27 @@ router.post('/request-unlock', async (req, res) => {
     const staffName = staffs[0]?.name || 'A staff member';
     
     let subjectName = 'a subject';
-    let subjectDept = null;
     if (effSubjectId) {
-       const [subs] = await db.execute(`
-         SELECT s.name, s.code, s.department AS sub_dept, s.class_id,
-                c.department AS class_dept, c.year_label
-         FROM subjects s
-         LEFT JOIN classes c ON c.id = COALESCE(?, s.class_id)
-         WHERE s.id = ?
-       `, [effClassId, effSubjectId]);
-       if (subs[0]) {
-         subjectName = `${subs[0].code} ${subs[0].name}`;
-         subjectDept = resolveSubjectDepartment(subs[0]);
-       }
+      const [subs] = await db.execute('SELECT name, code FROM subjects WHERE id = ?', [effSubjectId]);
+      if (subs[0]) {
+        subjectName = `${subs[0].code} ${subs[0].name}`;
+      }
     }
 
-    // Notify HOD of the subject's related department ONLY
+    // Determine HOD department strictly from the CLASS taking the subject
+    const targetHodDept = resolveSubjectDepartment({
+      year_label: targetClass?.year_label,
+      class_dept: targetClass?.department,
+      class_name: targetClass?.name
+    });
+
+    // Notify HOD of the CLASS department ONLY
     await db.execute(
       `INSERT INTO notifications (target_role, target_department, title, message, link) VALUES ('hod', ?, 'Marks Unlock Request', ?, '/dashboard#unlocks')`,
-      [subjectDept, `${staffName} requested to unlock marks for ${subjectName}.`]
+      [targetHodDept, `${staffName} requested to unlock marks for ${subjectName} (${targetClass?.name || 'Class'}).`]
     );
 
-    res.json({ success: true, message: 'Unlock request submitted to HOD successfully.' });
+    res.json({ success: true, message: 'Unlock request submitted to Class HOD successfully.' });
   } catch (err) {
     console.error('POST /marks/request-unlock error:', err);
     res.status(500).json({ error: 'Failed to submit unlock request: ' + err.message });
@@ -724,7 +762,7 @@ router.post('/request-unlock', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/marks/unlock-requests
-// Returns all pending unlock requests for HOD
+// Returns all pending unlock requests for the CLASS department HOD
 // ─────────────────────────────────────────────────────────────
 router.get('/unlock-requests', async (req, res) => {
   try {
@@ -732,25 +770,36 @@ router.get('/unlock-requests', async (req, res) => {
     let sql = `
       SELECT ur.id, ur.session_id, ur.subject_id, ur.class_id, ur.staff_id,
              ur.reason, ur.status, ur.requested_at,
-             st.name AS staff_name,
-             sub.name AS subject_name, sub.code AS subject_code,
-             cl.name AS class_name
+             COALESCE(st.name, ur.staff_id) AS staff_name,
+             st.department AS staff_department,
+             COALESCE(sub.name, ms.session_label, 'Subject') AS subject_name, 
+             sub.code AS subject_code,
+             COALESCE(cl.name, 'Class') AS class_name,
+             cl.department AS class_department,
+             cl.year_label AS class_year
       FROM mark_unlock_requests ur
-      JOIN staffs st ON st.id = ur.staff_id
-      LEFT JOIN subjects sub ON sub.id = ur.subject_id
-      LEFT JOIN classes cl ON (cl.id = ur.class_id OR cl.id = sub.class_id)
+      LEFT JOIN marks_sessions ms ON ms.id = ur.session_id
+      LEFT JOIN staffs st ON (st.id = ur.staff_id OR LOWER(st.email) = LOWER(ur.staff_id))
+      LEFT JOIN subjects sub ON (sub.id = ur.subject_id OR sub.id = ms.subject_id)
+      LEFT JOIN classes cl ON (cl.id = ur.class_id OR cl.id = ms.class_id OR cl.id = sub.class_id)
     `;
     const params = [];
-    if (department) {
+    if (department && department.trim()) {
       const depLower = department.trim().toLowerCase();
       const isFirstYear = depLower.includes('science') || depLower.includes('humanities') || depLower.includes('first year') || depLower === 's&h';
+      
       if (isFirstYear) {
-        sql += ` WHERE (cl.year_label = 'I' OR cl.department = 'Science and Humanities' OR cl.department = 'First Year')`;
+        // Science & Humanities HOD receives requests for all Year I classes across all branches
+        sql += ` WHERE (cl.year_label = 'I' OR LOWER(cl.department) = 'science and humanities' OR LOWER(cl.department) = 'first year' OR LOWER(cl.name) LIKE '%i year%' OR LOWER(cl.name) LIKE '%1st year%')`;
       } else {
-        // Strictly the department of the class taking the subject!
-        // (e.g. If an AIDS staff takes an IT subject/class, only the IT HOD receives and approves unlock requests)
-        sql += ` WHERE (cl.department LIKE ? AND (cl.year_label IN ('II', 'III', 'IV') OR cl.year_label IS NULL))`;
-        params.push(`%${department}%`);
+        // Class Department HOD receives requests for ALL classes belonging to their department
+        // regardless of which staff member or department staff teaches the subject!
+        sql += ` WHERE (
+          (LOWER(cl.department) LIKE ? OR LOWER(cl.name) LIKE ?)
+          AND (cl.year_label != 'I' OR cl.year_label IS NULL)
+          AND (LOWER(cl.department) != 'science and humanities' OR cl.department IS NULL)
+        )`;
+        params.push(`%${depLower}%`, `%${depLower}%`);
       }
     }
     sql += ` ORDER BY ur.requested_at DESC`;
@@ -758,8 +807,8 @@ router.get('/unlock-requests', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json(rows);
   } catch (err) {
-    console.warn('GET /marks/unlock-requests table notice:', err.message);
-    res.json([]); // Return empty list safely if table not created yet
+    console.warn('GET /marks/unlock-requests error:', err.message);
+    res.json([]);
   }
 });
 

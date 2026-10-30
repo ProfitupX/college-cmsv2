@@ -909,6 +909,13 @@ export default function MarksEntryPage() {
     setSaveErr('');
   };
 
+  const selectedClassObj = classes.find(c => c && String(c.id) === String(effectiveClassId));
+  const isClassDeptHod = user?.role === 'hod' && (
+    (selectedClassObj?.department && user?.department && selectedClassObj.department.toLowerCase() === user.department.toLowerCase()) ||
+    (selectedClassObj?.year_label === 'I' && (user?.department?.toLowerCase().includes('science') || user?.department?.toLowerCase().includes('humanities'))) ||
+    (!selectedClassObj?.department && user?.department && selectedClassObj?.name?.toLowerCase().includes(user.department.toLowerCase().split(' ')[0]))
+  );
+  const canDirectlyUnlock = user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isClassDeptHod;
   const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
   const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && user?.role !== 'hod' && user?.role !== 'admin');
@@ -958,9 +965,9 @@ export default function MarksEntryPage() {
             <div className={styles.lockBanner}>
               <div className={styles.lockBannerLeft}>
                 <Lock size={18} />
-                <span>This Marks Sheet is <strong>Locked</strong> after submission. {user?.role === 'hod' || user?.role === 'admin' ? 'You can unlock it.' : 'Changes require HOD approval.'}</span>
+                <span>This Marks Sheet is <strong>Locked</strong> after submission. {canDirectlyUnlock ? 'You can unlock it.' : 'Changes require Class HOD approval.'}</span>
               </div>
-              {user?.role === 'hod' || user?.role === 'admin' ? (
+              {canDirectlyUnlock ? (
                 <button className={styles.requestUnlockBtn} onClick={handleUnlockSheet}>
                   <Key size={14} /> Unlock Sheet
                 </button>
