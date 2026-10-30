@@ -39,6 +39,81 @@ async function runMigration(shouldExit = false) {
       console.log('✅ Added lab_hours column to subjects.');
     }
 
+    // 1.3 Ensure all subjects have valid hours splits and cascade to marks_sessions
+    try {
+      const [subs] = await db.query(
+        "SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours FROM subjects WHERE int1_hours IS NULL OR int2_hours IS NULL OR total_hours IS NULL OR total_hours <= 10"
+      );
+      if (subs.length > 0) {
+        console.log(`Syncing LTPC hours splits for ${subs.length} subjects...`);
+        for (const s of subs) {
+          const cleanLtpc = String(s.ltpc || '').trim().replace(/[\s\-]+/g, '');
+          let h = parseInt(s.total_hours || 0, 10);
+          if (h > 0 && h <= 10) h = h * 15;
+          if (!h && cleanLtpc.length >= 3) {
+            const parts = cleanLtpc.split('');
+            const l = parseFloat(parts[0]) || 0;
+            const t = parseFloat(parts[1]) || 0;
+            const p = parseFloat(parts[2]) || 0;
+            h = (l + t + p) * 15;
+          }
+          if (!h || h <= 0) h = 60;
+
+          let int1 = 30;
+          let int2 = 30;
+          let lab = 0;
+
+          if (['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(s.type)) {
+            if (cleanLtpc === '2023') { int1 = 15; int2 = 15; lab = 30; h = 60; }
+            else if (cleanLtpc === '2043') { int1 = 15; int2 = 15; lab = 60; h = 90; }
+            else if (cleanLtpc === '1022') { int1 = 15; int2 = 15; lab = 15; h = 45; }
+            else if (cleanLtpc === '3024') { int1 = 30; int2 = 30; lab = 15; h = 75; }
+            else if (cleanLtpc === '3045') { int1 = 30; int2 = 30; lab = 45; h = 105; }
+            else if (cleanLtpc === '1021') { int1 = 15; int2 = 15; lab = 15; h = 45; }
+            else { int1 = 30; int2 = 30; lab = Math.max(0, h - 60) || 30; }
+          } else if (s.type === 'Theory') {
+            if (cleanLtpc === '3104' || cleanLtpc === '3004') { int1 = 30; int2 = 30; lab = 0; h = 60; }
+            else if (cleanLtpc === '1001') { int1 = 7; int2 = 8; lab = 0; h = 15; }
+            else if (cleanLtpc === '3003' || cleanLtpc === '2103') { int1 = 25; int2 = 20; lab = 0; h = 45; }
+            else if (cleanLtpc === '2002') { int1 = 15; int2 = 15; lab = 0; h = 30; }
+            else if (h === 45) { int1 = 25; int2 = 20; lab = 0; }
+            else if (h === 30) { int1 = 15; int2 = 15; lab = 0; }
+            else if (h === 15) { int1 = 7; int2 = 8; lab = 0; }
+            else { int1 = Math.ceil(h / 2); int2 = Math.floor(h / 2); lab = 0; }
+          } else if (s.type === 'Practical' || s.type === 'Laboratory' || s.type === 'Lab') {
+            if (cleanLtpc === '0042' || cleanLtpc === '0041') { int1 = 30; int2 = 30; lab = 0; h = 60; }
+            else if (cleanLtpc === '1021') { int1 = 25; int2 = 20; lab = 0; h = 45; }
+            else if (cleanLtpc === '0021') { int1 = 15; int2 = 15; lab = 0; h = 30; }
+            else if (h === 45) { int1 = 25; int2 = 20; lab = 0; }
+            else if (h === 30) { int1 = 15; int2 = 15; lab = 0; }
+            else { int1 = Math.ceil(h / 2); int2 = Math.floor(h / 2); lab = 0; }
+          } else {
+            int1 = Math.ceil(h / 2) || 30;
+            int2 = Math.floor(h / 2) || 30;
+            lab = 0;
+          }
+
+          await db.execute(
+            "UPDATE subjects SET total_hours = ?, int1_hours = ?, int2_hours = ?, lab_hours = ? WHERE id = ?",
+            [h, int1, int2, lab, s.id]
+          );
+
+          await db.execute(
+            "UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1'",
+            [int1, s.id]
+          );
+          const i2Cum = int1 + int2 + lab;
+          await db.execute(
+            "UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2'",
+            [i2Cum, int2, s.id]
+          );
+        }
+        console.log('✅ Finished syncing subject hours splits on production database.');
+      }
+    } catch (syncErr) {
+      console.warn('⚠️ Subject hours sync notice:', syncErr.message);
+    }
+
     // 2. Ensure First-Year classes have year_label = 'I' and department = 'Science and Humanities'
     const [shClasses] = await db.query(
       "SELECT id, name, department, year_label FROM classes WHERE id LIKE 'C_SH_%' OR name LIKE 'I Year%'"
