@@ -224,7 +224,15 @@ export default function MarksRow({
                 step="0.5"
                 className={`${styles.input} ${isOver ? styles.inputError : ''}`}
                 value={val}
-                onChange={(e) => onMarkChange(student.id, comp.uid, e.target.value)}
+                onChange={(e) => {
+                  let v = e.target.value;
+                  if (v !== '') {
+                    const n = parseFloat(v);
+                    if (!isNaN(n) && conductedMax > 0 && n > conductedMax) v = String(conductedMax);
+                    else if (!isNaN(n) && n < 0) v = '0';
+                  }
+                  onMarkChange(student.id, comp.uid, v);
+                }}
                 disabled={isLocked}
                 placeholder="—"
               />
@@ -337,7 +345,15 @@ export default function MarksRow({
             max="100"
             className={`${styles.input} ${parseFloat(internalExamMark) > 100 ? styles.inputError : ''}`}
             value={internalExamMark}
-            onChange={(e) => onInternalExamChange(e.target.value)}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (v !== '') {
+                const n = parseFloat(v);
+                if (!isNaN(n) && n > 100) v = '100';
+                else if (!isNaN(n) && n < 0) v = '0';
+              }
+              onInternalExamChange(v);
+            }}
             disabled={isLocked}
             placeholder="—"
           />
@@ -358,7 +374,15 @@ export default function MarksRow({
               max="100"
               className={`${styles.input} ${parseFloat(labData?.labMark) > 100 ? styles.inputError : ''}`}
               value={labData?.labMark || ''}
-              onChange={(e) => onLabDataChange('labMark', e.target.value)}
+              onChange={(e) => {
+                let v = e.target.value;
+                if (v !== '') {
+                  const n = parseFloat(v);
+                  if (!isNaN(n) && n > 100) v = '100';
+                  else if (!isNaN(n) && n < 0) v = '0';
+                }
+                onLabDataChange('labMark', v);
+              }}
               disabled={isLocked}
               placeholder="—"
             />

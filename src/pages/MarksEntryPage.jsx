@@ -432,31 +432,7 @@ export default function MarksEntryPage() {
     ? parseInt(selectedSubject.lab_hours, 10)
     : (defaultSplits.lab || 0);
 
-  // Debounced Real-Time Auto-Save
-  useEffect(() => {
-    if (!isDirty || isLocked || !effectiveClassId || !effectiveSubjectId || assessmentComponents.length === 0 || students.length === 0) {
-      return;
-    }
-
-    setLiveSaveStatus('saving');
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      try {
-        await handleSave('draft', true);
-        setLiveSaveStatus('saved');
-        setTimeout(() => setLiveSaveStatus(''), 2500);
-      } catch (err) {
-        console.error('Real-time auto-save error:', err);
-        setLiveSaveStatus('error');
-      }
-    }, 1200);
-
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, [marksData, attendanceData, internalExamData, labData, totalHours, remedialAction, isDirty]);
-
+  // Auto-save removed: manual Save Draft requested to avoid network/latency dependency
   const handleSave = async (actionType = 'draft', isAutoSave = false) => {
     if (!isAutoSave) setSaving(true);
     setSaveErr('');
@@ -1197,19 +1173,7 @@ export default function MarksEntryPage() {
       {selectedSubject && (
         <div className={styles.actionBar}>
           <div className={styles.actionLeft}>
-            {liveSaveStatus === 'saving' && (
-              <div className={styles.liveSaveIndicator}>
-                <Loader size={14} className={styles.spinner} />
-                Saving marks in real-time…
-              </div>
-            )}
-            {liveSaveStatus === 'saved' && (
-              <div className={`${styles.liveSaveIndicator} ${styles.liveSaveSuccess}`}>
-                <CheckCircle2 size={14} color="#047857" />
-                Real-time data saved &amp; synced!
-              </div>
-            )}
-            {saved && !liveSaveStatus && !isPrincipal && (
+            {saved && !isPrincipal && (
               <div className={styles.savedMsg}>
                 <CheckCircle size={16} />
                 Marks saved to database!
@@ -1221,10 +1185,10 @@ export default function MarksEntryPage() {
                 {saveErr}
               </div>
             )}
-            {(isDirty || isComponentsDirty) && !saved && !saveErr && !liveSaveStatus && !isPrincipal && (
+            {(isDirty || isComponentsDirty) && !saved && !saveErr && !isPrincipal && (
               <div className={styles.dirtyMsg}>
                 <AlertTriangle size={16} />
-                Unsaved changes — auto-saving in real time…
+                Unsaved changes. Click "Save Draft" to save.
               </div>
             )}
           </div>

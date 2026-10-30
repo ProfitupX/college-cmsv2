@@ -214,7 +214,15 @@ export default function MarksRow2021({
                 step="0.5"
                 className={`${styles.input} ${isOver ? styles.inputError : ''}`}
                 value={val}
-                onChange={(e) => onMarkChange(student.id, comp.uid, e.target.value)}
+                onChange={(e) => {
+                  let v = e.target.value;
+                  if (v !== '') {
+                    const n = parseFloat(v);
+                    if (!isNaN(n) && conductedMax > 0 && n > conductedMax) v = String(conductedMax);
+                    else if (!isNaN(n) && n < 0) v = '0';
+                  }
+                  onMarkChange(student.id, comp.uid, v);
+                }}
                 disabled={isLocked}
                 placeholder="—"
               />
@@ -249,7 +257,15 @@ export default function MarksRow2021({
             max="100"
             className={`${styles.input} ${parseFloat(internalExamMark) > 100 ? styles.inputError : ''}`}
             value={internalExamMark}
-            onChange={(e) => onInternalExamChange(e.target.value)}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (v !== '') {
+                const n = parseFloat(v);
+                if (!isNaN(n) && n > 100) v = '100';
+                else if (!isNaN(n) && n < 0) v = '0';
+              }
+              onInternalExamChange(v);
+            }}
             disabled={isLocked}
             placeholder="—"
           />
@@ -274,7 +290,15 @@ export default function MarksRow2021({
               max="100"
               className={`${styles.input} ${parseFloat(labData?.labMark) > 100 ? styles.inputError : ''}`}
               value={labData?.labMark || ''}
-              onChange={(e) => onLabDataChange('labMark', e.target.value)}
+              onChange={(e) => {
+                let v = e.target.value;
+                if (v !== '') {
+                  const n = parseFloat(v);
+                  if (!isNaN(n) && n > 100) v = '100';
+                  else if (!isNaN(n) && n < 0) v = '0';
+                }
+                onLabDataChange('labMark', v);
+              }}
               disabled={isLocked}
               placeholder="—"
             />
@@ -295,9 +319,19 @@ export default function MarksRow2021({
           <input
             type="number"
             min="0"
-            className={styles.input}
             value={attendanceHours}
-            onChange={(e) => onAttendanceChange(e.target.value)}
+            max={totalHours > 0 ? totalHours : undefined}
+            className={`${styles.input} ${attdOver ? styles.inputError : ''}`}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (v !== '') {
+                const n = parseFloat(v);
+                const maxH = totalHours > 0 ? totalHours : 30;
+                if (!isNaN(n) && maxH > 0 && n > maxH) v = String(maxH);
+                else if (!isNaN(n) && n < 0) v = '0';
+              }
+              onAttendanceChange(v);
+            }}
             disabled={isLocked}
             placeholder="—"
             title="Attended classes / hours"
