@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
-import { classesAPI, subjectsAPI, studentsAPI, marksAPI } from '../services/api';
+import { classesAPI, subjectsAPI, studentsAPI, marksAPI, settingsAPI } from '../services/api';
 import ComponentBuilder from '../components/MarksEntry/ComponentBuilder';
 import MarksTable from '../components/MarksEntry/MarksTable';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
