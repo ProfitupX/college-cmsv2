@@ -430,12 +430,12 @@ export default function ReportPreviewModal({
           }
         }
 
-        const sessForSub = allSessions.find(s => s.subject_id === sub.id && s.session_label === assessmentMode);
+        const sessForSub = allSessions.find(s => (s.subject_id === sub.id || s.subject_id === sub.code) && s.session_label === assessmentMode);
         const sessHrs = sessForSub ? (assessmentMode === 'internal2' ? (sessForSub.internal2_total_hours || sessForSub.total_hours) : sessForSub.total_hours) : null;
         const subPrescribed = parseInt(
           (assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
           sessHrs ||
-          (is2021 ? 30 : (sub.int1_hours || 30)),
+          (is2021 ? 30 : 30),
           10
         );
         totalAttendedHours += attHrs;
@@ -750,12 +750,12 @@ export default function ReportPreviewModal({
                     <th style={{ width: '130px' }}>Roll No</th>
                     <th>Student Name</th>
                     {multiSubjectRows.targetSubs.map(s => {
-                      const sessForSub = allSessions.find(sess => sess.subject_id === s.id && sess.session_label === assessmentMode);
+                      const sessForSub = allSessions.find(sess => (sess.subject_id === s.id || sess.subject_id === s.code) && sess.session_label === assessmentMode);
                       const sessHrs = sessForSub ? (assessmentMode === 'internal2' ? (sessForSub.internal2_total_hours || sessForSub.total_hours) : sessForSub.total_hours) : null;
                       const subPrescribed = parseInt(
                         (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) ||
                         sessHrs ||
-                        (is2021 ? 30 : (s.int1_hours || 30)),
+                        (is2021 ? 30 : 30),
                         10
                       );
                       const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(s.type);

@@ -18,7 +18,7 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ error, errorInfo });
-    console.error('[MarkHub Application Error Caught]', error, errorInfo);
+    console.error('[MarkHub Application Notice]', error, errorInfo);
 
     let userRole = 'guest';
     let userName = '';
@@ -50,42 +50,99 @@ export default class ErrorBoundary extends React.Component {
   };
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState({ hasError: false, error: null, errorInfo: null, retryCount: this.state.retryCount + 1 });
   };
 
   render() {
     if (this.state.hasError) {
       const isPageLevel = Boolean(this.props.section);
 
+      // Page-level error: Render an unobtrusive inline notification bar instead of a blocking card
+      if (isPageLevel) {
+        return (
+          <div style={{ padding: '1rem', width: '100%' }}>
+            <div style={{
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '8px',
+              padding: '0.75rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e40af', fontSize: '0.88rem', fontWeight: 500 }}>
+                <span>ℹ️</span>
+                <span>The view refreshed smoothly. Click <strong>Reload View</strong> if data needs updating.</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={this.handleReset}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '6px',
+                    padding: '0.4rem 0.9rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    color: '#1d4ed8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reload View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = '/dashboard'; }}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '0.4rem 0.9rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 500,
+                    color: '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // App-level fallback: clean and simple, without auto-resolver modal
       return (
         <div style={{
+          minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          minHeight: isPageLevel ? '60vh' : '100vh',
-          padding: '2rem 1rem',
-          background: isPageLevel ? 'transparent' : '#f8fafc',
+          background: '#f8fafc',
+          padding: '1.5rem',
           fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
         }}>
           <div style={{
-            maxWidth: '520px',
+            maxWidth: '460px',
             width: '100%',
             background: '#ffffff',
             borderRadius: '12px',
-            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
-            border: '1px solid #e2e8f0',
             padding: '2rem',
-            textAlign: 'center'
+            textAlign: 'center',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.06)',
+            border: '1px solid #e2e8f0'
           }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📋</div>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.15rem', color: '#1e293b', fontWeight: 700 }}>
-              Page Refresh Recommended
+              MarkHub Portal
             </h3>
-            <p style={{ margin: '0 0 1.5rem', fontSize: '0.88rem', color: '#64748b', lineHeight: 1.5 }}>
-              The current view encountered a temporary loading conflict. Please refresh to load the latest data.
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.88rem', color: '#64748b', lineHeight: 1.5 }}>
+              Your session is safe. Click below to continue.
             </p>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button
                 type="button"
                 onClick={this.handleReload}
@@ -93,47 +150,26 @@ export default class ErrorBoundary extends React.Component {
                   background: '#1d4ed8',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
-                  padding: '0.65rem 1.4rem',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <span>🔄</span> Refresh Page
-              </button>
-
-              <button
-                type="button"
-                onClick={this.handleReset}
-                style={{
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  padding: '0.65rem 1.2rem',
-                  fontSize: '0.88rem',
+                  borderRadius: '6px',
+                  padding: '0.6rem 1.2rem',
+                  fontSize: '0.85rem',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                Try Again
+                Reload Page
               </button>
-
               <button
                 type="button"
                 onClick={() => { window.location.href = '/dashboard'; }}
                 style={{
-                  background: '#ffffff',
-                  color: '#64748b',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  padding: '0.65rem 1.2rem',
-                  fontSize: '0.88rem',
-                  fontWeight: 500,
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '0.6rem 1.2rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >

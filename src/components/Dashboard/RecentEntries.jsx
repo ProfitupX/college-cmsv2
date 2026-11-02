@@ -44,6 +44,7 @@ export default function RecentEntries({ entries, classes = [] }) {
   };
 
   const handleRowClick = (e) => {
+    if (!e) return;
     // 1. Resolve class from props or matching class name
     const matchedClass = (classes || []).find((c) =>
       c && (
@@ -111,6 +112,8 @@ export default function RecentEntries({ entries, classes = [] }) {
     });
   };
 
+  const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+
   return (
     <div className={styles.card}>
       <div className={styles.header}>
@@ -136,29 +139,29 @@ export default function RecentEntries({ entries, classes = [] }) {
         </div>
 
         {/* Rows */}
-        {entries.map((e, i) => (
+        {safeEntries.map((e, i) => (
           <div
-            key={e.id}
+            key={e?.id || i}
             className={styles.row}
             style={{ animationDelay: `${i * 60}ms`, cursor: 'pointer' }}
             onClick={() => handleRowClick(e)}
-            title={`Click to open marks entry for ${e.subject} (${e.class})`}
+            title={`Click to open marks entry for ${e?.subject || 'Subject'} (${e?.class || 'Class'})`}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className={styles.subject} style={{ color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                {e.subject}
+                {e?.subject || 'Subject'}
               </span>
-              {e.staffName && (
+              {e?.staffName && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
                   👤 {e.staffName}
                 </span>
               )}
             </div>
-            <span className={styles.class}>{e.class}</span>
-            <span className={styles.date}>{formatDate(e.submittedAt)}</span>
-            <span className={styles.count}>{e.count}</span>
-            <ScorePill avg={e.avgScore} />
-            <StatusBadge status={e.status} />
+            <span className={styles.class}>{e?.class || 'Class'}</span>
+            <span className={styles.date}>{formatDate(e?.submittedAt)}</span>
+            <span className={styles.count}>{e?.count ?? 0}</span>
+            <ScorePill avg={e?.avgScore} />
+            <StatusBadge status={e?.status} />
             <div style={{ textAlign: 'right' }}>
               <span className={styles.enterLink}>
                 Edit Sheet <ChevronRight size={13} />

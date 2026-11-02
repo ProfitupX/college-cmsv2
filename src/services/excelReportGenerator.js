@@ -875,12 +875,12 @@ export const exportOverallMarksExcel = async ({
   targetSubjects.forEach((sub) => {
     const startCol = colIdx;
     const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
-    const sess = (allSessions || []).find(s => s.subject_id === sub.id && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
+    const sess = (allSessions || []).find(s => (s.subject_id === sub.id || s.subject_id === sub.code) && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
     const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
     const subPrescribed = parseInt(
       (isInternal2 ? sub.int2_hours : sub.int1_hours) ||
       sessHrs ||
-      (is2021 ? 30 : (sub.int1_hours || 30)),
+      (is2021 ? 30 : 30),
       10
     );
     const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
@@ -995,7 +995,7 @@ export const exportOverallMarksExcel = async ({
         }
       }
 
-      const subPrescribed = parseInt((sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)), 10);
+      const subPrescribed = parseInt((sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : 30), 10);
       totalAttendedHoursAll += attHrs;
       totalPrescribedHoursAll += subPrescribed;
 

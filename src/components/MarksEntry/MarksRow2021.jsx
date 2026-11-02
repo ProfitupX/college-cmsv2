@@ -174,7 +174,7 @@ export default function MarksRow2021({
   // 1. Sum raw component marks — cap each at conductedMax
   let rawCIA = 0;
   (components || []).forEach(c => {
-    const val = parseFloat(marks[c?.uid]) || 0;
+    const val = parseFloat((marks || {})[c?.uid]) || 0;
     const conducted = parseFloat(c?.conductedMax) || 100;
     rawCIA += Math.min(val, conducted);
   });

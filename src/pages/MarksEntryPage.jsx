@@ -1054,10 +1054,10 @@ export default function MarksEntryPage() {
           <div className={styles.subjectStrip}>
             <div className={styles.subjectInfoLeft}>
               <div className={styles.badgeRow}>
-                <span className={styles.codeBadge}>{selectedSubject.code}</span>
-                <span className={styles.typeBadge}>{selectedSubject.type || 'Theory'}</span>
+                <span className={styles.codeBadge}>{selectedSubject?.code}</span>
+                <span className={styles.typeBadge}>{selectedSubject?.type || 'Theory'}</span>
                 <span className={styles.regBadge}>Regulation 2025</span>
-                {selectedSubject.ltpc && (
+                {selectedSubject?.ltpc && (
                   <span className={styles.ltpcBadge}>LTPC: {selectedSubject.ltpc}</span>
                 )}
                 {/* Auto-display Total Hours assigned via LTPC at top */}
@@ -1098,7 +1098,7 @@ export default function MarksEntryPage() {
                 )}
               </div>
 
-              <h2 className={styles.subjectTitle}>{selectedSubject.name}</h2>
+              <h2 className={styles.subjectTitle}>{selectedSubject?.name}</h2>
               <p className={styles.classDeptInfo}>
                 🎓 Class: {selectedClass?.name || 'Class'} · {selectedClass?.department || selectedSubject?.department || 'Engineering'}
               </p>

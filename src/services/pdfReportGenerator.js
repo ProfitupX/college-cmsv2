@@ -686,7 +686,7 @@ export const generateClassAnalysisPDF = async ({
   students.forEach(st => {
     let failCount = 0;
     filteredSubjects.forEach(sub => {
-      const sess = allSessions.find(s => s.subject_id === sub.id);
+      const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
       if (!sess) return;
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
       if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
@@ -884,7 +884,7 @@ export const generateConsolidatedMarksPDF = async ({
     let absentCount = 0;
 
     const markCols = targetSubjects.map(sub => {
-      const sess = allSessions.find(s => s.subject_id === sub.id);
+      const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
       if (!sess) {
         absentCount++;
         return '-';
@@ -1649,7 +1649,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
     const subTotal = parseInt(sub.total_hours) || 60;
     const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
     const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
-    const sess = (allSessions || []).find(s => s.subject_id === sub.id && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
+    const sess = (allSessions || []).find(s => (s.subject_id === sub.id || s.subject_id === sub.code) && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
     const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
     const configuredHrs = isInternal2
       ? (parseInt(sub.int2_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
@@ -1700,7 +1700,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
     ];
 
     targetSubjects.forEach(sub => {
-      const sess = allSessions.find(s => s.subject_id === sub.id);
+      const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
       if (!sess) {
         if (is2021 && withInternal) {
           row.push('-', '0');

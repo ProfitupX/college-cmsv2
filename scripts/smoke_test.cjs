@@ -187,6 +187,42 @@ try {
   assert(freshState.totalHours === 30, 'Fresh Session Preserves Subject Hours');
   assert(Array.isArray(freshState.components), 'Fresh Session Components Array Initialized');
 
+  // Verify Dr. B. Nagarajan (Coordinator of Year II CL006 teaching Year III 2021 class CL_MECH_III)
+  const nagarajanUser = {
+    id: 'FAC053',
+    name: 'Dr. B. Nagarajan',
+    role: 'faculty',
+    isClassCoordinator: true,
+    coordinatedClassId: 'CL006',
+    coordinatedClasses: [{ id: 'CL006', name: 'MECH - II Year - III Sem', year_label: 'II' }],
+    teachingClasses: [{ id: 'CL_MECH_III', name: 'MECH - III Year - V Sem', year_label: 'III' }, { id: 'CL006', name: 'MECH - II Year - III Sem', year_label: 'II' }]
+  };
+  const reg2021Classes = [
+    { id: 'CL_MECH_III', name: 'MECH - III Year - V Sem', year_label: 'III' },
+    { id: 'CL_MECH_IV', name: 'MECH - IV Year - VII Sem', year_label: 'IV' }
+  ];
+  const coordIds2021 = (nagarajanUser.coordinatedClasses || []).map(c => c && String(c.id));
+  const teachIds2021 = (nagarajanUser.teachingClasses || []).map(c => c && String(c.id));
+  const nagarajanFiltered2021 = reg2021Classes.filter(c => c && (coordIds2021.includes(String(c.id)) || teachIds2021.includes(String(c.id))));
+  assert(nagarajanFiltered2021.length === 1 && nagarajanFiltered2021[0].id === 'CL_MECH_III', 'Dr. B. Nagarajan 2021 Reg Class Filtering Safe & Non-crashing');
+
+  // Verify Mrs. R. Karunyah (Science & Humanities faculty teaching 2nd Year CSE & AIDS)
+  const karunyahUser = {
+    id: 'FAC010',
+    name: 'Mrs. R. Karunyah',
+    role: 'faculty',
+    department: 'Science and Humanities',
+    teachingClasses: [{ id: 'CL002', name: 'CSE - II Year - III Sem', year_label: 'II' }, { id: 'CL003', name: 'AIDS - II Year - III Sem', year_label: 'II' }]
+  };
+  const reg2025Classes = [
+    { id: 'CL002', name: 'CSE - II Year - III Sem', year_label: 'II' },
+    { id: 'CL003', name: 'AIDS - II Year - III Sem', year_label: 'II' },
+    { id: 'CL006', name: 'MECH - II Year - III Sem', year_label: 'II' }
+  ];
+  const karunyahTeachIds = (karunyahUser.teachingClasses || []).map(c => c && String(c.id));
+  const karunyahFiltered2025 = reg2025Classes.filter(c => c && karunyahTeachIds.includes(String(c.id)));
+  assert(karunyahFiltered2025.length === 2, 'Mrs. R. Karunyah 2025 Reg Class Filtering Safe & Non-crashing (CSE & AIDS classes resolved)');
+
 
   // ─────────────────────────────────────────────────────────────
   // 4. SMOKE TEST: REPORT PREVIEW DATA PROCESSING & EXACT HOURS

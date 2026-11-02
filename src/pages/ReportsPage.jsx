@@ -715,10 +715,10 @@ export default function ReportsPage() {
         const matchInState = (subjects || []).find(s => s.id === sub.id || s.code === sub.code);
         return {
           ...sub,
-          int1_hours: (sub.int1_hours !== null && sub.int1_hours !== undefined) ? sub.int1_hours : matchInState?.int1_hours,
-          int2_hours: (sub.int2_hours !== null && sub.int2_hours !== undefined) ? sub.int2_hours : matchInState?.int2_hours,
-          lab_hours: (sub.lab_hours !== null && sub.lab_hours !== undefined) ? sub.lab_hours : matchInState?.lab_hours,
-          total_hours: (sub.total_hours !== null && sub.total_hours !== undefined) ? sub.total_hours : matchInState?.total_hours,
+          int1_hours: (matchInState?.int1_hours !== null && matchInState?.int1_hours !== undefined) ? matchInState.int1_hours : sub.int1_hours,
+          int2_hours: (matchInState?.int2_hours !== null && matchInState?.int2_hours !== undefined) ? matchInState.int2_hours : sub.int2_hours,
+          lab_hours: (matchInState?.lab_hours !== null && matchInState?.lab_hours !== undefined) ? matchInState.lab_hours : sub.lab_hours,
+          total_hours: (matchInState?.total_hours !== null && matchInState?.total_hours !== undefined) ? matchInState.total_hours : sub.total_hours,
         };
       });
 

@@ -11,7 +11,7 @@ export default function MarksRow({
   // Converted total (sum of raw marks)
   let convertedTotal = 0;
   (components || []).forEach(c => {
-    const val = parseFloat(marks[c?.uid]) || 0;
+    const val = parseFloat((marks || {})[c?.uid]) || 0;
     const conducted = parseFloat(c?.conductedMax) || 100;
     convertedTotal += Math.min(val, conducted);
   });

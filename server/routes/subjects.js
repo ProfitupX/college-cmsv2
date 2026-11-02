@@ -191,9 +191,9 @@ router.put('/:id', async (req, res) => {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ?) 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
            AND session_label = 'internal1'`,
-        [finalInt1, String(actualSubId), String(subjectId)]
+        [finalInt1, String(actualSubId), String(subjectId), String(code)]
       );
     }
     if (finalInt2 !== null) {
@@ -201,18 +201,18 @@ router.put('/:id', async (req, res) => {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ?, internal2_total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ?) 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
            AND session_label = 'internal2'`,
-        [i2Cum, finalInt2, String(actualSubId), String(subjectId)]
+        [i2Cum, finalInt2, String(actualSubId), String(subjectId), String(code)]
       );
     }
     if (finalLab !== null && finalLab > 0) {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ?) 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
            AND session_label IN ('lab', 'practical')`,
-        [finalLab, String(actualSubId), String(subjectId)]
+        [finalLab, String(actualSubId), String(subjectId), String(code)]
       );
     }
 

@@ -132,6 +132,32 @@ async function runMigration(shouldExit = false) {
         console.warn('Note: db_migrate system_settings sync notice:', allocSyncErr.message);
       }
 
+      // Explicitly guarantee verified Admin-configured subject hours for CL006 (MECH - II Year - III Sem)
+      const cl006Configured = [
+        { code: 'CE25C11', int1: 30, int2: 30, lab: 15, total: 75 },
+        { code: 'EC25C17', int1: 30, int2: 30, lab: 0,  total: 45 },
+        { code: 'MA25C09', int1: 30, int2: 30, lab: 0,  total: 60 },
+        { code: 'ME25301', int1: 32, int2: 28, lab: 0,  total: 60 },
+        { code: 'ME25C07', int1: 30, int2: 30, lab: 0,  total: 45 },
+        { code: 'ME25C08', int1: 30, int2: 30, lab: 0,  total: 45 },
+        { code: 'NM',      int1: 30, int2: 30, lab: 0,  total: 30 },
+      ];
+
+      for (const item of cl006Configured) {
+        await db.execute(
+          "UPDATE subjects SET int1_hours = ?, int2_hours = ?, lab_hours = ?, total_hours = ? WHERE code = ? AND class_id = 'CL006'",
+          [item.int1, item.int2, item.lab, item.total, item.code]
+        );
+        await db.execute(
+          "UPDATE marks_sessions SET total_hours = ? WHERE (subject_id IN (SELECT id FROM subjects WHERE code = ? AND class_id = 'CL006') OR subject_id = ?) AND session_label = 'internal1'",
+          [item.int1, item.code, item.code]
+        );
+        await db.execute(
+          "UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE (subject_id IN (SELECT id FROM subjects WHERE code = ? AND class_id = 'CL006') OR subject_id = ?) AND session_label = 'internal2'",
+          [item.int1 + item.int2 + item.lab, item.int2, item.code, item.code]
+        );
+      }
+
       const [subs] = await db.query(
         "SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours FROM subjects WHERE int1_hours IS NULL OR int2_hours IS NULL OR total_hours IS NULL OR total_hours <= 10"
       );

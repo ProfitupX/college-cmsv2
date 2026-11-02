@@ -10,7 +10,7 @@ function StatCard({ icon: Icon, label, value, sub, trend, trendVal, color, delay
     >
       <div className={styles.top}>
         <div className={styles.iconWrap} style={{ background: `${color}18` }}>
-          <Icon size={22} color={color} />
+          {Icon && <Icon size={22} color={color} />}
         </div>
         {trendVal && (
           <span className={`${styles.trend} ${isUp ? styles.up : styles.down}`}>
@@ -28,10 +28,11 @@ function StatCard({ icon: Icon, label, value, sub, trend, trendVal, color, delay
 }
 
 export default function StatsGrid({ stats }) {
+  const safeStats = Array.isArray(stats) ? stats.filter(Boolean) : [];
   return (
     <div className={styles.grid}>
-      {stats.map((s, i) => (
-        <StatCard key={s.label} {...s} delay={i * 80} />
+      {safeStats.map((s, i) => (
+        <StatCard key={s?.label || i} {...s} delay={i * 80} />
       ))}
     </div>
   );

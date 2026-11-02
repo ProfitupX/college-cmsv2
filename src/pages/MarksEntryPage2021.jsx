@@ -467,12 +467,13 @@ export default function MarksEntryPage2021() {
     setSaveErr('');
     try {
       const marksPayload = [];
-      students.forEach((st) => {
-        const m = marksData[st.id] || {};
-        assessmentComponents.forEach((comp, idx) => {
-          const val = m[comp.uid];
+      (students || []).filter(Boolean).forEach((st) => {
+        const m = (marksData && st?.id ? marksData[st.id] : {}) || {};
+        (assessmentComponents || []).filter(Boolean).forEach((comp, idx) => {
+          const compUid = comp?.uid ?? comp?.id;
+          const val = m[compUid];
           marksPayload.push({
-            studentId:      st.id,
+            studentId:      st?.id,
             componentIndex: idx,
             marksObtained:  (val !== undefined && val !== '' && !isNaN(parseFloat(val))) ? parseFloat(val) : null,
           });
@@ -480,18 +481,19 @@ export default function MarksEntryPage2021() {
       });
 
       // For 2021 reg — attendance recorded for tracking (0 marks weight), along with internalExam and labData
-      const attendancePayload = students.map(st => {
-        const rawAttd = attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' 
-          ? parseInt(attendanceData[st.id], 10) || 0 
-          : (parseInt(labData[st.id]?.labAttendance, 10) || 0);
-        const rawLabMark = (labData[st.id] && labData[st.id].labMark !== undefined && labData[st.id].labMark !== '')
-          ? labData[st.id].labMark
-          : (internalExamData[st.id] || '');
+      const attendancePayload = (students || []).filter(Boolean).map(st => {
+        const stId = st?.id;
+        const rawAttd = (attendanceData && stId && attendanceData[stId] !== undefined && attendanceData[stId] !== '') 
+          ? parseInt(attendanceData[stId], 10) || 0 
+          : (parseInt(labData?.[stId]?.labAttendance, 10) || 0);
+        const rawLabMark = (labData?.[stId]?.labMark !== undefined && labData?.[stId]?.labMark !== '')
+          ? labData[stId].labMark
+          : (internalExamData?.[stId] || '');
         return {
-          studentId: st.id,
+          studentId: stId,
           hoursAttended: rawAttd,
           actualTakenHours: rawAttd,
-          internalExamMark: rawLabMark || internalExamData[st.id] || '',
+          internalExamMark: rawLabMark || internalExamData?.[stId] || '',
           labAttendance: rawAttd,
           labMark: rawLabMark
         };
@@ -501,20 +503,20 @@ export default function MarksEntryPage2021() {
       const payload = {
         subjectId:    effectiveSubjectId,
         classId:      effectiveClassId,
-        staffId:      user.id,
+        staffId:      user?.id,
         sessionLabel: assessmentMode,
         totalHours:   parseInt(currentAssessmentHours, 10),
         int1Hours:    parseInt(int1Hours || 0, 10),
         int2Hours:    parseInt(int2Hours || 0, 10),
         labHours:     parseInt(labHours || 0, 10),
         remedialAction,
-        components: assessmentComponents.map((c) => ({
-          typeId:   c.typeId,
-          label:    c.label,
-          conductedMax: c.conductedMax || 100,
-          maxMarks: c.max,
-          icon:     c.icon,
-          color:    c.color,
+        components: (assessmentComponents || []).filter(Boolean).map((c) => ({
+          typeId:   c?.typeId,
+          label:    c?.label,
+          conductedMax: c?.conductedMax || 100,
+          maxMarks: c?.max,
+          icon:     c?.icon,
+          color:    c?.color,
         })),
         marks: marksPayload,
         attendance: attendancePayload,
@@ -1065,12 +1067,12 @@ export default function MarksEntryPage2021() {
           <div className={styles.subjectStrip}>
             <div className={styles.subjectInfoLeft}>
               <div className={styles.badgeRow}>
-                <span className={styles.codeBadge}>{selectedSubject.code}</span>
+                <span className={styles.codeBadge}>{selectedSubject?.code}</span>
                 <span className={styles.typeBadge}>
                   {isLabType ? 'Lab-cum-Theory (CIA /50)' : 'Theory (CIA /40)'}
                 </span>
                 <span className={styles.regBadge}>Regulation 2021</span>
-                {selectedSubject.ltpc && (
+                {selectedSubject?.ltpc && (
                   <span className={styles.ltpcBadge}>LTPC: {selectedSubject.ltpc}</span>
                 )}
                 {isPrincipal ? (
@@ -1092,7 +1094,7 @@ export default function MarksEntryPage2021() {
                 )}
               </div>
 
-              <h2 className={styles.subjectTitle}>{selectedSubject.name}</h2>
+              <h2 className={styles.subjectTitle}>{selectedSubject?.name}</h2>
               <p className={styles.classDeptInfo}>
                 🎓 Class: {selectedClass?.name || 'Class'} · {selectedClass?.department || selectedSubject?.department || 'Engineering'}
               </p>
