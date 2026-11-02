@@ -527,7 +527,7 @@ export default function MarksEntryPage2021() {
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
           if (freshDetail && freshDetail.components) {
-            const reloadedComps = freshDetail.components.map((c) => ({
+            const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
               uid: c.id,
               typeId: c.type_id,
               label: c.label,

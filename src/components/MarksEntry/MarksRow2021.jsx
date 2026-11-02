@@ -218,22 +218,23 @@ export default function MarksRow2021({
           <div className={styles.avatar} style={{ '--idx': index }}>
             {initials}
           </div>
-          <span className={styles.name}>{student.name}</span>
+          <span className={styles.name}>{student?.name || 'Student'}</span>
         </div>
       </td>
 
       {/* Dynamic component inputs */}
-      {components.map((comp) => {
-        const val = marks[comp.uid] !== undefined ? marks[comp.uid] : '';
+      {(components || []).filter(Boolean).map((comp) => {
+        const compUid = comp?.uid ?? comp?.id;
+        const val = (marks && compUid !== undefined && marks[compUid] !== undefined) ? marks[compUid] : '';
         const numVal = parseFloat(val);
-        const conductedMax = parseFloat(comp.conductedMax) || 100;
+        const conductedMax = parseFloat(comp?.conductedMax) || 100;
         const isOver = !isNaN(numVal) && numVal > conductedMax;
 
         return (
-          <td key={comp.uid} className={styles.inputCell}>
+          <td key={compUid || Math.random()} className={styles.inputCell}>
             <div className={styles.inputWrap}>
               <input
-                id={`marks2021-${student.id}-${comp.uid}`}
+                id={`marks2021-${student?.id || index}-${compUid || 'comp'}`}
                 type="number"
                 min="0"
                 max={conductedMax}

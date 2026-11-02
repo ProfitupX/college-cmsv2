@@ -59,10 +59,10 @@ export default function MarksRow({
     return (
       <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
         {/* S.No */}
-        <td className={styles.sNoCell}>{student.sNo || index + 1}</td>
+        <td className={styles.sNoCell}>{student?.sNo || index + 1}</td>
 
         {/* Roll No */}
-        <td className={styles.rollNoCell}>{student.rollNo || student.roll_no || '-'}</td>
+        <td className={styles.rollNoCell}>{student?.rollNo || student?.roll_no || '-'}</td>
 
         {/* Student Info */}
         <td className={styles.studentCell}>
@@ -70,7 +70,7 @@ export default function MarksRow({
             <div className={styles.avatar} style={{ '--idx': index }}>
               {initials}
             </div>
-            <span className={styles.name}>{student.name}</span>
+            <span className={styles.name}>{student?.name || 'Student'}</span>
           </div>
         </td>
 
@@ -185,10 +185,10 @@ export default function MarksRow({
   return (
     <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
       {/* S.No */}
-      <td className={styles.sNoCell}>{student.sNo || index + 1}</td>
+      <td className={styles.sNoCell}>{student?.sNo || index + 1}</td>
 
       {/* Roll No */}
-      <td className={styles.rollNoCell}>{student.rollNo || student.roll_no || '-'}</td>
+      <td className={styles.rollNoCell}>{student?.rollNo || student?.roll_no || '-'}</td>
 
       {/* Student Info */}
       <td className={styles.studentCell}>
@@ -196,22 +196,23 @@ export default function MarksRow({
           <div className={styles.avatar} style={{ '--idx': index }}>
             {initials}
           </div>
-          <span className={styles.name}>{student.name}</span>
+          <span className={styles.name}>{student?.name || 'Student'}</span>
         </div>
       </td>
 
       {/* Dynamic Component Inputs (Assessment / Activities) */}
-      {components.map((comp) => {
-        const val = marks[comp.uid] !== undefined ? marks[comp.uid] : '';
+      {(components || []).filter(Boolean).map((comp) => {
+        const compUid = comp?.uid ?? comp?.id;
+        const val = (marks && compUid !== undefined && marks[compUid] !== undefined) ? marks[compUid] : '';
         const numVal = parseFloat(val);
-        const conductedMax = parseFloat(comp.conductedMax) || 100;
+        const conductedMax = parseFloat(comp?.conductedMax) || 100;
         const isOver = !isNaN(numVal) && numVal > conductedMax;
 
         return (
-          <td key={comp.uid} className={styles.inputCell}>
+          <td key={compUid || Math.random()} className={styles.inputCell}>
             <div className={styles.inputWrap}>
               <input
-                id={`marks-${student.id}-${comp.uid}`}
+                id={`marks-${student?.id || index}-${compUid || 'comp'}`}
                 type="number"
                 min="0"
                 max={conductedMax}
@@ -225,7 +226,9 @@ export default function MarksRow({
                     if (!isNaN(n) && conductedMax > 0 && n > conductedMax) v = String(conductedMax);
                     else if (!isNaN(n) && n < 0) v = '0';
                   }
-                  onMarkChange(student.id, comp.uid, v);
+                  if (onMarkChange && student?.id && compUid !== undefined) {
+                    onMarkChange(student.id, compUid, v);
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {

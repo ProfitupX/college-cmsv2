@@ -104,8 +104,14 @@ const mergeSubjectAllocations = (subs, allocs) => {
     if (!s) return s;
     const cleanId = String(s.id || '').replace(/[\s\-]+/g, '');
     const cleanCode = String(s.code || '').replace(/[\s\-]+/g, '');
-    const a = allocs[s.id] || allocs[s.code] || allocs[cleanId] || allocs[cleanCode] ||
-              Object.values(allocs).find(x => x && (x.code === s.code || x.id === s.id));
+    const classId = s.class_id;
+    const classKey = classId ? `${s.code}_${classId}` : null;
+    const cleanClassKey = classId ? `${cleanCode}_${classId}` : null;
+    const idClassKey = classId ? `${s.id}_${classId}` : null;
+
+    const a = (classKey && allocs[classKey]) || (cleanClassKey && allocs[cleanClassKey]) || (idClassKey && allocs[idClassKey]) ||
+              allocs[s.id] || allocs[cleanId] || allocs[s.code] || allocs[cleanCode] ||
+              Object.values(allocs).find(x => x && (x.id === s.id || (x.code === s.code && (!x.class_id || x.class_id === classId))));
     if (!a) return s;
 
     // Admin configured allocation in allocs has top priority, then subject's own properties
@@ -568,6 +574,12 @@ export const settingsAPI = {
       }
       if (allocData.code) {
         current[allocData.code] = current[subjectId];
+      }
+      if (allocData.class_id && allocData.code) {
+        current[`${allocData.code}_${allocData.class_id}`] = current[subjectId];
+      }
+      if (allocData.class_id && subjectId) {
+        current[`${subjectId}_${allocData.class_id}`] = current[subjectId];
       }
 
       await post('/settings/subject_allocations', { value: JSON.stringify(current) }).catch(() => {});

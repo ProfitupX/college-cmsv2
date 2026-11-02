@@ -160,7 +160,7 @@ export default function ManageSubjects() {
 
       // Optimistically update subjects list so changes reflect instantly in table
       setSubjects(prev => prev.map(s => {
-        if (s.id === formData.id || s.code === formData.code) {
+        if (s.id === formData.id || (s.code === formData.code && s.class_id === formData.class_id)) {
           return {
             ...s,
             ...formData,

@@ -100,7 +100,7 @@ export default function ComponentBuilder2021({ components = [], onChange, isLock
           </div>
         </div>
         <div className={styles.compList}>
-          {components.map(comp => (
+          {(components || []).filter(Boolean).map(comp => (
             <div key={comp.uid} className={styles.compItem}>
               <div className={styles.compMeta}>
                 <TypeBadge typeId={comp.typeId} />
@@ -262,7 +262,7 @@ export default function ComponentBuilder2021({ components = [], onChange, isLock
             <span className={styles.centerCol}>Max Marks</span>
             <span />
           </div>
-          {components.map(comp => {
+          {(components || []).filter(Boolean).map(comp => {
             const compIsOver = parseFloat(comp.max) > ciaMax;
             return (
               <div key={comp.uid} className={styles.compItem}

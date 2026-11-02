@@ -1117,8 +1117,12 @@ router.get('/class-summary', async (req, res) => {
           for (const sub of subjects) {
             const cleanId = String(sub.id || '').replace(/[\s\-]+/g, '');
             const cleanCode = String(sub.code || '').replace(/[\s\-]+/g, '');
-            const a = allocs[sub.id] || allocs[sub.code] || allocs[cleanId] || allocs[cleanCode] ||
-                      Object.values(allocs).find(x => x && (x.code === sub.code || x.id === sub.id));
+            const classKey = `${sub.code}_${classId}`;
+            const cleanClassKey = `${cleanCode}_${classId}`;
+            const idClassKey = `${sub.id}_${classId}`;
+            const a = allocs[classKey] || allocs[cleanClassKey] || allocs[idClassKey] ||
+                      allocs[sub.id] || allocs[cleanId] || allocs[sub.code] || allocs[cleanCode] ||
+                      Object.values(allocs).find(x => x && (x.id === sub.id || (x.code === sub.code && (!x.class_id || x.class_id === classId))));
             if (a) {
               const a1 = (a.int1_hours !== undefined && a.int1_hours !== null && a.int1_hours !== '') ? a.int1_hours : a.int1;
               const a2 = (a.int2_hours !== undefined && a.int2_hours !== null && a.int2_hours !== '') ? a.int2_hours : a.int2;

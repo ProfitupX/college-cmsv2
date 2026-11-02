@@ -99,7 +99,14 @@ router.put('/:id', async (req, res) => {
     await conn.beginTransaction();
 
     // 1. Get current subject data to see if faculty_id changed
-    const [subRows] = await conn.execute('SELECT id, faculty_id FROM subjects WHERE id = ? OR code = ?', [subjectId, code || subjectId]);
+    let [subRows] = await conn.execute('SELECT id, faculty_id, class_id FROM subjects WHERE id = ?', [subjectId]);
+    if (subRows.length === 0 && class_id && code) {
+      [subRows] = await conn.execute('SELECT id, faculty_id, class_id FROM subjects WHERE code = ? AND class_id = ?', [code, class_id]);
+    }
+    if (subRows.length === 0 && code) {
+      [subRows] = await conn.execute('SELECT id, faculty_id, class_id FROM subjects WHERE code = ? LIMIT 1', [code]);
+    }
+
     const actualSubId = subRows[0]?.id || subjectId;
     const oldFacultyId = subRows[0]?.faculty_id;
     const newFacultyId = faculty_id || null;
@@ -109,18 +116,36 @@ router.put('/:id', async (req, res) => {
     const pInt2 = int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null;
     const pLab = lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null;
 
-    // 2. Update subjects table with exact primary key id
-    await conn.execute(
-      `UPDATE subjects 
-       SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
-           total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
-       WHERE id = ?`,
-      [
-        code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
-        pTotal, pInt1, pInt2, pLab,
-        newFacultyId, class_id || null, actualSubId
-      ]
-    );
+    // 2. Upsert subjects table: update if exists, insert if missing
+    if (subRows.length > 0) {
+      await conn.execute(
+        `UPDATE subjects 
+         SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
+             total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
+         WHERE id = ?`,
+        [
+          code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
+          pTotal, pInt1, pInt2, pLab,
+          newFacultyId, class_id || null, actualSubId
+        ]
+      );
+    } else {
+      await conn.execute(
+        `INSERT INTO subjects (id, code, name, acronym, type, department, semester, ltpc, total_hours, int1_hours, int2_hours, lab_hours, faculty_id, class_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           code=VALUES(code), name=VALUES(name), acronym=VALUES(acronym), type=VALUES(type), 
+           department=VALUES(department), semester=VALUES(semester), ltpc=VALUES(ltpc), 
+           total_hours=VALUES(total_hours), int1_hours=VALUES(int1_hours), int2_hours=VALUES(int2_hours), lab_hours=VALUES(lab_hours),
+           faculty_id=VALUES(faculty_id), class_id=VALUES(class_id)`,
+        [
+          actualSubId, code, name, acronym || null, type || 'Theory', department || null, semester || null,
+          ltpc || null,
+          pTotal, pInt1, pInt2, pLab,
+          newFacultyId, class_id || null
+        ]
+      );
+    }
 
     // 3. TRANSFERRING INCLUDING THINGS:
     // If faculty changed, transfer marks sessions, draft records, and pending unlock requests
@@ -214,6 +239,8 @@ router.put('/:id', async (req, res) => {
       };
       allocMap[actualSubId] = allocRecord;
       if (subjectId) allocMap[subjectId] = allocRecord;
+      if (code && class_id) allocMap[`${code}_${class_id}`] = allocRecord;
+      if (actualSubId && class_id) allocMap[`${actualSubId}_${class_id}`] = allocRecord;
       if (code) allocMap[code] = allocRecord;
       await conn.execute(
         `INSERT INTO system_settings (setting_key, setting_value) 

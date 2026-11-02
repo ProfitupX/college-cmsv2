@@ -418,7 +418,7 @@ export default function MarksEntryPage() {
     location.state?.staffDesignation ||
     selectedSubject?.faculty_designation ||
     (user?.role === 'staff' || user?.role === 'faculty' ? user.designation : '');
-  const totalMax        = assessmentComponents.reduce((s, c) => s + (parseFloat(c.max) || 0), 0);
+  const totalMax = (assessmentComponents || []).filter(Boolean).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
 
   // Split hours based on LTPC total and subject type
   const getHourSplits = (ltpc, type, total) => {
@@ -557,7 +557,7 @@ export default function MarksEntryPage() {
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
           if (freshDetail && freshDetail.components) {
-            const reloadedComps = freshDetail.components.map((c) => ({
+            const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
               uid: c.id,
               typeId: c.type_id,
               label: c.label,
