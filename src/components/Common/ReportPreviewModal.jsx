@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, Download, FileSpreadsheet, FileText, CheckCircle2, BarChart2, BookOpen, Users, Award } from 'lucide-react';
+import { resolveAttendanceMark } from '../../utils/attendanceCalculator';
 import styles from './ReportPreviewModal.module.css';
 
 export default function ReportPreviewModal({
@@ -61,14 +62,6 @@ export default function ReportPreviewModal({
     ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
     : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
-  const getAttendanceMark = (pct) => {
-    if (pct >= 95) return 5;
-    if (pct >= 90) return 3;
-    if (pct >= 85) return 2;
-    if (pct >= 80) return 1;
-    return 0;
-  };
-
   const isSubjectMarksReport = (
     reportType === 'subject_marks' ||
     reportType?.startsWith('subject_marks_') ||
@@ -90,10 +83,17 @@ export default function ReportPreviewModal({
       convertedTotal = Math.round(convertedTotal);
 
       let rawHours = parseInt(attendanceData[student.id] || 0, 10);
-      let pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-      let attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-        ? parseFloat(attendanceMarks[student.id])
-        : getAttendanceMark(pct);
+      let attendanceMark = resolveAttendanceMark(student.id, {
+        attendanceMarks,
+        attendanceData,
+        totalHours: tHours,
+        assessmentMode,
+        int1AttendanceData,
+        int1Hours,
+        int2Hours,
+        labHours,
+        labData
+      });
 
       const examMark = internalExamData ? internalExamData[student.id] : undefined;
       const numExam = parseFloat(examMark);

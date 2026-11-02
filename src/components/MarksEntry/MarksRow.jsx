@@ -1,4 +1,5 @@
 import { computeGrade } from '../../data/assessmentTypes';
+import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/attendanceCalculator';
 import styles from './MarksRow.module.css';
 
 export default function MarksRow({ 
@@ -16,56 +17,22 @@ export default function MarksRow({
   });
   convertedTotal = Math.round(convertedTotal);
 
-  // Anna Univ 25th Regulation attendance rule:
-  // 95–100% → 5 marks, 90–95% → 3 marks, 85–90% → 2 marks, 80–85% → 1 mark, <80% → 0 marks
-  const getAttendanceMark = (attended, maxHours) => {
-    if (!maxHours || maxHours <= 0) return 0;
-    const pct = (attended / maxHours) * 100;
-    if (pct >= 95) return 5;
-    if (pct >= 90) return 3;
-    if (pct >= 85) return 2;
-    if (pct >= 80) return 1;
-    return 0; // Below 80% is 0 mark
-  };
-
-  let attendanceMark = 0;
-  let cumulativeAttended = 0;
-  let cumulativeMaxHours = 0;
-
   // Max allowed hours (strictly 30 or LTPC prescribed, cannot exceed)
   const maxAttdHours = Math.max(7, parseInt(int1Hours || displayHours || 30, 10));
   const maxInt2Hours = Math.max(7, parseInt(int2Hours || displayHours || 30, 10));
   const maxLabHours  = Math.max(0, parseInt(labHours || 0, 10));
 
-  if (assessmentMode === 'internal1') {
-    const baseHours = maxAttdHours;
-    const aHours = parseInt(attendanceHours || 0, 10);
-    if (baseHours > 0 && !isNaN(aHours)) {
-      const cappedHours = Math.min(aHours, baseHours);
-      attendanceMark = getAttendanceMark(cappedHours, baseHours);
-    }
-  } else {
-    // Internal 2 mode: Cumulative attendance (Int1 + Int2 [+ Lab if Lab-cum-Theory])
-    const i1Attd = parseInt(int1AttendanceHours || 0, 10);
-    const i2Attd = parseInt(attendanceHours || 0, 10);
-    const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-    const lAttd  = isLabCumTheory ? parseInt(labData?.labAttendance || 0, 10) : 0;
-    
-    const i1Max = maxAttdHours;
-    const i2Max = maxInt2Hours;
-    const lMax  = isLabCumTheory ? maxLabHours : 0;
-    cumulativeMaxHours = i1Max + i2Max + lMax;
-
-    cumulativeAttended = Math.min(i1Attd, i1Max) + Math.min(i2Attd, i2Max) + (isLabCumTheory ? Math.min(lAttd, lMax) : 0);
-
-    if (cumulativeMaxHours > 0) {
-      attendanceMark = getAttendanceMark(cumulativeAttended, cumulativeMaxHours);
-    }
-  }
-
-  const effectiveAttMark = (savedAttendanceMark !== undefined && savedAttendanceMark !== null && parseFloat(savedAttendanceMark) > 0)
-    ? parseFloat(savedAttendanceMark)
-    : attendanceMark;
+  const effectiveAttMark = resolveAttendanceMark(student?.id, {
+    attendanceMarks: student?.id ? { [student.id]: savedAttendanceMark } : {},
+    attendanceData: student?.id ? { [student.id]: attendanceHours } : {},
+    totalHours: displayHours,
+    assessmentMode,
+    int1AttendanceData: student?.id ? { [student.id]: int1AttendanceHours } : {},
+    int1Hours,
+    int2Hours,
+    labHours,
+    labData: student?.id ? { [student.id]: labData } : {}
+  });
   const finalTotal100 = convertedTotal + effectiveAttMark;
   const initials = (student?.name || 'Unknown')
     .split(' ')
@@ -80,7 +47,8 @@ export default function MarksRow({
     const pureLabHoursMax = parseInt(prescribedLabHours || labHours || selectedSubject?.total_hours || 40, 10);
     const pureLabAttdRaw = (attendanceHours !== undefined && attendanceHours !== '') ? attendanceHours : (labData?.labAttendance || '');
     const pureLabAttdNum = parseInt(pureLabAttdRaw || 0, 10);
-    const pureLabAttdMark = getAttendanceMark(pureLabAttdNum, pureLabHoursMax);
+    const pureLabPct = pureLabHoursMax > 0 ? Math.min(100, Math.round((pureLabAttdNum / pureLabHoursMax) * 100)) : 0;
+    const pureLabAttdMark = calculateAttendanceMark(pureLabPct);
 
     const pureLabMarkRaw = (labData?.labMark !== undefined && labData?.labMark !== '') ? labData.labMark : (internalExamMark || '');
     const pureLabMarkNum = parseFloat(pureLabMarkRaw);
@@ -320,6 +288,24 @@ export default function MarksRow({
                 placeholder="—"
               />
               <span className={styles.inputMax}>/{currentMaxAttd}</span>
+              <span 
+                className={styles.attMarkBadge} 
+                title={`Calculated Attendance Mark: ${effectiveAttMark} / 5`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  marginLeft: '5px',
+                  padding: '2px 5px',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  borderRadius: '4px',
+                  color: effectiveAttMark > 0 ? '#10b981' : '#94a3b8',
+                  background: effectiveAttMark > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {effectiveAttMark}m
+              </span>
               {parseFloat(attendanceHours) > currentMaxAttd && (
                 <span className={styles.errorTip}>Max: {currentMaxAttd}</span>
               )}

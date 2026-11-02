@@ -48,7 +48,7 @@ export default function MarksEntryPage2021() {
   const {
     activeRegulation,
     selectedClassId, selectedSubjectId,
-    marksData, attendanceData, internalExamData, labData, totalHours, isDirty,
+    marksData, attendanceData, attendanceMarks, internalExamData, labData, totalHours, isDirty,
     setRegulation, setSelectionWithRegulation, setClass, setSubject, setClassAndSubject, setMark, setAttendance, setInternalExam, setLabData, setTotalHours, setSessionBulk, markSaved, clearMarks, clearSelection,
   } = useMarks();
 
@@ -871,7 +871,7 @@ export default function MarksEntryPage2021() {
         students,
         marksData,
         attendanceData,
-        attendanceMarks: {},
+        attendanceMarks: attendanceMarks || {},
         internalExamData,
         labData,
         assessmentMode,
@@ -1390,7 +1390,7 @@ export default function MarksEntryPage2021() {
         students={students}
         marksData={marksData}
         attendanceData={attendanceData}
-        attendanceMarks={{}}
+        attendanceMarks={attendanceMarks || {}}
         internalExamData={internalExamData}
         labData={labData}
         components={assessmentComponents}

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoImg from '../assets/nscetimg.jpeg';
+import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 
 // Helper to convert image URL/imported asset to base64 DataURL
 const getImageDataUrl = (url) => {
@@ -441,15 +442,6 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 8;
 
-  // Anna Univ 25th Regulation attendance rule:
-  const getAttendanceMark = (pct) => {
-    if (pct >= 95) return 5;
-    if (pct >= 90) return 3;
-    if (pct >= 85) return 2;
-    if (pct >= 80) return 1;
-    return 0; // Below 80% is 0 mark
-  };
-
   // Default 2025 Autonomous Regulation College Format:
   // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95), Internal Exam (Max: 100), Total Internal Marks (Max: 100)
   const headRow = [
@@ -476,11 +468,17 @@ export const generateSubjectMarksListPDF = async ({
 
     // 2. Attendance & Converted Mark
     let rawHours = parseInt(attendanceData[student.id] || 0, 10);
-    let pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-    const computedMark = getAttendanceMark(pct);
-    let attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-      ? parseFloat(attendanceMarks[student.id])
-      : computedMark;
+    let attendanceMark = resolveAttendanceMark(student.id, {
+      attendanceMarks,
+      attendanceData,
+      totalHours: tHours,
+      assessmentMode,
+      int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
+      int1Hours,
+      int2Hours,
+      labHours,
+      labData
+    });
 
     const internalExamMark = internalExamData ? internalExamData[student.id] : undefined;
     const numExam = parseFloat(internalExamMark);

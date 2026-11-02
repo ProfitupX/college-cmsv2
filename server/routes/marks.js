@@ -3,6 +3,17 @@ import db from '../db.js';
 
 const router = express.Router();
 
+// Canonical attendance mark calculation rule:
+// >=95% -> 5, 90-94% -> 3, 85-89% -> 2, 80-84% -> 1, <80% -> 0
+function getAttendanceMark(pct) {
+  const p = Math.round(Number(pct) || 0);
+  if (p >= 95) return 5;
+  if (p >= 90) return 3;
+  if (p >= 85) return 2;
+  if (p >= 80) return 1;
+  return 0;
+}
+
 // Helper to resolve accurate department for notification targeting:
 // RULE: The Class's Department HOD ALWAYS has authority over freeze & unfreeze for their classes!
 function resolveSubjectDepartment(sub) {
@@ -176,7 +187,9 @@ router.post('/submit', async (req, res) => {
         const labHrs = parseInt(a.labAttendance, 10) || 0;
         let attMark = 0;
 
-        if (sessionLabel === 'internal2') {
+        if (a.attendanceMark !== undefined && a.attendanceMark !== null && !isNaN(parseFloat(a.attendanceMark))) {
+          attMark = parseFloat(a.attendanceMark);
+        } else if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const cumAttd = i1Attd + rawHours + labHrs;
           const i1Max = parseInt(req.body.int1Hours, 10) || Math.ceil(tHours / 2) || 0;
@@ -320,7 +333,9 @@ router.post('/submit', async (req, res) => {
         let attMark = 0;
         const savedHours = Math.max(0, rawHours);
         
-        if (sessionLabel === 'internal2') {
+        if (a.attendanceMark !== undefined && a.attendanceMark !== null && !isNaN(parseFloat(a.attendanceMark))) {
+          attMark = parseFloat(a.attendanceMark);
+        } else if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const i1Max = parseInt(req.body.int1Hours, 10) || 30;
           const i2Max = parseInt(req.body.int2Hours, 10) || 30;
@@ -585,7 +600,13 @@ router.get('/sessions/:id', async (req, res) => {
     attendanceRows.forEach(r => {
       const rawHrs = r.actual_taken_hours !== null && r.actual_taken_hours !== undefined ? r.actual_taken_hours : r.hours_attended;
       attendance[r.student_id] = rawHrs;
-      attendanceMarks[r.student_id] = r.attendance_mark !== null && r.attendance_mark !== undefined ? parseFloat(r.attendance_mark) : 0;
+      if (r.attendance_mark !== null && r.attendance_mark !== undefined) {
+        attendanceMarks[r.student_id] = parseFloat(r.attendance_mark);
+      } else {
+        const tHours = parseInt(sessions[0]?.total_hours, 10) || 30;
+        const pct = tHours > 0 ? Math.min(100, Math.round((parseInt(rawHrs || 0, 10) / tHours) * 100)) : 0;
+        attendanceMarks[r.student_id] = getAttendanceMark(pct);
+      }
       internalExam[r.student_id] = r.internal_exam_mark;
       labData[r.student_id] = {
         labAttendance: r.lab_attendance,

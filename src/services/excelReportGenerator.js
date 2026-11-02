@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import logoImg from '../assets/nscetimg.jpeg';
+import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 
 // Helper to convert image URL or import to pure base64 (without prefix)
 const getImageBase64 = (url) => {
@@ -198,14 +199,6 @@ export const exportSubjectMarksExcel = async ({
     ? (parseInt(subject?.int2_hours || int2Hours, 10) || 30)
     : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
-  const getAttendanceMark = (pct) => {
-    if (pct >= 95) return 5;
-    if (pct >= 90) return 3;
-    if (pct >= 85) return 2;
-    if (pct >= 80) return 1;
-    return 0;
-  };
-
   const modeLabel = assessmentMode === 'internal1' ? 'INTERNAL ASSESSMENT 1' : 'INTERNAL ASSESSMENT 2';
   const is2021 = classObj?.regulation === '2021' || subject?.regulation === '2021' || (assessmentMode && String(assessmentMode).includes('2021'));
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
@@ -394,11 +387,17 @@ export const exportSubjectMarksExcel = async ({
     convertedTotal = Math.round(convertedTotal);
 
     const rawHours = parseInt(attendanceData[student.id] || 0, 10);
-    const pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
-    const computedAttdMark = getAttendanceMark(pct);
-    const attendanceMark = (attendanceMarks && attendanceMarks[student.id] !== undefined && parseFloat(attendanceMarks[student.id]) > 0)
-      ? parseFloat(attendanceMarks[student.id])
-      : computedAttdMark;
+    const attendanceMark = resolveAttendanceMark(student.id, {
+      attendanceMarks,
+      attendanceData,
+      totalHours: tHours,
+      assessmentMode,
+      int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
+      int1Hours,
+      int2Hours,
+      labHours,
+      labData
+    });
 
     const examMark = internalExamData ? internalExamData[student.id] : undefined;
     const numExam = parseFloat(examMark);

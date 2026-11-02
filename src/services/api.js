@@ -4,6 +4,8 @@
 // Base URL: http://localhost:5000/api
 // ============================================================
 
+import { resolveAttendanceMark } from '../utils/attendanceCalculator';
+
 const BASE = window.location.protocol === 'https:'
   ? '/api'
   : `http://${window.location.hostname}:5000/api`;
@@ -203,7 +205,31 @@ export const marksAPI = {
     return get(`/marks/sessions${q ? '?' + q : ''}`);
   },
 
-  getSessionDetail: (id) => get(`/marks/sessions/${id}`),
+  getSessionDetail: async (id) => {
+    const res = await get(`/marks/sessions/${id}`);
+    if (res && res.session) {
+      if (!res.attendanceMarks) res.attendanceMarks = {};
+      const tHours = parseInt(res.session.total_hours, 10) || 30;
+      const mode = res.session.session_label || 'internal1';
+      
+      if (res.attendance) {
+        Object.keys(res.attendance).forEach(stId => {
+          if (res.attendanceMarks[stId] === undefined || res.attendanceMarks[stId] === null) {
+            res.attendanceMarks[stId] = resolveAttendanceMark(stId, {
+              attendanceMarks: res.attendanceMarks,
+              attendanceData: res.attendance,
+              totalHours: tHours,
+              assessmentMode: mode,
+              labData: res.labData || {}
+            });
+          } else {
+            res.attendanceMarks[stId] = parseFloat(res.attendanceMarks[stId]);
+          }
+        });
+      }
+    }
+    return res;
+  },
 
   requestUnlock: (payload) => post('/marks/request-unlock', payload),
 

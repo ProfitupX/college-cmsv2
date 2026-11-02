@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI, settingsAPI } from '../services/api';
+import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 import ComponentBuilder from '../components/MarksEntry/ComponentBuilder';
 import MarksTable from '../components/MarksEntry/MarksTable';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
@@ -491,6 +492,8 @@ export default function MarksEntryPage() {
         });
       });
 
+      const currentAssessmentHours = parseInt(totalHours, 10) || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
+
       const attendancePayload = students.map(st => {
         const rawAttd = attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' 
           ? parseInt(attendanceData[st.id], 10) || 0 
@@ -498,10 +501,22 @@ export default function MarksEntryPage() {
         const rawLabMark = (labData[st.id] && labData[st.id].labMark !== undefined && labData[st.id].labMark !== '')
           ? labData[st.id].labMark
           : (internalExamData[st.id] || '');
+        const calculatedMark = resolveAttendanceMark(st.id, {
+          attendanceMarks,
+          attendanceData,
+          totalHours: currentAssessmentHours,
+          assessmentMode,
+          int1AttendanceData,
+          int1Hours,
+          int2Hours,
+          labHours,
+          labData
+        });
         return {
           studentId: st.id,
           hoursAttended: rawAttd,
           actualTakenHours: rawAttd,
+          attendanceMark: calculatedMark,
           int1AttendanceHours: int1AttendanceData[st.id] !== undefined && int1AttendanceData[st.id] !== '' ? parseInt(int1AttendanceData[st.id], 10) || 0 : 0,
           internalExamMark: rawLabMark || internalExamData[st.id] || '',
           labAttendance: rawAttd,
@@ -509,7 +524,6 @@ export default function MarksEntryPage() {
         };
       });
 
-      const currentAssessmentHours = parseInt(totalHours, 10) || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
       const payload = {
         subjectId:     effectiveSubjectId,
         classId:       effectiveClassId,
