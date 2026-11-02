@@ -279,10 +279,10 @@ export default function MarksEntryPage2021() {
             if (String(s.id) === String(effectiveSubjectId) || String(s.code) === String(alloc.code) || String(s.code) === String(effectiveSubjectId)) {
               return {
                 ...s,
-                int1_hours: i1 !== undefined && i1 !== null ? parseInt(i1, 10) : s.int1_hours,
-                int2_hours: i2 !== undefined && i2 !== null ? parseInt(i2, 10) : s.int2_hours,
-                lab_hours:  lb !== undefined && lb !== null ? parseInt(lb, 10) : s.lab_hours,
-                total_hours: tot !== undefined && tot !== null ? parseInt(tot, 10) : s.total_hours,
+                int1_hours: (s.int1_hours !== null && s.int1_hours !== undefined && s.int1_hours !== '') ? s.int1_hours : (i1 !== undefined && i1 !== null ? parseInt(i1, 10) : s.int1_hours),
+                int2_hours: (s.int2_hours !== null && s.int2_hours !== undefined && s.int2_hours !== '') ? s.int2_hours : (i2 !== undefined && i2 !== null ? parseInt(i2, 10) : s.int2_hours),
+                lab_hours:  (s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== '') ? s.lab_hours : (lb !== undefined && lb !== null ? parseInt(lb, 10) : s.lab_hours),
+                total_hours: (s.total_hours !== null && s.total_hours !== undefined && s.total_hours !== '') ? s.total_hours : (tot !== undefined && tot !== null ? parseInt(tot, 10) : s.total_hours),
               };
             }
             return s;

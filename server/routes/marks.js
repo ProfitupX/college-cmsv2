@@ -83,8 +83,8 @@ router.post('/submit', async (req, res) => {
 
     // Fetch subject details for accurate hours splits & subject type detection
     const [subRows] = await conn.execute(
-      'SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours, department FROM subjects WHERE id = ?',
-      [subjectId]
+      'SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours, department FROM subjects WHERE id = ? OR code = ?',
+      [subjectId, subjectId]
     );
     const subObj = subRows.length > 0 ? subRows[0] : {};
     const isPureLabSubmission = Boolean(

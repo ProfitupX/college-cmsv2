@@ -1171,9 +1171,9 @@ export const generateSubjectMarksListPDF2021 = async ({
   let prescribedHours = 30;
   if (rawTotHours > 0) {
     if (!isInternal2) {
-      prescribedHours = hourSplits.int1 || Math.ceil(rawTotHours / 2);
+      prescribedHours = subject?.int1_hours || hourSplits.int1 || 30;
     } else {
-      prescribedHours = hourSplits.int2 || Math.floor(rawTotHours / 2);
+      prescribedHours = subject?.int2_hours || hourSplits.int2 || 30;
     }
   }
 
@@ -1649,17 +1649,13 @@ export const generateOverallMarksAndAttendancePDF = async ({
     const subTotal = parseInt(sub.total_hours) || 60;
     const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
     const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
-    let wHrs = 30;
     const configuredHrs = isInternal2
-      ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null))
-      : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null));
-
-    if (configuredHrs && configuredHrs > 0 && configuredHrs <= 60) {
-      wHrs = configuredHrs;
-    } else {
-      wHrs = 30;
-    }
-    headRow1.push({ content: `${sub.code}\n(TH = ${wHrs})`, colSpan: colsPerSub, styles: { halign: 'center' } });
+      ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
+      : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
+    const labHrs = parseInt(sub.lab_hours, 10) || 0;
+    const wHrs = configuredHrs;
+    const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
+    headRow1.push({ content: `${sub.code}\n(TH = ${wHrs}${labStr})`, colSpan: colsPerSub, styles: { halign: 'center' } });
   });
   headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
 
@@ -1710,16 +1706,10 @@ export const generateOverallMarksAndAttendancePDF = async ({
       const subTotal = parseInt(sub.total_hours) || 60;
       const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
       const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
-      let wHrs = 30;
       const configuredHrs = isInternal2
-        ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null))
-        : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null));
-
-      if (configuredHrs && configuredHrs > 0 && configuredHrs <= 60) {
-        wHrs = configuredHrs;
-      } else {
-        wHrs = 30;
-      }
+        ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
+        : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
+      const wHrs = configuredHrs;
 
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
       

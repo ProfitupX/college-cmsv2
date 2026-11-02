@@ -99,7 +99,8 @@ router.put('/:id', async (req, res) => {
     await conn.beginTransaction();
 
     // 1. Get current subject data to see if faculty_id changed
-    const [subRows] = await conn.execute('SELECT faculty_id FROM subjects WHERE id = ?', [subjectId]);
+    const [subRows] = await conn.execute('SELECT id, faculty_id FROM subjects WHERE id = ? OR code = ?', [subjectId, code || subjectId]);
+    const actualSubId = subRows[0]?.id || subjectId;
     const oldFacultyId = subRows[0]?.faculty_id;
     const newFacultyId = faculty_id || null;
 
@@ -113,11 +114,11 @@ router.put('/:id', async (req, res) => {
       `UPDATE subjects 
        SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
            total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
-       WHERE id = ?`,
+       WHERE id = ? OR code = ?`,
       [
         code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
         pTotal, pInt1, pInt2, pLab,
-        newFacultyId, class_id || null, subjectId
+        newFacultyId, class_id || null, subjectId, code
       ]
     );
 
@@ -125,13 +126,13 @@ router.put('/:id', async (req, res) => {
     // If faculty changed, transfer marks sessions, draft records, and pending unlock requests
     if (newFacultyId && String(oldFacultyId) !== String(newFacultyId)) {
       await conn.execute(
-        `UPDATE marks_sessions SET staff_id = ? WHERE subject_id = ?`,
-        [String(newFacultyId), String(subjectId)]
+        `UPDATE marks_sessions SET staff_id = ? WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?)`,
+        [String(newFacultyId), String(subjectId), String(actualSubId), String(code)]
       );
 
       await conn.execute(
-        `UPDATE mark_unlock_requests SET staff_id = ? WHERE subject_id = ? AND status = 'pending'`,
-        [String(newFacultyId), String(subjectId)]
+        `UPDATE mark_unlock_requests SET staff_id = ? WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) AND status = 'pending'`,
+        [String(newFacultyId), String(subjectId), String(actualSubId), String(code)]
       );
     }
 
@@ -163,26 +164,57 @@ router.put('/:id', async (req, res) => {
 
     if (finalInt1 !== null) {
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1' AND status = 'draft'`,
-        [finalInt1, String(subjectId)]
+        `UPDATE marks_sessions 
+         SET total_hours = ? 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
+           AND session_label = 'internal1' 
+           AND (status = 'draft' OR status IS NULL OR status = '')`,
+        [finalInt1, String(subjectId), String(actualSubId), String(code)]
       );
     }
     if (finalInt2 !== null) {
       const i2Cum = (finalInt1 || 0) + finalInt2 + (finalLab || 0);
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2' AND status = 'draft'`,
-        [i2Cum, finalInt2, String(subjectId)]
+        `UPDATE marks_sessions 
+         SET total_hours = ?, internal2_total_hours = ? 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
+           AND session_label = 'internal2' 
+           AND (status = 'draft' OR status IS NULL OR status = '')`,
+        [i2Cum, finalInt2, String(subjectId), String(actualSubId), String(code)]
       );
     }
     if (finalLab !== null && finalLab > 0) {
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label IN ('lab', 'practical') AND status = 'draft'`,
-        [finalLab, String(subjectId)]
+        `UPDATE marks_sessions 
+         SET total_hours = ? 
+         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
+           AND session_label IN ('lab', 'practical') 
+           AND (status = 'draft' OR status IS NULL OR status = '')`,
+        [finalLab, String(subjectId), String(actualSubId), String(code)]
       );
     }
 
     await conn.commit();
-    res.json({ success: true, message: 'Subject updated and all relating sessions transferred successfully.' });
+    res.json({ 
+      success: true, 
+      message: 'Subject updated and all relating sessions transferred successfully.',
+      subject: {
+        id: actualSubId,
+        code,
+        name,
+        acronym,
+        type,
+        department,
+        semester,
+        ltpc,
+        total_hours: pTotal,
+        int1_hours: finalInt1,
+        int2_hours: finalInt2,
+        lab_hours: finalLab,
+        faculty_id: newFacultyId,
+        class_id
+      }
+    });
   } catch (err) {
     await conn.rollback();
     console.error('PUT /subjects error:', err);

@@ -875,18 +875,20 @@ export const exportOverallMarksExcel = async ({
   targetSubjects.forEach((sub) => {
     const startCol = colIdx;
     const subPrescribed = parseInt(
-      (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || 60) / 2)) || 30,
+      (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)),
       10
     );
+    const labHrs = parseInt(sub.lab_hours, 10) || 0;
+    const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
     if (is2021) {
       worksheet.mergeCells(11, startCol, 11, startCol + 1);
-      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed})`;
+      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed}${labStr})`;
       worksheet.getCell(12, startCol).value = 'Attd Hrs';
       worksheet.getCell(12, startCol + 1).value = 'Int Marks';
       colIdx += 2;
     } else {
       worksheet.mergeCells(11, startCol, 11, startCol + 2);
-      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed})`;
+      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed}${labStr})`;
       worksheet.getCell(12, startCol).value = 'Attd Hrs';
       worksheet.getCell(12, startCol + 1).value = 'Int Marks';
       worksheet.getCell(12, startCol + 2).value = 'Activity Marks';
@@ -980,7 +982,7 @@ export const exportOverallMarksExcel = async ({
         }
       }
 
-      const subPrescribed = parseInt((sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || sess?.total_hours || 60) / 2)) || 30, 10);
+      const subPrescribed = parseInt((sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)), 10);
       totalAttendedHoursAll += attHrs;
       totalPrescribedHoursAll += subPrescribed;
 

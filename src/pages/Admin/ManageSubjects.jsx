@@ -136,7 +136,8 @@ export default function ManageSubjects() {
       const totNum = formData.total_hours !== undefined && formData.total_hours !== '' ? parseInt(formData.total_hours, 10) : null;
       const staffName = staffsList.find(s => s.id === formData.faculty_id)?.name || formData.faculty_name;
 
-      const payload = {
+      const subjectData = {
+        ...formData,
         int1_hours: i1Num,
         int2_hours: i2Num,
         lab_hours:  lbNum,
@@ -150,11 +151,11 @@ export default function ManageSubjects() {
       };
 
       if (isEditing) {
-        await subjectsAPI.update(formData.id, formData);
-        await settingsAPI.saveSubjectAllocation(formData.id, payload);
+        await subjectsAPI.update(formData.id, subjectData);
+        await settingsAPI.saveSubjectAllocation(formData.id, subjectData);
       } else {
-        await subjectsAPI.create(formData);
-        await settingsAPI.saveSubjectAllocation(formData.id, payload);
+        await subjectsAPI.create(subjectData);
+        await settingsAPI.saveSubjectAllocation(formData.id, subjectData);
       }
 
       // Optimistically update subjects list so changes reflect instantly in table
@@ -462,7 +463,7 @@ export default function ManageSubjects() {
                   <div>
                     <strong style={{ color: 'var(--primary)' }}>{s.ltpc}</strong>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Int1: {s.int1_hours ?? 30}h • Int2: {s.int2_hours ?? 30}h
+                      Int1: {s.int1_hours !== null && s.int1_hours !== undefined ? s.int1_hours : 30}h • Int2: {s.int2_hours !== null && s.int2_hours !== undefined ? s.int2_hours : 30}h
                       {s.lab_hours ? ` • Lab: ${s.lab_hours}h` : ''}
                       {s.total_hours ? ` (${s.total_hours}h total)` : ''}
                     </div>

@@ -430,7 +430,7 @@ export default function ReportPreviewModal({
           }
         }
 
-        const subPrescribed = parseInt((assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : Math.ceil((sub.total_hours || 60) / 2)) || 30, 10);
+        const subPrescribed = parseInt((assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)), 10);
         totalAttendedHours += attHrs;
         totalPrescribedHours += subPrescribed;
 
@@ -744,13 +744,16 @@ export default function ReportPreviewModal({
                     <th>Student Name</th>
                     {multiSubjectRows.targetSubs.map(s => {
                       const subPrescribed = parseInt(
-                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || (is2021 ? 30 : Math.ceil((s.total_hours || 60) / 2)) || 30,
+                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || (is2021 ? 30 : (s.int1_hours || 30)),
                         10
                       );
+                      const labHrs = parseInt(s.lab_hours, 10) || 0;
                       return (
                         <th key={s.id} style={{ textAlign: 'center' }}>
                           <div>{s.code}</div>
-                          <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>TH = {subPrescribed}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>
+                            TH = {subPrescribed}{labHrs > 0 ? ` | Lab = ${labHrs}` : ''}
+                          </div>
                           <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
                             {is2021 ? 'Attd / Int Mark' : 'Attd / Int / Act'}
                           </div>

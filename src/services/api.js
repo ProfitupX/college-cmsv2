@@ -108,10 +108,19 @@ const mergeSubjectAllocations = (subs, allocs) => {
               Object.values(allocs).find(x => x && (x.code === s.code || x.id === s.id));
     if (!a) return s;
 
-    const i1 = a.int1 !== undefined && a.int1 !== null && a.int1 !== '' ? a.int1 : a.int1_hours;
-    const i2 = a.int2 !== undefined && a.int2 !== null && a.int2 !== '' ? a.int2 : a.int2_hours;
-    const lb = a.lab !== undefined && a.lab !== null && a.lab !== '' ? a.lab : a.lab_hours;
-    const tot = a.total !== undefined && a.total !== null && a.total !== '' ? a.total : a.total_hours;
+    // Primary source of truth is the real database columns on subject s
+    const i1 = (s.int1_hours !== null && s.int1_hours !== undefined && s.int1_hours !== '')
+      ? s.int1_hours
+      : (a.int1 !== undefined && a.int1 !== null && a.int1 !== '' ? a.int1 : (a.int1_hours !== undefined ? a.int1_hours : s.int1_hours));
+    const i2 = (s.int2_hours !== null && s.int2_hours !== undefined && s.int2_hours !== '')
+      ? s.int2_hours
+      : (a.int2 !== undefined && a.int2 !== null && a.int2 !== '' ? a.int2 : (a.int2_hours !== undefined ? a.int2_hours : s.int2_hours));
+    const lb = (s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== '')
+      ? s.lab_hours
+      : (a.lab !== undefined && a.lab !== null && a.lab !== '' ? a.lab : (a.lab_hours !== undefined ? a.lab_hours : s.lab_hours));
+    const tot = (s.total_hours !== null && s.total_hours !== undefined && s.total_hours !== '')
+      ? s.total_hours
+      : (a.total !== undefined && a.total !== null && a.total !== '' ? a.total : (a.total_hours !== undefined ? a.total_hours : s.total_hours));
 
     return {
       ...s,
@@ -121,12 +130,12 @@ const mergeSubjectAllocations = (subs, allocs) => {
       total_hours: tot !== undefined && tot !== null && tot !== '' ? parseInt(tot, 10) : s.total_hours,
       int1: i1 !== undefined && i1 !== null && i1 !== '' ? parseInt(i1, 10) : s.int1_hours,
       int2: i2 !== undefined && i2 !== null && i2 !== '' ? parseInt(i2, 10) : s.int2_hours,
-      faculty_id: a.faculty_id || s.faculty_id,
-      faculty_name: a.faculty_name || s.faculty_name,
-      faculty_designation: a.faculty_designation || s.faculty_designation,
-      class_id:   a.class_id || s.class_id,
-      ltpc:       a.ltpc || s.ltpc,
-      type:       a.type || s.type
+      faculty_id: s.faculty_id || a.faculty_id,
+      faculty_name: s.faculty_name || a.faculty_name,
+      faculty_designation: s.faculty_designation || a.faculty_designation,
+      class_id:   s.class_id || a.class_id,
+      ltpc:       s.ltpc || a.ltpc,
+      type:       s.type || a.type
     };
   });
 };
@@ -155,8 +164,11 @@ export const subjectsAPI = {
   },
   create:       (data)      => post('/subjects', data),
   update:       async (id, data) => {
+    allocationsCache = null;
+    allocationsCacheTime = 0;
     const res = await put(`/subjects/${id}`, data);
     allocationsCache = null;
+    allocationsCacheTime = 0;
     try {
       await settingsAPI.saveSubjectAllocation(id, {
         int1_hours: data.int1_hours !== undefined && data.int1_hours !== '' ? parseInt(data.int1_hours, 10) : null,

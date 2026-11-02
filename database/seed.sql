@@ -1290,7 +1290,7 @@ INSERT INTO `students` (`id`, `s_no`, `roll_no`, `name`, `class_id`, `department
 
 CREATE TABLE IF NOT EXISTS `system_settings` (
   `setting_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `setting_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `setting_value` LONGTEXT COLLATE utf8mb4_unicode_ci NOT NULL,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
