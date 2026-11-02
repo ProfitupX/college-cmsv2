@@ -53,8 +53,8 @@ export default function YearPerformanceChart({ data = [], departmentStats = [], 
 
   if (user?.role === 'staff' || user?.role === 'faculty') {
     const facultyYears = new Set();
-    (user?.teachingClasses || []).forEach(c => c.year_label && facultyYears.add(c.year_label));
-    (user?.coordinatedClasses || []).forEach(c => c.year_label && facultyYears.add(c.year_label));
+    (user?.teachingClasses || []).forEach(c => c?.year_label && facultyYears.add(c.year_label));
+    (user?.coordinatedClasses || []).forEach(c => c?.year_label && facultyYears.add(c.year_label));
     facultyYears.delete('I'); // Ensure 1st year is never included
     if (facultyYears.size > 0) {
       allowedYearNames = ['II', 'III', 'IV'].filter(y => facultyYears.has(y));

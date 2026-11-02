@@ -430,7 +430,14 @@ export default function ReportPreviewModal({
           }
         }
 
-        const subPrescribed = parseInt((assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)), 10);
+        const sessForSub = allSessions.find(s => s.subject_id === sub.id && s.session_label === assessmentMode);
+        const sessHrs = sessForSub ? (assessmentMode === 'internal2' ? (sessForSub.internal2_total_hours || sessForSub.total_hours) : sessForSub.total_hours) : null;
+        const subPrescribed = parseInt(
+          (assessmentMode === 'internal2' ? sub.int2_hours : sub.int1_hours) ||
+          sessHrs ||
+          (is2021 ? 30 : (sub.int1_hours || 30)),
+          10
+        );
         totalAttendedHours += attHrs;
         totalPrescribedHours += subPrescribed;
 
@@ -743,11 +750,23 @@ export default function ReportPreviewModal({
                     <th style={{ width: '130px' }}>Roll No</th>
                     <th>Student Name</th>
                     {multiSubjectRows.targetSubs.map(s => {
+                      const sessForSub = allSessions.find(sess => sess.subject_id === s.id && sess.session_label === assessmentMode);
+                      const sessHrs = sessForSub ? (assessmentMode === 'internal2' ? (sessForSub.internal2_total_hours || sessForSub.total_hours) : sessForSub.total_hours) : null;
                       const subPrescribed = parseInt(
-                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) || (is2021 ? 30 : (s.int1_hours || 30)),
+                        (assessmentMode === 'internal2' ? s.int2_hours : s.int1_hours) ||
+                        sessHrs ||
+                        (is2021 ? 30 : (s.int1_hours || 30)),
                         10
                       );
-                      const labHrs = parseInt(s.lab_hours, 10) || 0;
+                      const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(s.type);
+                      const labHrs = parseInt(
+                        s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== ''
+                          ? s.lab_hours
+                          : (isTheoryCumLab
+                              ? Math.max(0, (parseInt(s.total_hours, 10) || 0) - (parseInt(s.int1_hours, 10) || 30) - (parseInt(s.int2_hours, 10) || 30))
+                              : 0),
+                        10
+                      ) || 0;
                       return (
                         <th key={s.id} style={{ textAlign: 'center' }}>
                           <div>{s.code}</div>

@@ -1106,6 +1106,37 @@ router.get('/class-summary', async (req, res) => {
       [classId]
     );
 
+    // Merge system_settings subject_allocations configured from Admin Panel
+    try {
+      const [settingRows] = await db.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'subject_allocations'");
+      if (settingRows.length > 0 && settingRows[0].setting_value) {
+        const allocs = typeof settingRows[0].setting_value === 'string'
+          ? JSON.parse(settingRows[0].setting_value)
+          : settingRows[0].setting_value;
+        if (allocs && typeof allocs === 'object') {
+          for (const sub of subjects) {
+            const cleanId = String(sub.id || '').replace(/[\s\-]+/g, '');
+            const cleanCode = String(sub.code || '').replace(/[\s\-]+/g, '');
+            const a = allocs[sub.id] || allocs[sub.code] || allocs[cleanId] || allocs[cleanCode] ||
+                      Object.values(allocs).find(x => x && (x.code === sub.code || x.id === sub.id));
+            if (a) {
+              const a1 = (a.int1_hours !== undefined && a.int1_hours !== null && a.int1_hours !== '') ? a.int1_hours : a.int1;
+              const a2 = (a.int2_hours !== undefined && a.int2_hours !== null && a.int2_hours !== '') ? a.int2_hours : a.int2;
+              const alb = (a.lab_hours !== undefined && a.lab_hours !== null && a.lab_hours !== '') ? a.lab_hours : a.lab;
+              const atot = (a.total_hours !== undefined && a.total_hours !== null && a.total_hours !== '') ? a.total_hours : a.total;
+
+              if (a1 !== undefined && a1 !== null && a1 !== '') sub.int1_hours = parseInt(a1, 10);
+              if (a2 !== undefined && a2 !== null && a2 !== '') sub.int2_hours = parseInt(a2, 10);
+              if (alb !== undefined && alb !== null && alb !== '') sub.lab_hours = parseInt(alb, 10);
+              if (atot !== undefined && atot !== null && atot !== '') sub.total_hours = parseInt(atot, 10);
+            }
+          }
+        }
+      }
+    } catch (allocErr) {
+      console.warn('Note: subject_allocations merge notice in class-summary:', allocErr.message);
+    }
+
     // Students in class
     const [students] = await db.execute(
       'SELECT id, s_no, roll_no, name FROM students WHERE class_id = ? ORDER BY s_no',

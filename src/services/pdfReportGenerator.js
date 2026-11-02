@@ -1649,10 +1649,20 @@ export const generateOverallMarksAndAttendancePDF = async ({
     const subTotal = parseInt(sub.total_hours) || 60;
     const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
     const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
+    const sess = (allSessions || []).find(s => s.subject_id === sub.id && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
+    const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
     const configuredHrs = isInternal2
-      ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
-      : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
-    const labHrs = parseInt(sub.lab_hours, 10) || 0;
+      ? (parseInt(sub.int2_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
+      : (parseInt(sub.int1_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
+    const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+    const labHrs = parseInt(
+      sub.lab_hours !== null && sub.lab_hours !== undefined && sub.lab_hours !== ''
+        ? sub.lab_hours
+        : (isTheoryCumLab
+            ? Math.max(0, subTotal - (parseInt(sub.int1_hours, 10) || 30) - (parseInt(sub.int2_hours, 10) || 30))
+            : 0),
+      10
+    ) || 0;
     const wHrs = configuredHrs;
     const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
     headRow1.push({ content: `${sub.code}\n(TH = ${wHrs}${labStr})`, colSpan: colsPerSub, styles: { halign: 'center' } });
@@ -1702,13 +1712,14 @@ export const generateOverallMarksAndAttendancePDF = async ({
       
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
       
-      // Use standardized subject hours based on LTPC for overall reports
+      // Use standardized subject hours based on Admin configuration & session hours
       const subTotal = parseInt(sub.total_hours) || 60;
       const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
       const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
+      const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
       const configuredHrs = isInternal2
-        ? (parseInt(sub.int2_hours, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
-        : (parseInt(sub.int1_hours, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
+        ? (parseInt(sub.int2_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
+        : (parseInt(sub.int1_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
       const wHrs = configuredHrs;
 
       const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;

@@ -711,11 +711,22 @@ export default function ReportsPage() {
     try {
       const summary = await marksAPI.getClassSummary(selectedClassId, sessionLabel);
 
+      const resolvedSubjects = (summary.subjects || subjects).map(sub => {
+        const matchInState = (subjects || []).find(s => s.id === sub.id || s.code === sub.code);
+        return {
+          ...sub,
+          int1_hours: (sub.int1_hours !== null && sub.int1_hours !== undefined) ? sub.int1_hours : matchInState?.int1_hours,
+          int2_hours: (sub.int2_hours !== null && sub.int2_hours !== undefined) ? sub.int2_hours : matchInState?.int2_hours,
+          lab_hours: (sub.lab_hours !== null && sub.lab_hours !== undefined) ? sub.lab_hours : matchInState?.lab_hours,
+          total_hours: (sub.total_hours !== null && sub.total_hours !== undefined) ? sub.total_hours : matchInState?.total_hours,
+        };
+      });
+
       if (pdfType === 'subject_marks_statement') {
         setPreviewPayload({
           reportType: 'batch_subject_marks',
           classObj: summary.classObj || cls,
-          subjects: (summary.subjects || subjects).filter(s => selectedSubjectIds.includes(s.id)),
+          subjects: resolvedSubjects.filter(s => selectedSubjectIds.includes(s.id)),
           selectedSubjectIds,
           students: summary.students || students,
           assessmentMode: sessionLabel,
@@ -731,7 +742,7 @@ export default function ReportsPage() {
           reportType: 'class_analysis',
           classObj: summary.classObj || cls,
           sessionLabel,
-          subjects: summary.subjects || subjects,
+          subjects: resolvedSubjects,
           students: summary.students || students,
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],
@@ -749,7 +760,7 @@ export default function ReportsPage() {
           reportType: 'examcell_legal',
           classObj: summary.classObj || cls,
           sessionLabel,
-          subjects: summary.subjects || subjects,
+          subjects: resolvedSubjects,
           students: summary.students || students,
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],
@@ -769,7 +780,7 @@ export default function ReportsPage() {
           reportType: 'consolidated_statement',
           classObj: summary.classObj || cls,
           sessionLabel,
-          subjects: summary.subjects || subjects,
+          subjects: resolvedSubjects,
           students: summary.students || students,
           allSessions: summary.sessions || [],
           allAttendance: summary.allAttendance || [],

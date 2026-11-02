@@ -109,16 +109,16 @@ router.put('/:id', async (req, res) => {
     const pInt2 = int2_hours !== undefined && int2_hours !== '' ? parseInt(int2_hours, 10) : null;
     const pLab = lab_hours !== undefined && lab_hours !== '' ? parseInt(lab_hours, 10) : null;
 
-    // 2. Update subjects table
+    // 2. Update subjects table with exact primary key id
     await conn.execute(
       `UPDATE subjects 
        SET code=?, name=?, acronym=?, type=?, department=?, semester=?, ltpc=?, 
            total_hours=?, int1_hours=?, int2_hours=?, lab_hours=?, faculty_id=?, class_id=? 
-       WHERE id = ? OR code = ?`,
+       WHERE id = ?`,
       [
         code, name, acronym || null, type || 'Theory', department || null, semester || null, ltpc || null,
         pTotal, pInt1, pInt2, pLab,
-        newFacultyId, class_id || null, subjectId, code
+        newFacultyId, class_id || null, actualSubId
       ]
     );
 
@@ -166,10 +166,9 @@ router.put('/:id', async (req, res) => {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
-           AND session_label = 'internal1' 
-           AND (status = 'draft' OR status IS NULL OR status = '')`,
-        [finalInt1, String(subjectId), String(actualSubId), String(code)]
+         WHERE (subject_id = ? OR subject_id = ?) 
+           AND session_label = 'internal1'`,
+        [finalInt1, String(actualSubId), String(subjectId)]
       );
     }
     if (finalInt2 !== null) {
@@ -177,21 +176,53 @@ router.put('/:id', async (req, res) => {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ?, internal2_total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
-           AND session_label = 'internal2' 
-           AND (status = 'draft' OR status IS NULL OR status = '')`,
-        [i2Cum, finalInt2, String(subjectId), String(actualSubId), String(code)]
+         WHERE (subject_id = ? OR subject_id = ?) 
+           AND session_label = 'internal2'`,
+        [i2Cum, finalInt2, String(actualSubId), String(subjectId)]
       );
     }
     if (finalLab !== null && finalLab > 0) {
       await conn.execute(
         `UPDATE marks_sessions 
          SET total_hours = ? 
-         WHERE (subject_id = ? OR subject_id = ? OR subject_id = ?) 
-           AND session_label IN ('lab', 'practical') 
-           AND (status = 'draft' OR status IS NULL OR status = '')`,
-        [finalLab, String(subjectId), String(actualSubId), String(code)]
+         WHERE (subject_id = ? OR subject_id = ?) 
+           AND session_label IN ('lab', 'practical')`,
+        [finalLab, String(actualSubId), String(subjectId)]
       );
+    }
+
+    // Also persist directly into system_settings for universal consistency
+    try {
+      const [settingRows] = await conn.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'subject_allocations'");
+      let allocMap = {};
+      if (settingRows.length > 0 && settingRows[0].setting_value) {
+        allocMap = typeof settingRows[0].setting_value === 'string' ? JSON.parse(settingRows[0].setting_value) : settingRows[0].setting_value;
+      }
+      const allocRecord = {
+        int1: finalInt1,
+        int2: finalInt2,
+        lab: finalLab,
+        total: pTotal,
+        int1_hours: finalInt1,
+        int2_hours: finalInt2,
+        lab_hours: finalLab,
+        total_hours: pTotal,
+        faculty_id: newFacultyId,
+        class_id,
+        code,
+        id: actualSubId
+      };
+      allocMap[actualSubId] = allocRecord;
+      if (subjectId) allocMap[subjectId] = allocRecord;
+      if (code) allocMap[code] = allocRecord;
+      await conn.execute(
+        `INSERT INTO system_settings (setting_key, setting_value) 
+         VALUES ('subject_allocations', ?) 
+         ON DUPLICATE KEY UPDATE setting_value = ?`,
+        [JSON.stringify(allocMap), JSON.stringify(allocMap)]
+      );
+    } catch (setErr) {
+      console.warn('system_settings subject_allocations save notice:', setErr.message);
     }
 
     await conn.commit();

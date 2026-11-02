@@ -874,11 +874,24 @@ export const exportOverallMarksExcel = async ({
   // Subjects
   targetSubjects.forEach((sub) => {
     const startCol = colIdx;
+    const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
+    const sess = (allSessions || []).find(s => s.subject_id === sub.id && (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1')));
+    const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
     const subPrescribed = parseInt(
-      (sessionLabel === 'internal2' ? sub.int2_hours : sub.int1_hours) || (is2021 ? 30 : (sub.int1_hours || 30)),
+      (isInternal2 ? sub.int2_hours : sub.int1_hours) ||
+      sessHrs ||
+      (is2021 ? 30 : (sub.int1_hours || 30)),
       10
     );
-    const labHrs = parseInt(sub.lab_hours, 10) || 0;
+    const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+    const labHrs = parseInt(
+      sub.lab_hours !== null && sub.lab_hours !== undefined && sub.lab_hours !== ''
+        ? sub.lab_hours
+        : (isTheoryCumLab
+            ? Math.max(0, (parseInt(sub.total_hours, 10) || 0) - (parseInt(sub.int1_hours, 10) || 30) - (parseInt(sub.int2_hours, 10) || 30))
+            : 0),
+      10
+    ) || 0;
     const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
     if (is2021) {
       worksheet.mergeCells(11, startCol, 11, startCol + 1);

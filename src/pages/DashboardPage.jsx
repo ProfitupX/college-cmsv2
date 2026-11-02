@@ -842,7 +842,9 @@ export default function DashboardPage() {
     (user.coordinatedClasses || []).some(c => c && c.id === selectedClassId)
   );
   const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
-  const assignedClassList = data?.assignedClasses || (user?.teachingClasses || []).map(c => c.name);
+  const assignedClassList = Array.isArray(data?.assignedClasses)
+    ? data.assignedClasses
+    : (user?.teachingClasses || []).map(c => typeof c === 'string' ? c : (c?.name || '')).filter(Boolean);
   
   let studentSubtext = `${user?.department || 'Information Technology'} Department (All Years)`;
   if (!isHodOrAdmin) {

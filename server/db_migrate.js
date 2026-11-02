@@ -87,6 +87,32 @@ async function runMigration(shouldExit = false) {
 
     // 1.3 Ensure all subjects have valid hours splits and cascade to marks_sessions
     try {
+      // First, sync any saved admin subject allocations from system_settings
+      let allocs = {};
+      try {
+        const [settingRows] = await db.query("SELECT setting_value FROM system_settings WHERE setting_key = 'subject_allocations'");
+        if (settingRows.length > 0 && settingRows[0].setting_value) {
+          allocs = typeof settingRows[0].setting_value === 'string' ? JSON.parse(settingRows[0].setting_value) : settingRows[0].setting_value;
+          if (allocs && typeof allocs === 'object') {
+            for (const [key, a] of Object.entries(allocs)) {
+              if (!a) continue;
+              const a1 = (a.int1_hours !== undefined && a.int1_hours !== null && a.int1_hours !== '') ? parseInt(a.int1_hours, 10) : a.int1;
+              const a2 = (a.int2_hours !== undefined && a.int2_hours !== null && a.int2_hours !== '') ? parseInt(a.int2_hours, 10) : a.int2;
+              const alb = (a.lab_hours !== undefined && a.lab_hours !== null && a.lab_hours !== '') ? parseInt(a.lab_hours, 10) : 0;
+              const atot = (a.total_hours !== undefined && a.total_hours !== null && a.total_hours !== '') ? parseInt(a.total_hours, 10) : null;
+              if (a1 !== undefined && a1 !== null && a2 !== undefined && a2 !== null) {
+                await db.execute(
+                  "UPDATE subjects SET int1_hours = ?, int2_hours = ?, lab_hours = COALESCE(?, lab_hours), total_hours = COALESCE(?, total_hours) WHERE id = ? OR (code = ? AND class_id = ?)",
+                  [a1, a2, alb, atot, key, a.code || key, a.class_id || '']
+                );
+              }
+            }
+          }
+        }
+      } catch (allocSyncErr) {
+        console.warn('Note: db_migrate system_settings sync notice:', allocSyncErr.message);
+      }
+
       const [subs] = await db.query(
         "SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours FROM subjects WHERE int1_hours IS NULL OR int2_hours IS NULL OR total_hours IS NULL OR total_hours <= 10"
       );
