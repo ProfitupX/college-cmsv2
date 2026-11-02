@@ -1,4 +1,5 @@
 import React from 'react';
+import { logException } from './services/logger';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -18,6 +19,29 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ error, errorInfo });
     console.error('[MarkHub Application Error Caught]', error, errorInfo);
+
+    let userRole = 'guest';
+    let userName = '';
+    let userId = '';
+    try {
+      const saved = sessionStorage.getItem('cms_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        userRole = u.role || 'guest';
+        userName = u.name || '';
+        userId = u.id || '';
+      }
+    } catch (e) {}
+
+    logException({
+      moduleName: this.props.section ? `PageSection:${this.props.section}` : (window.location.pathname || 'ReactApp'),
+      userRole,
+      userName,
+      userId,
+      error,
+      errorInfo,
+      url: window.location.href
+    });
   }
 
   handleReload = () => {

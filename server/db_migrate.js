@@ -61,6 +61,25 @@ async function runMigration(shouldExit = false) {
     `);
     console.log('✅ Ensured marks_history table exists.');
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS system_error_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        module_name VARCHAR(100) NOT NULL,
+        user_id VARCHAR(50) DEFAULT NULL,
+        user_role VARCHAR(50) DEFAULT NULL,
+        user_name VARCHAR(100) DEFAULT NULL,
+        error_message TEXT NOT NULL,
+        stack_trace MEDIUMTEXT DEFAULT NULL,
+        url VARCHAR(255) DEFAULT NULL,
+        user_agent TEXT DEFAULT NULL,
+        KEY idx_module (module_name),
+        KEY idx_role (user_role),
+        KEY idx_timestamp (timestamp)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Ensured system_error_logs table exists.');
+
     // 1.1 Ensure staffs table has is_password_changed column
     const [staffCols] = await db.query("SHOW COLUMNS FROM staffs LIKE 'is_password_changed'");
     if (staffCols.length === 0) {

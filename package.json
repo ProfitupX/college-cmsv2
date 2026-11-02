@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "verify": "node scripts/verify_build.cjs",
-    "prebuild": "npm run verify",
+    "test:smoke": "node scripts/smoke_test.cjs",
+    "prebuild": "npm run verify && npm run test:smoke",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",

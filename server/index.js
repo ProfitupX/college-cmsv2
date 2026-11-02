@@ -15,47 +15,53 @@ import adminRoutes    from './routes/admin.js';
 import notificationRoutes from './routes/notifications.js';
 import settingRoutes  from './routes/settings.js';
 import remarkRoutes   from './routes/remarks.js';
+import logRoutes      from './routes/logs.js';
 
 import { execSync } from 'child_process';
 import fs from 'fs';
 import { runMigration } from './db_migrate.js';
+import db from './db.js';
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
-// ── Middleware ──────────────────────────────────────────────
+// ── CORS & Body Parser ──────────────────────────────────────
 app.use(cors({ origin: '*' })); // Allow all origins for local network testing
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ── Health & Diagnostics ────────────────────────────────────
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// ── Health check ─────────────────────────────────────────────
+app.get('/api/health', async (_req, res) => {
+  try {
+    const isReady = await db.query('SELECT 1');
+    res.json({
+      status: 'ok',
+      service: 'college-cms-api',
+      timestamp: new Date().toISOString(),
+      database: isReady ? 'connected' : 'disconnected'
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      service: 'college-cms-api',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: err.message
+    });
+  }
 });
 
-app.get('/api/diag-vps', (_req, res) => {
+// Diagnostic endpoint to check port occupants from API
+app.get('/api/diagnostic', async (_req, res) => {
   try {
-    const cwd = process.cwd();
-    let oldFiles = [];
-    try {
-      const out = execSync('find / -name "index-DCBDcCgS.js" 2>/dev/null || true', { encoding: 'utf8', timeout: 5000 });
-      oldFiles = out.trim().split('\n').filter(Boolean);
-    } catch (e) {
-      oldFiles = [e.message];
-    }
-    let nginxRoots = [];
-    try {
-      const out = execSync('grep -rn "root" /etc/nginx/ 2>/dev/null || true', { encoding: 'utf8', timeout: 5000 });
-      nginxRoots = out.trim().split('\n').filter(Boolean);
-    } catch (e) {
-      nginxRoots = [e.message];
-    }
-    let distFiles = [];
-    try {
-      distFiles = fs.readdirSync('./dist');
-    } catch (e) {
-      distFiles = [e.message];
-    }
-    res.json({ cwd, oldFiles, nginxRoots, distFiles, timestamp: new Date().toISOString() });
+    const whoami = execSync('whoami').toString().trim();
+    const nodeProcesses = execSync('ps -ef | grep node | grep -v grep').toString();
+    const port5000 = execSync("ss -lptn 'sport = :5000'").toString();
+    res.json({
+      whoami,
+      nodeProcesses,
+      port5000
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -73,10 +79,39 @@ app.use('/api/admin',         adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings',      settingRoutes);
 app.use('/api/remarks',       remarkRoutes);
+app.use('/api/logs',          logRoutes);
 
-// ── Global error handler ────────────────────────────────────
-app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err);
+// ── Centralized Global Error Handler (Requirement 4) ────────
+app.use(async (err, req, res, _next) => {
+  console.error('🚨 [Unhandled Server Exception]:', err);
+  try {
+    const moduleName = `BackendRoute:${req.method} ${req.originalUrl || req.url}`;
+    const userRole = req.user?.role || req.headers['x-user-role'] || 'unknown';
+    const userId = req.user?.id || req.headers['x-user-id'] || null;
+    const userName = req.user?.name || null;
+    const errorMessage = err?.message || String(err);
+    const stackTrace = err?.stack || '';
+
+    // Log to system_error_logs
+    await db.execute(
+      `INSERT INTO system_error_logs 
+       (module_name, user_id, user_role, user_name, error_message, stack_trace, url, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        moduleName.slice(0, 100),
+        userId ? String(userId).slice(0, 50) : null,
+        userRole.slice(0, 50),
+        userName ? String(userName).slice(0, 100) : null,
+        errorMessage,
+        stackTrace,
+        String(req.originalUrl || req.url).slice(0, 255),
+        String(req.headers['user-agent'] || '').slice(0, 500)
+      ]
+    );
+  } catch (logDbErr) {
+    console.warn('⚠️ Could not persist server error log to MySQL:', logDbErr.message);
+  }
+
   res.status(500).json({ error: 'Internal server error.' });
 });
 
@@ -93,4 +128,3 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 server.on('error', (err) => {
   console.error('❌ Server startup error:', err.message);
 });
-
