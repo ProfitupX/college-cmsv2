@@ -116,10 +116,17 @@ router.post('/submit', async (req, res) => {
     );
     const existingSession = existingSessions.length > 0 ? existingSessions[0] : null;
 
-    // Guard locked session against accidental draft overwrites
-    if (existingSession && existingSession.status === 'locked' && actionType === 'draft') {
+    // Guard locked/frozen session: values must NEVER change unless explicitly unlocked by authorized staff
+    if (existingSession && (existingSession.status === 'locked' || existingSession.status === 'frozen')) {
+      if (existingSession.status !== 'unlocked') {
+        await conn.rollback();
+        return res.status(403).json({ error: 'This marks sheet is locked and frozen. Values cannot be changed unless explicitly unlocked by authorized HOD or Admin.' });
+      }
+    }
+
+    if (existingSession && actionType === 'clear' && (existingSession.status === 'locked' || existingSession.status === 'frozen')) {
       await conn.rollback();
-      return res.status(403).json({ error: 'This marks sheet is locked. Please request edit permission from HOD before saving changes.' });
+      return res.status(403).json({ error: 'Cannot clear a locked or frozen marks sheet.' });
     }
 
     // If components is empty and user explicitly requests clear
@@ -304,21 +311,77 @@ router.post('/submit', async (req, res) => {
       }
     }
 
-    // 4. Safe Marks Upsert (ON DUPLICATE KEY UPDATE)
+    // Resolve staff name for audit trail
+    let staffName = req.body.staffName || req.body.userName || '';
+    if (!staffName && staffId) {
+      try {
+        const [stRows] = await conn.execute(`SELECT name FROM staffs WHERE id = ?`, [staffId]);
+        if (stRows.length > 0) staffName = stRows[0].name;
+      } catch (_) {}
+    }
+
+    // Fetch existing marks and attendance snapshots to calculate audit deltas
+    const oldMarksMap = new Map();
+    const oldAttMap = new Map();
+    if (existingSession) {
+      try {
+        const [oldMarksRows] = await conn.execute(
+          `SELECT student_id, component_id, marks_obtained FROM marks WHERE session_id = ?`,
+          [sessionId]
+        );
+        oldMarksRows.forEach(r => {
+          oldMarksMap.set(`${r.student_id}_${r.component_id}`, r.marks_obtained !== null && r.marks_obtained !== undefined ? parseFloat(r.marks_obtained) : null);
+        });
+
+        const [oldAttRows] = await conn.execute(
+          `SELECT student_id, hours_attended, actual_taken_hours, attendance_mark, internal_exam_mark, lab_attendance, lab_mark FROM session_attendance WHERE session_id = ?`,
+          [sessionId]
+        );
+        oldAttRows.forEach(r => {
+          oldAttMap.set(String(r.student_id), r);
+        });
+      } catch (oldFetchErr) {
+        console.warn('Old records snapshot notice:', oldFetchErr.message);
+      }
+    }
+
+    const auditLogEntries = [];
+
+    // 4. Safe Marks Upsert (ON DUPLICATE KEY UPDATE) with Audit Delta Logging
     for (const m of marks) {
       const compDbId = componentIdMap[m.componentIndex];
       if (compDbId === undefined) continue;
-      if (m.marksObtained === null || m.marksObtained === '' || m.marksObtained === undefined) {
+      const sId = String(m.studentId);
+      const key = `${sId}_${compDbId}`;
+      const oldVal = oldMarksMap.has(key) ? oldMarksMap.get(key) : null;
+      const hasNew = m.marksObtained !== null && m.marksObtained !== '' && m.marksObtained !== undefined && !isNaN(parseFloat(m.marksObtained));
+      const newVal = hasNew ? parseFloat(m.marksObtained) : null;
+
+      if (oldVal !== newVal) {
+        auditLogEntries.push([
+          sessionId,
+          sId,
+          compDbId,
+          'marks_obtained',
+          oldVal !== null ? String(oldVal) : null,
+          newVal !== null ? String(newVal) : null,
+          String(staffId),
+          String(staffName || staffId),
+          String(actionType || 'save')
+        ]);
+      }
+
+      if (!hasNew) {
         await conn.execute(
           `DELETE FROM marks WHERE session_id = ? AND component_id = ? AND student_id = ?`,
-          [sessionId, compDbId, String(m.studentId)]
+          [sessionId, compDbId, sId]
         );
       } else {
         await conn.execute(
           `INSERT INTO marks (session_id, component_id, student_id, marks_obtained)
            VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE marks_obtained = VALUES(marks_obtained)`,
-          [sessionId, compDbId, String(m.studentId), parseFloat(m.marksObtained)]
+          [sessionId, compDbId, sId, newVal]
         );
       }
     }
@@ -356,6 +419,74 @@ router.post('/submit', async (req, res) => {
           attMark = getAttendanceMark(pct);
         }
 
+        // Track attendance & exam audit deltas
+        const sId = String(a.studentId);
+        const oldRec = oldAttMap.get(sId);
+
+        const oldAttMark = oldRec && oldRec.attendance_mark !== null && oldRec.attendance_mark !== undefined ? parseFloat(oldRec.attendance_mark) : null;
+        const newAttMark = attMark !== null && attMark !== undefined ? parseFloat(attMark) : null;
+        if (oldAttMark !== newAttMark) {
+          auditLogEntries.push([
+            sessionId,
+            sId,
+            null,
+            'attendance_mark',
+            oldAttMark !== null ? String(oldAttMark) : null,
+            newAttMark !== null ? String(newAttMark) : null,
+            String(staffId),
+            String(staffName || staffId),
+            String(actionType || 'save')
+          ]);
+        }
+
+        const oldHours = oldRec && oldRec.hours_attended !== null && oldRec.hours_attended !== undefined ? parseInt(oldRec.hours_attended, 10) : null;
+        const newHours = parseInt(savedHours, 10);
+        if (oldHours !== newHours) {
+          auditLogEntries.push([
+            sessionId,
+            sId,
+            null,
+            'hours_attended',
+            oldHours !== null ? String(oldHours) : null,
+            String(newHours),
+            String(staffId),
+            String(staffName || staffId),
+            String(actionType || 'save')
+          ]);
+        }
+
+        const oldExam = oldRec && oldRec.internal_exam_mark !== null && oldRec.internal_exam_mark !== undefined && oldRec.internal_exam_mark !== '' ? parseFloat(oldRec.internal_exam_mark) : null;
+        const newExam = (a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark))) ? parseFloat(a.internalExamMark) : null;
+        if (oldExam !== newExam) {
+          auditLogEntries.push([
+            sessionId,
+            sId,
+            null,
+            'internal_exam_mark',
+            oldExam !== null ? String(oldExam) : null,
+            newExam !== null ? String(newExam) : null,
+            String(staffId),
+            String(staffName || staffId),
+            String(actionType || 'save')
+          ]);
+        }
+
+        const oldLab = oldRec && oldRec.lab_mark !== null && oldRec.lab_mark !== undefined && oldRec.lab_mark !== '' ? parseFloat(oldRec.lab_mark) : null;
+        const newLab = (a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark))) ? parseFloat(a.labMark) : null;
+        if (oldLab !== newLab) {
+          auditLogEntries.push([
+            sessionId,
+            sId,
+            null,
+            'lab_mark',
+            oldLab !== null ? String(oldLab) : null,
+            newLab !== null ? String(newLab) : null,
+            String(staffId),
+            String(staffName || staffId),
+            String(actionType || 'save')
+          ]);
+        }
+
         await conn.execute(
           `INSERT INTO session_attendance (session_id, student_id, hours_attended, actual_taken_hours, attendance_mark, internal_exam_mark, lab_attendance, lab_mark)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -381,6 +512,22 @@ router.post('/submit', async (req, res) => {
               : (isPureLabSubmission && a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark)) ? parseFloat(a.internalExamMark) : null)
           ]
         );
+      }
+    }
+
+    // 5.4 Persist individual mark changes to marks_audit_logs
+    if (auditLogEntries.length > 0) {
+      try {
+        for (const entry of auditLogEntries) {
+          await conn.execute(
+            `INSERT INTO marks_audit_logs 
+              (session_id, student_id, component_id, field_name, old_value, new_value, user_id, user_name, action_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            entry
+          );
+        }
+      } catch (auditErr) {
+        console.warn('marks_audit_logs insert note:', auditErr.message);
       }
     }
 
@@ -653,6 +800,15 @@ router.post('/reset-session', async (req, res) => {
       }
     }
 
+    // Guard: locked or frozen sessions can NEVER be purged by reset
+    for (const id of sIds) {
+      const [sessRows] = await conn.execute(`SELECT id, status FROM marks_sessions WHERE id = ?`, [id]);
+      if (sessRows.length > 0 && (sessRows[0].status === 'locked' || sessRows[0].status === 'frozen')) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Cannot reset locked or frozen marks sessions. Unlock must be approved by HOD first.' });
+      }
+    }
+
     for (const id of sIds) {
       await conn.execute('DELETE FROM marks WHERE session_id = ?', [id]);
       await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [id]);
@@ -680,6 +836,11 @@ router.delete('/sessions/:id', async (req, res) => {
   try {
     await conn.beginTransaction();
     const sId = req.params.id;
+    const [sessRows] = await conn.execute(`SELECT id, status FROM marks_sessions WHERE id = ?`, [sId]);
+    if (sessRows.length > 0 && (sessRows[0].status === 'locked' || sessRows[0].status === 'frozen')) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Cannot delete locked or frozen marks sessions. Unlock must be approved by HOD first.' });
+    }
     await conn.execute('DELETE FROM marks WHERE session_id = ?', [sId]);
     await conn.execute('DELETE FROM session_attendance WHERE session_id = ?', [sId]);
     await conn.execute('DELETE FROM mark_unlock_requests WHERE session_id = ?', [sId]);
@@ -995,6 +1156,41 @@ router.get('/class-summary', async (req, res) => {
   } catch (err) {
     console.error('GET /marks/class-summary error:', err);
     res.status(500).json({ error: 'Failed to fetch class summary.' });
+  }
+});
+
+
+
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/marks/audit-logs/:sessionId
+// Audit logs showing historical mark changes (old value, new value, user, timestamp)
+// ─────────────────────────────────────────────────────────────
+router.get('/audit-logs/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { studentId } = req.query;
+    let sql = `
+      SELECT al.id, al.session_id, al.student_id, al.component_id, al.field_name,
+             al.old_value, al.new_value, al.user_id, al.user_name, al.action_type, al.created_at,
+             s.name AS student_name, s.roll_no,
+             ac.label AS component_label
+      FROM marks_audit_logs al
+      LEFT JOIN students s ON s.id = al.student_id
+      LEFT JOIN assessment_components ac ON ac.id = al.component_id
+      WHERE al.session_id = ?
+    `;
+    const params = [sessionId];
+    if (studentId) {
+      sql += ' AND al.student_id = ?';
+      params.push(studentId);
+    }
+    sql += ' ORDER BY al.created_at DESC, al.id DESC';
+    const [rows] = await db.execute(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /marks/audit-logs error:', err);
+    res.status(500).json({ error: 'Failed to fetch audit logs.' });
   }
 });
 

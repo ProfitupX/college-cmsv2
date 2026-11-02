@@ -163,20 +163,20 @@ router.put('/:id', async (req, res) => {
 
     if (finalInt1 !== null) {
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1'`,
+        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1' AND status = 'draft'`,
         [finalInt1, String(subjectId)]
       );
     }
     if (finalInt2 !== null) {
       const i2Cum = (finalInt1 || 0) + finalInt2 + (finalLab || 0);
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2'`,
+        `UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2' AND status = 'draft'`,
         [i2Cum, finalInt2, String(subjectId)]
       );
     }
     if (finalLab !== null && finalLab > 0) {
       await conn.execute(
-        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label IN ('lab', 'practical')`,
+        `UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label IN ('lab', 'practical') AND status = 'draft'`,
         [finalLab, String(subjectId)]
       );
     }

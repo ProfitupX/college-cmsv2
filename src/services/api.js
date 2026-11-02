@@ -265,6 +265,11 @@ export const marksAPI = {
     }
   },
 
+  getAuditLogs: (sessionId, studentId) => {
+    const q = studentId ? `?studentId=${encodeURIComponent(studentId)}` : '';
+    return get(`/marks/audit-logs/${sessionId}${q}`);
+  },
+
   deleteSession: (id) => remove(`/marks/sessions/${id}`),
 };
 

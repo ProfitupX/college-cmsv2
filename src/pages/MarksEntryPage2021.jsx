@@ -355,8 +355,11 @@ export default function MarksEntryPage2021() {
             ? (activeSub?.int2_hours ?? activeSplits.int2 ?? 30)
             : (activeSub?.int1_hours ?? activeSplits.int1 ?? 30);
           const sessHours = parseInt(detail.session?.total_hours, 10);
+          const isSessionLocked = detail.session?.status === 'locked' || detail.session?.status === 'frozen';
           const hasAdminAllocation = (assessmentMode === 'internal2' ? activeSub?.int2_hours : activeSub?.int1_hours) > 0;
-          const finalSessionHours = hasAdminAllocation ? prescribed : ((sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30));
+          const finalSessionHours = (isSessionLocked && sessHours > 0)
+            ? sessHours
+            : (hasAdminAllocation ? prescribed : ((sessHours > 0) ? sessHours : (prescribed > 0 ? prescribed : 30)));
 
           setSessionBulk({
             marks: loadedMarks,

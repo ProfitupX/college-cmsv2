@@ -23,6 +23,44 @@ async function runMigration(shouldExit = false) {
       console.log('system_settings modify note:', e.message);
     }
 
+    // 1.0b Ensure marks_audit_logs and marks_history tables exist
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS marks_audit_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT NOT NULL,
+        student_id VARCHAR(50) NOT NULL,
+        component_id INT DEFAULT NULL,
+        field_name VARCHAR(50) NOT NULL COMMENT 'marks_obtained | hours_attended | attendance_mark | internal_exam_mark | lab_mark',
+        old_value VARCHAR(100) DEFAULT NULL,
+        new_value VARCHAR(100) DEFAULT NULL,
+        user_id VARCHAR(50) NOT NULL,
+        user_name VARCHAR(100) DEFAULT NULL,
+        action_type VARCHAR(50) NOT NULL COMMENT 'draft | frozen | manual_edit | clear | reset',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_session_student (session_id, student_id),
+        KEY idx_user_created (user_id, created_at),
+        KEY idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Ensured marks_audit_logs table exists.');
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS marks_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT NOT NULL,
+        subject_id VARCHAR(50) NOT NULL,
+        class_id VARCHAR(50) NOT NULL,
+        session_label VARCHAR(50) NOT NULL,
+        staff_id VARCHAR(50) NOT NULL,
+        action_type VARCHAR(50) NOT NULL,
+        snapshot LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_session_id (session_id),
+        KEY idx_staff_id (staff_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Ensured marks_history table exists.');
+
     // 1.1 Ensure staffs table has is_password_changed column
     const [staffCols] = await db.query("SHOW COLUMNS FROM staffs LIKE 'is_password_changed'");
     if (staffCols.length === 0) {
@@ -107,12 +145,12 @@ async function runMigration(shouldExit = false) {
           );
 
           await db.execute(
-            "UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1'",
+            "UPDATE marks_sessions SET total_hours = ? WHERE subject_id = ? AND session_label = 'internal1' AND status = 'draft'",
             [int1, s.id]
           );
           const i2Cum = int1 + int2 + lab;
           await db.execute(
-            "UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2'",
+            "UPDATE marks_sessions SET total_hours = ?, internal2_total_hours = ? WHERE subject_id = ? AND session_label = 'internal2' AND status = 'draft'",
             [i2Cum, int2, s.id]
           );
         }

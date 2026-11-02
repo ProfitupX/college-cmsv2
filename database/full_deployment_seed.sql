@@ -1470,4 +1470,38 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS `marks_audit_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `session_id` int NOT NULL,
+  `student_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `component_id` int DEFAULT NULL,
+  `field_name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `old_value` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `new_value` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_session_student` (`session_id`,`student_id`),
+  KEY `idx_user_created` (`user_id`,`created_at`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `marks_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `session_id` int NOT NULL,
+  `subject_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `class_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `session_label` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `staff_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `action_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `snapshot` longtext COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_session_id` (`session_id`),
+  KEY `idx_staff_id` (`staff_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
