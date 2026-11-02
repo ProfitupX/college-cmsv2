@@ -283,11 +283,12 @@ export default function DashboardPage() {
         }
 
         const yearWeight = { 'IV': 1, 'III': 2, 'II': 3, 'I': 4 };
+        allowed = (allowed || []).filter(Boolean);
         allowed.sort((a, b) => {
-          const wA = yearWeight[a.year_label] || (a.name?.includes('IV') ? 1 : a.name?.includes('III') ? 2 : a.name?.includes('II') ? 3 : 4);
-          const wB = yearWeight[b.year_label] || (b.name?.includes('IV') ? 1 : b.name?.includes('III') ? 2 : b.name?.includes('II') ? 3 : 4);
+          const wA = yearWeight[a?.year_label] || (a?.name?.includes('IV') ? 1 : a?.name?.includes('III') ? 2 : a?.name?.includes('II') ? 3 : 4);
+          const wB = yearWeight[b?.year_label] || (b?.name?.includes('IV') ? 1 : b?.name?.includes('III') ? 2 : b?.name?.includes('II') ? 3 : 4);
           if (wA !== wB) return wA - wB;
-          return (a.name || '').localeCompare(b.name || '');
+          return (a?.name || '').localeCompare(b?.name || '');
         });
 
         setClasses(allowed);
@@ -838,7 +839,7 @@ export default function DashboardPage() {
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
     user.coordinatedClassId === selectedClassId || 
-    (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
+    (user.coordinatedClasses || []).some(c => c && c.id === selectedClassId)
   );
   const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
   const assignedClassList = data?.assignedClasses || (user?.teachingClasses || []).map(c => c.name);
@@ -909,18 +910,18 @@ export default function DashboardPage() {
   }
 
   // Shape sessions into the format RecentEntries expects with fallback to loaded classes
-  const entries = sessions.map((s) => {
-    const matchedClass = (classes || []).find((c) =>
+  const entries = (sessions || []).filter(Boolean).map((s) => {
+    const matchedClass = (classes || []).filter(Boolean).find((c) =>
       (s.class_id && String(c.id) === String(s.class_id)) ||
-      (c.name && s.class_name && c.name.trim().toLowerCase() === s.class_name.trim().toLowerCase())
+      (c.name && s.class_name && c.name.trim().toLowerCase() === String(s.class_name).trim().toLowerCase())
     );
     return {
       id:          s.id,
-      subject:     s.subject,
-      class:       s.class_name,
-      submittedAt: s.created_at,
+      subject:     s.subject || s.subject_name || s.subject_code || 'Subject',
+      class:       s.class_name || matchedClass?.name || 'Class',
+      submittedAt: s.created_at || s.updated_at || new Date().toISOString(),
       status:      s.status,
-      count:       s.student_count,
+      count:       parseInt(s.student_count, 10) || 0,
       avgScore:    s.avg_score,
       classId:     s.class_id || matchedClass?.id,
       subjectId:   s.subject_id,
@@ -1244,21 +1245,21 @@ export default function DashboardPage() {
           </div>
 
           <div className={styles.subjectGrid}>
-            {assignedSubjects.map((sub) => {
-              const is2021 = sub.year_label === 'III' || sub.year_label === 'IV' || parseInt(sub.semester) >= 5;
+            {(assignedSubjects || []).filter(Boolean).map((sub) => {
+              const is2021 = sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5;
               const targetRoute = is2021 ? '/marks-entry-2021' : '/marks-entry';
 
               return (
-                <div key={sub.id} className={styles.subjectCard}>
+                <div key={sub?.id} className={styles.subjectCard}>
                   <div>
                     <div className={styles.subjectTop}>
-                      <span className={styles.subjectCode}>{sub.code}</span>
-                      <span className={styles.subjectTypeBadge}>{sub.type || 'Theory'}</span>
+                      <span className={styles.subjectCode}>{sub?.code}</span>
+                      <span className={styles.subjectTypeBadge}>{sub?.type || 'Theory'}</span>
                     </div>
 
-                    <h4 className={styles.subjectName}>{sub.name}</h4>
+                    <h4 className={styles.subjectName}>{sub?.name}</h4>
                     <div className={styles.subjectClassMeta}>
-                      🏛 <strong>{sub.class_name || 'Class'}</strong> · Sem {sub.semester || '-'} {sub.ltpc ? `· LTPC: ${sub.ltpc}` : ''}
+                      🏛 <strong>{sub?.class_name || 'Class'}</strong> · Sem {sub?.semester || '-'} {sub?.ltpc ? `· LTPC: ${sub.ltpc}` : ''}
                     </div>
                   </div>
 
@@ -1383,7 +1384,7 @@ export default function DashboardPage() {
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
             >
-              {[...classes].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
+              {[...(classes || [])].filter(Boolean).sort((a, b) => (a?.name || '').localeCompare(b?.name || '')).map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} {user?.coordinatedClassId === c.id ? '(In-charge)' : ''}
                 </option>
@@ -1409,7 +1410,7 @@ export default function DashboardPage() {
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
             >
-              {classSubjects.map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              {(classSubjects || []).filter(Boolean).map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
               {classSubjects.length === 0 && <option value="">No Subjects Available</option>}
             </select>
           </div>

@@ -89,15 +89,15 @@ export default function YearPerformanceChart({ data = [], departmentStats = [], 
   // Prepare Real Department Data (strictly excluding 1st Year / Science and Humanities)
   const validDeptStats = Array.isArray(departmentStats)
     ? departmentStats.filter(dept => {
-        const dName = (dept.department || '').toLowerCase();
-        return !dName.includes('science') && !dName.includes('humanities') && !dName.includes('first year');
+        const dName = String(dept?.department || '').toLowerCase();
+        return dept && !dName.includes('science') && !dName.includes('humanities') && !dName.includes('first year');
       })
     : [];
 
   const deptChartData = validDeptStats.map((dept, idx) => ({
-    name: DEPT_SHORT_NAMES[dept.department] || dept.department.replace('Engineering', 'Engg'),
-    fullName: dept.department,
-    value: parseFloat(dept.avgScore) || 0,
+    name: DEPT_SHORT_NAMES[dept?.department] || (dept?.department ? String(dept.department).replace('Engineering', 'Engg') : 'Dept'),
+    fullName: dept?.department || 'Department',
+    value: parseFloat(dept?.avgScore) || 0,
     fill: DEPT_COLORS[idx % DEPT_COLORS.length]
   })).filter(d => d.value > 0);
 

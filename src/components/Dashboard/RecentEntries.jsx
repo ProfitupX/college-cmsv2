@@ -14,13 +14,21 @@ function StatusBadge({ status }) {
 }
 
 function ScorePill({ avg }) {
+  const num = parseFloat(avg);
+  if (isNaN(num)) {
+    return (
+      <span className={styles.score} style={{ color: 'var(--text-muted)', background: 'rgba(100, 116, 139, 0.12)' }}>
+        —
+      </span>
+    );
+  }
   const color =
-    avg >= 80 ? 'var(--success)' :
-    avg >= 60 ? 'var(--warning)' :
+    num >= 80 ? 'var(--success)' :
+    num >= 60 ? 'var(--warning)' :
     'var(--danger)';
   return (
     <span className={styles.score} style={{ color, background: `${color}18` }}>
-      {avg.toFixed(1)}%
+      {num.toFixed(1)}%
     </span>
   );
 }
@@ -29,15 +37,19 @@ export default function RecentEntries({ entries, classes = [] }) {
   const navigate = useNavigate();
   const { setRegulation, setClassAndSubject, setSelectionWithRegulation } = useMarks();
   const formatDate = (iso) => {
+    if (!iso) return '—';
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const handleRowClick = (e) => {
     // 1. Resolve class from props or matching class name
     const matchedClass = (classes || []).find((c) =>
-      (e.classId && String(c.id) === String(e.classId)) ||
-      (c.name && e.class && c.name.trim().toLowerCase() === e.class.trim().toLowerCase())
+      c && (
+        (e.classId && String(c.id) === String(e.classId)) ||
+        (c.name && e.class && c.name.trim().toLowerCase() === String(e.class).trim().toLowerCase())
+      )
     );
 
     const targetClassId = (e.classId && e.classId !== 'undefined' && e.classId !== 'null')
