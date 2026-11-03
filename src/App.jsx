@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MarksProvider } from './context/MarksContext';
 import Layout from './components/Layout/Layout';
@@ -16,6 +16,12 @@ import ManageStudents from './pages/Admin/ManageStudents';
 import StaffClasses from './pages/Admin/StaffClasses';
 import MarksEntryPage2021 from './pages/MarksEntryPage2021';
 import ErrorBoundary from './ErrorBoundary.jsx';
+
+// Search-param preserving redirect helper for URL aliases (e.g. /marks entry?classId=CL003)
+function NavigateWithSearch({ to }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search || ''}`} replace />;
+}
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -79,8 +85,9 @@ function AppRoutes() {
         }
       />
       {/* Route aliases for URL variants seen on the live site (spaces / underscores) */}
-      <Route path="/marks entry" element={<Navigate to="/marks-entry" replace />} />
-      <Route path="/marks_entry" element={<Navigate to="/marks-entry" replace />} />
+      <Route path="/marks entry" element={<NavigateWithSearch to="/marks-entry" />} />
+      <Route path="/marks%20entry" element={<NavigateWithSearch to="/marks-entry" />} />
+      <Route path="/marks_entry" element={<NavigateWithSearch to="/marks-entry" />} />
       <Route
         path="/marks-entry-2021"
         element={
@@ -89,8 +96,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="/marks entry 2021" element={<Navigate to="/marks-entry-2021" replace />} />
-      <Route path="/marks_entry_2021" element={<Navigate to="/marks-entry-2021" replace />} />
+      <Route path="/marks entry 2021" element={<NavigateWithSearch to="/marks-entry-2021" />} />
+      <Route path="/marks%20entry%202021" element={<NavigateWithSearch to="/marks-entry-2021" />} />
+      <Route path="/marks_entry_2021" element={<NavigateWithSearch to="/marks-entry-2021" />} />
       <Route
         path="/reports"
         element={

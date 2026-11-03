@@ -81,7 +81,7 @@
 }
 
 .metaBadge {
-  background: #ffffff;
+  background: var(--surface, #ffffff);
   border: 1px solid var(--border-solid, #e2e8f0);
   padding: 4px 10px;
   border-radius: 6px;
@@ -92,8 +92,8 @@
 
 .specialOptionsBox {
   padding: 10px 24px;
-  background: #eff6ff;
-  border-bottom: 1px solid #bfdbfe;
+  background: var(--surface-hover, #eff6ff);
+  border-bottom: 1px solid var(--border-solid, #bfdbfe);
 }
 
 .kpiGrid {
@@ -104,8 +104,8 @@
 }
 
 .kpiCard {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-hover, #f8fafc);
+  border: 1px solid var(--border-solid, #e2e8f0);
   border-radius: 8px;
   padding: 10px 14px;
   display: flex;
@@ -117,20 +117,20 @@
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-muted, #64748b);
   letter-spacing: 0.03em;
 }
 
 .kpiVal {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 
 .sectionHeader {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #1e3a8a;
+  color: var(--text-primary, #1e3a8a);
   margin: 16px 0 8px;
   display: flex;
   align-items: center;
@@ -138,8 +138,8 @@
 }
 
 .batchBanner {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--surface-hover, #f0fdf4);
+  border: 1px solid var(--border-solid, #bbf7d0);
   border-radius: 8px;
   padding: 12px 16px;
   margin: 14px 0 8px;
@@ -186,6 +186,80 @@
 
 .table tbody tr:hover {
   background: rgba(59, 130, 246, 0.04);
+}
+
+/* Dedicated High-Contrast Paper Document Sheet for Print & Statement Previews */
+.paperSheet {
+  margin-bottom: 26px;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.paperSheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f1f5f9 !important;
+  padding: 10px 16px;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+}
+
+.paperSheetTitle {
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: #0f172a !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paperSheetSub {
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: #475569 !important;
+}
+
+.paperTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin: 0 !important;
+  border: none !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.paperTable th {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid #0f172a !important;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.paperTable td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+  background: transparent !important;
+  font-size: 0.84rem;
+}
+
+.paperTable tbody tr:nth-child(even) {
+  background: #f8fafc !important;
+}
+
+.paperTable tbody tr:hover {
+  background: #f1f5f9 !important;
 }
 
 .footer {

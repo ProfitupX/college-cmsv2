@@ -156,6 +156,9 @@ export default function ReportPreviewModal({
       const labMarkStr = isLabAbsent ? 'AB' : Math.round(numLabMark);
       const labResult = isLabAbsent ? 'AB' : (numLabMark >= 50 ? 'PASS' : 'FAIL');
 
+      const rawAttdNum = parseInt(rawHours || 0, 10);
+      const pct = tHours > 0 ? Math.min(100, Math.round((rawAttdNum / tHours) * 100)) : 0;
+
       return {
         sNo: idx + 1,
         rollNo: student.roll_no || student.rollNo || '-',
@@ -971,23 +974,12 @@ export default function ReportPreviewModal({
               </div>
             ) : (
               paginatedSections.map((page) => (
-                <div key={page.pageNumber} style={{ 
-                  marginBottom: '26px', 
-                  background: '#ffffff', 
-                  border: '1.5px solid #cbd5e1', 
-                  borderRadius: '10px', 
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                }}>
+                <div key={page.pageNumber} className={styles.paperSheet}>
                   {/* Sheet Header reflecting PDF Page Division */}
-                  <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
-                    padding: '10px 16px', borderBottom: '1.5px solid #cbd5e1'
-                  }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className={styles.paperSheetHeader}>
+                    <span className={styles.paperSheetTitle}>
                       📄 Sheet / Page {page.pageNumber} of {page.totalPages}
-                      <span style={{ fontWeight: 500, fontSize: '0.78rem', color: '#64748b' }}>
+                      <span className={styles.paperSheetSub}>
                         ({page.rows.length} Students · S.No {page.rows[0]?.sNo} to {page.rows[page.rows.length - 1]?.sNo})
                       </span>
                     </span>
@@ -1002,41 +994,41 @@ export default function ReportPreviewModal({
                   </div>
 
                   {/* Table for this Page */}
-                  <table className={styles.table} style={{ margin: 0, border: 'none' }}>
+                  <table className={styles.paperTable}>
                     <thead>
                       <tr>
-                        <th style={{ width: '45px' }}>S.No</th>
-                        <th style={{ width: '120px' }}>Roll No</th>
+                        <th style={{ width: '45px', textAlign: 'center' }}>S.No</th>
+                        <th style={{ width: '130px', textAlign: 'center' }}>Roll No</th>
                         <th>Student Name</th>
                         {(isLabOnly || isPureLabSubject) ? (
                           <>
-                            <th style={{ width: '150px' }}>Lab Attended Hours</th>
-                            <th style={{ width: '150px' }}>Lab Marks (/ 100)</th>
-                            <th style={{ width: '120px' }}>Result</th>
+                            <th style={{ width: '150px', textAlign: 'center' }}>Lab Attended Hours</th>
+                            <th style={{ width: '150px', textAlign: 'center' }}>Lab Marks (/ 100)</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>Result</th>
                           </>
                         ) : is2021 ? (
                           withInternal ? (
                             <>
-                              <th style={{ width: '140px' }}>Attended Class Hours</th>
-                              <th style={{ width: '130px' }}>Assignment Mark</th>
-                              <th style={{ width: '150px' }}>Internal Written Exam Mark (/ 100)</th>
-                              <th style={{ width: '140px' }}>Total Internal Marks (/ 100)</th>
+                              <th style={{ width: '140px', textAlign: 'center' }}>Attended Class Hours</th>
+                              <th style={{ width: '130px', textAlign: 'center' }}>Assignment Mark</th>
+                              <th style={{ width: '150px', textAlign: 'center' }}>Internal Written Exam Mark (/ 100)</th>
+                              <th style={{ width: '140px', textAlign: 'center' }}>Total Internal Marks (/ 100)</th>
                             </>
                           ) : (
                             <>
-                              <th style={{ width: '150px' }}>Attended Class Hours</th>
-                              <th style={{ width: '140px' }}>Activities Mark</th>
-                              <th style={{ width: '160px' }}>Internal Written Test Mark (/ 100)</th>
+                              <th style={{ width: '150px', textAlign: 'center' }}>Attended Class Hours</th>
+                              <th style={{ width: '140px', textAlign: 'center' }}>Activities Mark</th>
+                              <th style={{ width: '160px', textAlign: 'center' }}>Internal Written Test Mark (/ 100)</th>
                             </>
                           )
                         ) : (
                           // Default 2025 Autonomous Regulation Table: 8 columns (no result)
                           <>
-                            <th style={{ width: '130px' }}>Attended Hrs</th>
-                            <th style={{ width: '100px' }}>Attd Mark (5)</th>
-                            <th style={{ width: '110px' }}>Activities (95)</th>
-                            <th style={{ width: '120px' }}>Internal Mark</th>
-                            <th style={{ width: '130px' }}>Activities Mark Total</th>
+                            <th style={{ width: '130px', textAlign: 'center' }}>Attended Hrs</th>
+                            <th style={{ width: '110px', textAlign: 'center' }}>Attd Mark (5)</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>Activities (95)</th>
+                            <th style={{ width: '130px', textAlign: 'center' }}>Internal Mark</th>
+                            <th style={{ width: '140px', textAlign: 'center' }}>Activities Mark Total</th>
                           </>
                         )}
                       </tr>
@@ -1044,9 +1036,9 @@ export default function ReportPreviewModal({
                     <tbody>
                       {page.rows.map(r => (
                         <tr key={r.rollNo}>
-                          <td style={{ textAlign: 'center' }}>{r.sNo}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.rollNo}</td>
-                          <td>{r.name}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.sNo}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.rollNo}</td>
+                          <td style={{ fontWeight: 600 }}>{r.name}</td>
                           {(isLabOnly || isPureLabSubject) ? (
                             <>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
@@ -1090,7 +1082,8 @@ export default function ReportPreviewModal({
                     <div style={{
                       display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end',
                       padding: '24px 20px 14px', background: '#fafafa',
-                      borderTop: '1px dashed #cbd5e1'
+                      borderTop: '1px dashed #cbd5e1',
+                      color: '#0f172a'
                     }}>
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ borderTop: '1.5px solid #334155', width: '180px', margin: '0 auto 6px' }} />

@@ -1213,7 +1213,7 @@ export default function MarksEntryPage() {
               </p>
               <textarea
                 value={remedialAction}
-                onChange={(e) => { setRemedialAction(e.target.value); setSaved(false); setIsDirty(true); }}
+                onChange={(e) => { setRemedialAction(e.target.value); setSaved(false); setIsComponentsDirty(true); }}
                 placeholder="e.g. Extra coaching classes arranged for slow learners..."
                 disabled={isLocked}
                 style={{

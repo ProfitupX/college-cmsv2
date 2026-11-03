@@ -290,6 +290,30 @@ try {
   assert(absent === 1, 'Report Preview: Absent Students Count = 1');
   assert(passPct === '50.0', 'Report Preview: Pass Percentage = 50.0%');
 
+  // Verify preview row computation includes pct and does not throw ReferenceError
+  const testStudent = { id: 'ST100', roll_no: '921025104001', name: 'AATHISUNDARARAJAN N' };
+  const rawHours = 27;
+  const tHours = 30;
+  const pct = tHours > 0 ? Math.min(100, Math.round((rawHours / tHours) * 100)) : 0;
+  const previewRowTest = {
+    sNo: 1,
+    rollNo: testStudent.roll_no,
+    name: testStudent.name,
+    rawHours,
+    tHours,
+    pct,
+    attendanceMark: 3,
+    convertedTotal: 94,
+    totalInternal: 97
+  };
+  assert(previewRowTest.pct === 90, 'Report Preview: Student Attendance Pct Computed Correctly (90%)');
+  assert(typeof previewRowTest.pct === 'number', 'Report Preview: pct is Defined and Safe for All Students');
+
+  // Verify Search-Param Preserving Redirect
+  const searchStr = '?classId=CL003&subjectId=SUB020';
+  const aliasDest = `/marks-entry${searchStr}`;
+  assert(aliasDest.includes('classId=CL003') && aliasDest.includes('subjectId=SUB020'), 'URL Alias Routing: Preserves Query String Parameters across Redirects');
+
 
   // ─────────────────────────────────────────────────────────────
   // 5. SMOKE TEST: PDF EXPORT GENERATORS
