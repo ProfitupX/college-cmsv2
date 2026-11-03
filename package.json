@@ -11,6 +11,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "clean:tasks": "powershell -ExecutionPolicy Bypass -File scripts/kill_orphaned_tasks.ps1",
     "server": "node --watch server/index.js --env-file=server/.env",
     "server:start": "node server/index.js --env-file=server/.env"
   },
