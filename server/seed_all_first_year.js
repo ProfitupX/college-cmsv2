@@ -916,7 +916,7 @@ async function seedMaster() {
     `);
     await db.query(`
       UPDATE subjects 
-      SET faculty_id = 'S_CHITRA'
+      SET faculty_id = 'FAC002'
       WHERE (code = 'MA25C08' OR name LIKE '%Discrete Mathematics%') AND class_id = 'CL001'
     `);
     console.log('✅ Dr. C. Chithra promoted to First Year HoD with IT II Year Discrete Mathematics linked.');

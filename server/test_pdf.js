@@ -57,7 +57,7 @@ async function generateTest() {
   const [subjects] = await db.execute('SELECT * FROM subjects WHERE class_id = ? ORDER BY code', [classId]);
   const [students] = await db.execute('SELECT id, s_no, roll_no, name FROM students WHERE class_id = ? ORDER BY s_no', [classId]);
   const [sessions] = await db.execute('SELECT * FROM marks_sessions WHERE class_id = ? AND session_label = ?', [classId, sessionLabel]);
-  
+
   const sessionIds = sessions.map(s => s.id);
   let allAttendance = [];
   let allComponents = [];
@@ -75,11 +75,11 @@ async function generateTest() {
 
   try {
     const doc = new jsPDF('l', 'mm', 'a4');
-    
+
     // Custom Simple Header
     const title = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY';
     const subtitle = '(Approved by AICTE-New Delhi & Affiliated to Anna University-Chennai)';
-    
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.text(title, 148, 15, { align: 'center' });
@@ -98,7 +98,7 @@ async function generateTest() {
     const deptLabel = `Dept: ${classObj?.department || 'IT'}`;
     const secLabel = `Section: ${classObj?.section || 'A'}`;
     const semLabel = `Semester: ${classObj?.semester || '4'}`;
-    
+
     doc.text(deptLabel, 80, 36);
     doc.text(secLabel, 130, 36);
     doc.text(semLabel, 180, 36);
@@ -106,7 +106,7 @@ async function generateTest() {
     let y = 42;
 
     let targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
-    
+
     const headRow1 = [
       { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
       { content: 'Roll.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -129,7 +129,7 @@ async function generateTest() {
     const bodyRows = students.map((st, idx) => {
       let overallWHrs = 0;
       let overallPHrs = 0;
-      
+
       const row = [
         idx + 1,
         st.roll_no || st.rollNo || st.id,
@@ -142,12 +142,12 @@ async function generateTest() {
           row.push('0', '0', '-');
           return;
         }
-        
+
         const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        
+
         const subTotal = parseInt(sub.total_hours) || 60;
         const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
-        
+
         let wHrs = 45;
         if (sessionLabel === 'internal1') {
           wHrs = hourSplits.int1 || Math.ceil(subTotal / 2);
@@ -158,10 +158,10 @@ async function generateTest() {
         }
 
         const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
-        
+
         overallWHrs += wHrs;
         overallPHrs += pHrs;
-        
+
         const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
         let score;
         if (is2021) {
@@ -175,13 +175,13 @@ async function generateTest() {
         }
 
         const markStr = (score === null || isNaN(score)) ? 'AB' : Math.round(score);
-        
+
         row.push(wHrs, pHrs, markStr);
       });
 
       const pct = overallWHrs > 0 ? Math.min(100, Math.round((overallPHrs / overallWHrs) * 100)) : 0;
       row.push(overallWHrs, Math.min(overallPHrs, overallWHrs), pct);
-      
+
       return row;
     });
 
@@ -193,11 +193,11 @@ async function generateTest() {
       horizontalPageBreak: true,
       horizontalPageBreakRepeat: 0,
       styles: { fontSize: 7, halign: 'center', valign: 'middle', cellPadding: 1.5 },
-      headStyles: { fillColor: [240, 242, 245], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.1, lineColor: [0,0,0] },
-      bodyStyles: { lineWidth: 0.1, lineColor: [0,0,0] },
-      columnStyles: { 
+      headStyles: { fillColor: [240, 242, 245], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.1, lineColor: [0, 0, 0] },
+      bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0] },
+      columnStyles: {
         1: { halign: 'center', cellWidth: 20 },
-        2: { halign: 'left', cellWidth: 35 } 
+        2: { halign: 'left', cellWidth: 35 }
       }
     });
 
@@ -210,7 +210,7 @@ async function generateTest() {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.text('*** W.Hrs=Working Hours, P.Hrs=Present Hours, %=Attendance Percentage', 14, y);
-    
+
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);

@@ -29,21 +29,19 @@ CREATE TABLE IF NOT EXISTS `departments` (
   `short_name` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
   `college_name` varchar(250) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_dept_short` (`short_name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `departments` (`id`, `short_name`, `name`, `college_name`) VALUES
 (1, 'IT', 'Information Technology', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
 (2, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(3, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(4, 'AIDS', 'Artificial Intelligence and Data Science', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(5, 'EEE', 'Electrical and Electronics Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(6, 'ECE', 'Electronics and Communication Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(7, 'MECH', 'Mechanical Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(8, 'CIVIL', 'Civil Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(9, 'AIDS', 'Artificial Intelligence and Data Science', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(10, 'CSE', 'Computer Science and Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
-(11, 'S&H', 'Science and Humanities', 'Nadar Saraswathi College of Engineering and Technology, Theni');
+(3, 'AIDS', 'Artificial Intelligence and Data Science', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
+(4, 'EEE', 'Electrical and Electronics Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
+(5, 'ECE', 'Electronics and Communication Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
+(6, 'MECH', 'Mechanical Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
+(7, 'CIVIL', 'Civil Engineering', 'Nadar Saraswathi College of Engineering and Technology, Theni'),
+(8, 'S&H', 'Science and Humanities', 'Nadar Saraswathi College of Engineering and Technology, Theni');
 
 CREATE TABLE IF NOT EXISTS `classes` (
   `id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,

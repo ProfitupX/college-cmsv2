@@ -48,6 +48,15 @@ export async function initPool() {
       password: 'sharves@2007',
       database: 'college_cms',
     },
+    // 3b. Local Dev (HOD Secondary Laptop)
+    {
+      label: 'Local Dev (hodit@123)',
+      host: 'localhost',
+      port: 3306,
+      user: 'root',
+      password: 'hodit@123',
+      database: 'college_cms',
+    },
     // 4. Local Development (without password)
     {
       label: 'Local Dev (empty password)',

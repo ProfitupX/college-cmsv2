@@ -2,7 +2,7 @@ import MarksRow from './MarksRow';
 import { useAuth } from '../../context/AuthContext';
 import styles from './MarksTable.module.css';
 
-export default function MarksTable({ 
+export default function MarksTable({
   students = [], components = [], marksData = {}, onMarkChange,
   attendanceData = {}, attendanceMarks = {}, int1AttendanceData = {}, internalExamData = {}, totalHours = 0, int1Hours = 30, int2Hours = 30, labHours = 0,
   onAttendanceChange, onInternalExamChange, onTotalHoursChange,
@@ -115,15 +115,16 @@ export default function MarksTable({
                 </th>
 
                 {/* Lab Attendance Header (if Lab-cum-Theory / Theory-cum-Lab) */}
-                {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
-                  <th className={`${styles.th} ${styles.attendanceTh}`}>
-                    <div className={styles.thContent}>
-                      <span className={styles.thIcon}>🧑‍🔬</span>
-                      <span className={styles.thLabel}>Lab Attd</span>
-                      <div className={styles.thSub}>Max: {labHours || 30}</div>
-                    </div>
-                  </th>
-                )}
+                {assessmentMode === 'internal2' &&
+                  (selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
+                    <th className={`${styles.th} ${styles.attendanceTh}`}>
+                      <div className={styles.thContent}>
+                        <span className={styles.thIcon}>🧑‍🔬</span>
+                        <span className={styles.thLabel}>Lab Attd</span>
+                        <div className={styles.thSub}>Max: {labHours || 30}</div>
+                      </div>
+                    </th>
+                  )}
 
                 {/* Activities Total - ALWAYS visible */}
                 <th className={`${styles.th} ${styles.computedTh}`}>

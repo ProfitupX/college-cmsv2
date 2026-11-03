@@ -2,7 +2,7 @@ import { computeGrade } from '../../data/assessmentTypes';
 import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/attendanceCalculator';
 import styles from './MarksRow.module.css';
 
-export default function MarksRow({ 
+export default function MarksRow({
   student = {}, components = [], marks = {}, attendanceHours = '', savedAttendanceMark, isElevated, int1AttendanceHours = '', internalExamMark = '', displayHours = 30, conductedHours, conductedCumHours, int1Hours = 30, int2Hours = 30, labHours = 0,
   onMarkChange, onAttendanceChange, onInternalExamChange, index = 0,
   assessmentMode = 'internal1', labData = {}, selectedSubject = {}, onLabDataChange, isLocked,
@@ -20,7 +20,7 @@ export default function MarksRow({
   // Max allowed hours (strictly 30 or LTPC prescribed, cannot exceed)
   const maxAttdHours = Math.max(7, parseInt(int1Hours || displayHours || 30, 10));
   const maxInt2Hours = Math.max(7, parseInt(int2Hours || displayHours || 30, 10));
-  const maxLabHours  = Math.max(0, parseInt(labHours || 0, 10));
+  const maxLabHours = Math.max(0, parseInt(labHours || 0, 10));
 
   const effectiveAttMark = resolveAttendanceMark(student?.id, {
     attendanceMarks: student?.id ? { [student.id]: savedAttendanceMark } : {},
@@ -94,7 +94,7 @@ export default function MarksRow({
                 onLabDataChange && onLabDataChange('labAttendance', val);
               }}
               onKeyDown={(e) => {
-                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                   const sel = window.getSelection()?.toString();
                   if (!sel && pureLabAttdNum >= pureLabHoursMax) {
                     e.preventDefault();
@@ -138,7 +138,7 @@ export default function MarksRow({
                 onLabDataChange && onLabDataChange('labMark', val);
               }}
               onKeyDown={(e) => {
-                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                   const sel = window.getSelection()?.toString();
                   if (!sel && pureLabMarkNum >= 100) {
                     e.preventDefault();
@@ -231,7 +231,7 @@ export default function MarksRow({
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                     const sel = window.getSelection()?.toString();
                     if (!sel && parseFloat(val) >= conductedMax) {
                       e.preventDefault();
@@ -280,7 +280,7 @@ export default function MarksRow({
                   onAttendanceChange(val);
                 }}
                 onKeyDown={(e) => {
-                  if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                  if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                     const sel = window.getSelection()?.toString();
                     if (!sel && parseFloat(attendanceHours) >= currentMaxAttd) {
                       e.preventDefault();
@@ -291,8 +291,8 @@ export default function MarksRow({
                 placeholder="—"
               />
               <span className={styles.inputMax}>/{currentMaxAttd}</span>
-              <span 
-                className={styles.attMarkBadge} 
+              <span
+                className={styles.attMarkBadge}
                 title={`Calculated Attendance Mark: ${effectiveAttMark} / 5`}
                 style={{
                   display: 'inline-flex',
@@ -318,50 +318,51 @@ export default function MarksRow({
       })()}
 
       {/* Lab Attendance Input Column (if Lab-cum-Theory / Theory-cum-Lab) */}
-      {(selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
-        <td className={styles.inputCell}>
-          <div className={styles.inputWrap}>
-            <input
-              type="number"
-              min="0"
-              max={maxLabHours}
-              className={`${styles.input} ${parseFloat(labData?.labAttendance) > maxLabHours ? styles.inputError : ''}`}
-              value={labData?.labAttendance !== undefined ? labData.labAttendance : ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  onLabDataChange && onLabDataChange('labAttendance', '');
-                  return;
-                }
-                const num = parseFloat(val);
-                if (!isNaN(num) && num > maxLabHours) {
-                  onLabDataChange && onLabDataChange('labAttendance', String(maxLabHours));
-                  return;
-                }
-                if (!isNaN(num) && num < 0) {
-                  onLabDataChange && onLabDataChange('labAttendance', '0');
-                  return;
-                }
-                onLabDataChange && onLabDataChange('labAttendance', val);
-              }}
-              onKeyDown={(e) => {
-                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
-                  const sel = window.getSelection()?.toString();
-                  if (!sel && parseFloat(labData?.labAttendance) >= maxLabHours) {
-                    e.preventDefault();
+      {assessmentMode === 'internal2' &&
+        (selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab') && (
+          <td className={styles.inputCell}>
+            <div className={styles.inputWrap}>
+              <input
+                type="number"
+                min="0"
+                max={maxLabHours}
+                className={`${styles.input} ${parseFloat(labData?.labAttendance) > maxLabHours ? styles.inputError : ''}`}
+                value={labData?.labAttendance !== undefined ? labData.labAttendance : ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    onLabDataChange && onLabDataChange('labAttendance', '');
+                    return;
                   }
-                }
-              }}
-              disabled={isLocked}
-              placeholder="—"
-            />
-            <span className={styles.inputMax}>/{maxLabHours}</span>
-            {parseFloat(labData?.labAttendance) > maxLabHours && (
-              <span className={styles.errorTip}>Max: {maxLabHours}</span>
-            )}
-          </div>
-        </td>
-      )}
+                  const num = parseFloat(val);
+                  if (!isNaN(num) && num > maxLabHours) {
+                    onLabDataChange && onLabDataChange('labAttendance', String(maxLabHours));
+                    return;
+                  }
+                  if (!isNaN(num) && num < 0) {
+                    onLabDataChange && onLabDataChange('labAttendance', '0');
+                    return;
+                  }
+                  onLabDataChange && onLabDataChange('labAttendance', val);
+                }}
+                onKeyDown={(e) => {
+                  if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+                    const sel = window.getSelection()?.toString();
+                    if (!sel && parseFloat(labData?.labAttendance) >= maxLabHours) {
+                      e.preventDefault();
+                    }
+                  }
+                }}
+                disabled={isLocked}
+                placeholder="—"
+              />
+              <span className={styles.inputMax}>/{maxLabHours}</span>
+              {parseFloat(labData?.labAttendance) > maxLabHours && (
+                <span className={styles.errorTip}>Max: {maxLabHours}</span>
+              )}
+            </div>
+          </td>
+        )}
 
       {/* Activities / Component Total */}
       <td className={styles.totalCell}>
@@ -394,7 +395,7 @@ export default function MarksRow({
               onInternalExamChange(v);
             }}
             onKeyDown={(e) => {
-              if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+              if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                 const sel = window.getSelection()?.toString();
                 if (!sel && parseFloat(internalExamMark) >= 100) {
                   e.preventDefault();
@@ -431,7 +432,7 @@ export default function MarksRow({
                 onLabDataChange('labMark', v);
               }}
               onKeyDown={(e) => {
-                if (['0','1','2','3','4','5','6','7','8','9'].includes(e.key)) {
+                if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                   const sel = window.getSelection()?.toString();
                   if (!sel && parseFloat(labData?.labMark) >= 100) {
                     e.preventDefault();
