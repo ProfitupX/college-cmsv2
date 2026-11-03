@@ -46,13 +46,12 @@ export const computeAttendancePercentage = ({
     const i2Max = parseInt(int2Hours || 30, 10);
     const lMax  = parseInt(labHours || 0, 10);
 
-    // If Internal 1 attendance was recorded (> 0 hours), compute true cumulative percentage:
+    // If Internal 1 attendance was recorded (> 0 hours), compute true cumulative percentage across Theory periods:
     if (i1Attd > 0) {
       const cumAttended = Math.min(i1Max, Math.max(0, i1Attd)) +
-                          Math.min(i2Max, Math.max(0, i2Attd)) +
-                          Math.min(lMax, Math.max(0, lAttd));
+                          Math.min(i2Max, Math.max(0, i2Attd));
 
-      const cumMax = (i1Max + i2Max + lMax) || parseInt(totalHours, 10) || 60;
+      const cumMax = (i1Max + i2Max) || parseInt(totalHours, 10) || 60;
       return cumMax > 0 ? Math.min(100, Math.round((cumAttended / cumMax) * 100)) : 0;
     }
 

@@ -155,9 +155,8 @@ try {
 
       if (i1Attd > 0) {
         const cumAttended = Math.min(i1Max, Math.max(0, i1Attd)) +
-                            Math.min(i2Max, Math.max(0, i2Attd)) +
-                            Math.min(lMax, Math.max(0, lAttd));
-        const cumMax = (i1Max + i2Max + lMax) || parseInt(totalHours, 10) || 60;
+                            Math.min(i2Max, Math.max(0, i2Attd));
+        const cumMax = (i1Max + i2Max) || parseInt(totalHours, 10) || 60;
         return cumMax > 0 ? Math.min(100, Math.round((cumAttended / cumMax) * 100)) : 0;
       }
       const activeMax = i2Max || parseInt(totalHours, 10) || 30;
@@ -224,6 +223,11 @@ try {
 
   // Internal 2 with Int 1 recorded:
   assert(resolveAttendanceMark('ST001', { attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: { 'ST001': 28 }, int1Hours: 30, int2Hours: 30 }) === 5, 'Internal 2 (Cumulative 58/60): (28+30)/60 -> 5 Marks');
+
+  // Theory-cum-Lab (CS25C07) Attendance Calculation Suite (Verify lab hours do not dilute Theory attendance mark):
+  assert(resolveAttendanceMark('ST001', { attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: { 'ST001': 30 }, int1Hours: 30, int2Hours: 30, labHours: 45, labData: { 'ST001': { labAttendance: 30 } } }) === 5, 'Theory-cum-Lab: 30/30 Theory Hours -> 5 Marks (NOT 2m)');
+  assert(resolveAttendanceMark('ST002', { attendanceData: { 'ST002': 28 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: { 'ST002': 28 }, int1Hours: 30, int2Hours: 30, labHours: 45, labData: { 'ST002': { labAttendance: 28 } } }) === 3, 'Theory-cum-Lab: 28/30 Theory Hours -> 3 Marks (NOT 1m)');
+  assert(resolveAttendanceMark('ST003', { attendanceData: { 'ST003': 26 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: { 'ST003': 26 }, int1Hours: 30, int2Hours: 30, labHours: 45, labData: { 'ST003': { labAttendance: 26 } } }) === 2, 'Theory-cum-Lab: 26/30 Theory Hours -> 2 Marks (NOT 0m)');
 
   // Stale backend 0 mark must NOT override entered hours:
   assert(resolveAttendanceMark('ST001', { attendanceMarks: { 'ST001': 0 }, attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2' }) === 5, 'Stale Backend 0.00 Attendance Mark Does Not Block Real 30 Hours');

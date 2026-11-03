@@ -403,10 +403,9 @@ router.post('/submit', async (req, res) => {
           const lMax = parseInt(req.body.labHours, 10) || 0;
 
           if (i1Attd > 0) {
-            const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 60;
+            const cumPrescribedMax = (i1Max + i2Max) || tHours || 60;
             const cappedI2 = Math.min(i2Max, Math.max(0, rawHours));
-            const cappedLab = Math.min(lMax, Math.max(0, labHrs));
-            const cumAttd = Math.min(cumPrescribedMax, Math.min(i1Max, i1Attd) + cappedI2 + cappedLab);
+            const cumAttd = Math.min(cumPrescribedMax, Math.min(i1Max, i1Attd) + cappedI2);
 
             const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
             attMark = getAttendanceMark(pct);
@@ -517,7 +516,9 @@ router.post('/submit', async (req, res) => {
             (a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark)))
               ? parseFloat(a.internalExamMark)
               : (isPureLabSubmission && a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark)) ? parseFloat(a.labMark) : null),
-            labHrs > 0 ? labHrs : (savedHours > 0 ? savedHours : 0),
+            (a.labAttendance !== undefined && a.labAttendance !== null && a.labAttendance !== '' && !isNaN(parseInt(a.labAttendance, 10)))
+              ? parseInt(a.labAttendance, 10)
+              : (isPureLabSubmission ? savedHours : (labHrs > 0 ? labHrs : null)),
             (a.labMark !== undefined && a.labMark !== null && a.labMark !== '' && !isNaN(parseFloat(a.labMark)))
               ? parseFloat(a.labMark)
               : (isPureLabSubmission && a.internalExamMark !== undefined && a.internalExamMark !== null && a.internalExamMark !== '' && !isNaN(parseFloat(a.internalExamMark)) ? parseFloat(a.internalExamMark) : null)

@@ -498,12 +498,23 @@ export default function MarksEntryPage() {
       const currentAssessmentHours = parseInt(totalHours, 10) || (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
 
       const attendancePayload = students.map(st => {
-        const rawAttd = attendanceData[st.id] !== undefined && attendanceData[st.id] !== '' 
+        const rawAttd = (attendanceData[st.id] !== undefined && attendanceData[st.id] !== '')
           ? parseInt(attendanceData[st.id], 10) || 0 
-          : (parseInt(labData[st.id]?.labAttendance, 10) || 0);
-        const rawLabMark = (labData[st.id] && labData[st.id].labMark !== undefined && labData[st.id].labMark !== '')
-          ? labData[st.id].labMark
-          : (internalExamData[st.id] || '');
+          : (isPureLab ? (parseInt(labData[st.id]?.labAttendance, 10) || 0) : 0);
+
+        const stLab = labData[st.id] || {};
+        const rawLabAttd = (stLab.labAttendance !== undefined && stLab.labAttendance !== '' && !isNaN(parseInt(stLab.labAttendance, 10)))
+          ? parseInt(stLab.labAttendance, 10)
+          : null;
+
+        const rawLabMark = (stLab.labMark !== undefined && stLab.labMark !== '' && !isNaN(parseFloat(stLab.labMark)))
+          ? parseFloat(stLab.labMark)
+          : null;
+
+        const rawInternalExam = (internalExamData[st.id] !== undefined && internalExamData[st.id] !== '' && !isNaN(parseFloat(internalExamData[st.id])))
+          ? parseFloat(internalExamData[st.id])
+          : (internalExamData[st.id] === 'AB' ? 'AB' : null);
+
         const calculatedMark = resolveAttendanceMark(st.id, {
           attendanceMarks,
           attendanceData,
@@ -515,15 +526,16 @@ export default function MarksEntryPage() {
           labHours,
           labData
         });
+
         return {
           studentId: st.id,
           hoursAttended: rawAttd,
           actualTakenHours: rawAttd,
           attendanceMark: calculatedMark,
           int1AttendanceHours: int1AttendanceData[st.id] !== undefined && int1AttendanceData[st.id] !== '' ? parseInt(int1AttendanceData[st.id], 10) || 0 : 0,
-          internalExamMark: rawLabMark || internalExamData[st.id] || '',
-          labAttendance: rawAttd,
-          labMark: rawLabMark
+          internalExamMark: rawInternalExam !== null ? rawInternalExam : (isPureLab ? (rawLabMark !== null ? rawLabMark : '') : ''),
+          labAttendance: rawLabAttd !== null ? rawLabAttd : (isPureLab ? rawAttd : null),
+          labMark: rawLabMark !== null ? rawLabMark : null
         };
       });
 
