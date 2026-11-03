@@ -46,12 +46,21 @@ export const computeAttendancePercentage = ({
     const i2Max = parseInt(int2Hours || 30, 10);
     const lMax  = parseInt(labHours || 0, 10);
 
-    const cumAttended = Math.min(i1Max, Math.max(0, i1Attd)) +
-                        Math.min(i2Max, Math.max(0, i2Attd)) +
-                        Math.min(lMax, Math.max(0, lAttd));
+    // If Internal 1 attendance was recorded (> 0 hours), compute true cumulative percentage:
+    if (i1Attd > 0) {
+      const cumAttended = Math.min(i1Max, Math.max(0, i1Attd)) +
+                          Math.min(i2Max, Math.max(0, i2Attd)) +
+                          Math.min(lMax, Math.max(0, lAttd));
 
-    const cumMax = (i1Max + i2Max + lMax) || parseInt(totalHours, 10) || 60;
-    return cumMax > 0 ? Math.min(100, Math.round((cumAttended / cumMax) * 100)) : 0;
+      const cumMax = (i1Max + i2Max + lMax) || parseInt(totalHours, 10) || 60;
+      return cumMax > 0 ? Math.min(100, Math.round((cumAttended / cumMax) * 100)) : 0;
+    }
+
+    // When Internal 1 attendance is not available or not recorded, evaluate against
+    // Internal 2's active prescribed assessment hours (typically 30h) rather than dividing by 60
+    const activeMax = i2Max || parseInt(totalHours, 10) || 30;
+    const capped = Math.min(activeMax, Math.max(0, i2Attd));
+    return activeMax > 0 ? Math.min(100, Math.round((capped / activeMax) * 100)) : 0;
   } else {
     // Internal 1:
     const tMax = parseInt(int1Hours || totalHours || 30, 10);
@@ -68,10 +77,10 @@ export const computeStudentAttendanceMark = (params) => {
 /**
  * Resolves the attendance mark for a specific student.
  * 
- * IMPORTANT:
- * If the backend already provided a calculated `attendance_mark` (stored in `attendanceMarks[studentId]`),
- * that value MUST BE RETURNED DIRECTLY (including 0!).
- * Recalculation only occurs if the student has no stored attendance mark yet (e.g. freshly typed hours).
+ * Rules:
+ * 1. If attended hours are entered/present (even 0), calculate the canonical mark based on attendance %.
+ *    This ensures that live inputs or loaded hours always compute correctly (e.g. 30/30 -> 5 marks).
+ * 2. If no attended hours are present in state, fall back to backend saved mark (if valid and > 0).
  */
 export const resolveAttendanceMark = (studentId, {
   attendanceMarks = {},
@@ -84,34 +93,35 @@ export const resolveAttendanceMark = (studentId, {
   labHours = 0,
   labData = {}
 } = {}) => {
-  // 1. Direct Backend Source of Truth:
-  // If attendanceMarks has a value for this student (e.g. 0, 1, 2, 3, 5), USE IT.
-  if (attendanceMarks && studentId && attendanceMarks[studentId] !== undefined && attendanceMarks[studentId] !== null) {
-    const parsed = parseFloat(attendanceMarks[studentId]);
-    if (!isNaN(parsed)) return parsed;
+  const sIdStr = String(studentId || '');
+  const rawHoursVal = attendanceData?.[studentId] ?? attendanceData?.[sIdStr];
+
+  // 1. If attended hours are entered or loaded in attendanceData, compute canonically:
+  if (rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null) {
+    const rawHours = parseInt(rawHoursVal, 10) || 0;
+    const int1Attd = int1AttendanceData?.[studentId] ?? int1AttendanceData?.[sIdStr] ?? 0;
+    const studentLab = labData?.[studentId] ?? labData?.[sIdStr] ?? {};
+    const labAttd = studentLab?.labAttendance ?? 0;
+
+    return computeStudentAttendanceMark({
+      rawHours,
+      totalHours,
+      assessmentMode,
+      int1HoursAttended: int1Attd,
+      int1Hours,
+      int2Hours,
+      labHours,
+      labAttendance: labAttd
+    });
   }
 
-  // Also check string / numeric ID variations
-  const sIdStr = String(studentId);
-  if (attendanceMarks && attendanceMarks[sIdStr] !== undefined && attendanceMarks[sIdStr] !== null) {
-    const parsed = parseFloat(attendanceMarks[sIdStr]);
-    if (!isNaN(parsed)) return parsed;
+  // 2. If no attended hours are present in state, fall back to backend saved mark:
+  if (attendanceMarks) {
+    const saved = attendanceMarks[studentId] ?? attendanceMarks[sIdStr];
+    if (saved !== undefined && saved !== null && !isNaN(parseFloat(saved))) {
+      return parseFloat(saved);
+    }
   }
 
-  // 2. Fallback / Live input calculation using exact shared canonical formula:
-  const rawHours = attendanceData?.[studentId] ?? attendanceData?.[sIdStr] ?? 0;
-  const int1Attd = int1AttendanceData?.[studentId] ?? int1AttendanceData?.[sIdStr] ?? 0;
-  const studentLab = labData?.[studentId] ?? labData?.[sIdStr] ?? {};
-  const labAttd = studentLab?.labAttendance ?? 0;
-
-  return computeStudentAttendanceMark({
-    rawHours,
-    totalHours,
-    assessmentMode,
-    int1HoursAttended: int1Attd,
-    int1Hours,
-    int2Hours,
-    labHours,
-    labAttendance: labAttd
-  });
+  return 0;
 };

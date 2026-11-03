@@ -396,27 +396,38 @@ router.post('/submit', async (req, res) => {
         let attMark = 0;
         const savedHours = Math.max(0, rawHours);
         
-        if (a.attendanceMark !== undefined && a.attendanceMark !== null && !isNaN(parseFloat(a.attendanceMark))) {
-          attMark = parseFloat(a.attendanceMark);
-        } else if (sessionLabel === 'internal2') {
+        if (sessionLabel === 'internal2') {
           const i1Attd = parseInt(a.int1AttendanceHours, 10) || 0;
           const i1Max = parseInt(req.body.int1Hours, 10) || 30;
           const i2Max = parseInt(req.body.int2Hours, 10) || 30;
           const lMax = parseInt(req.body.labHours, 10) || 0;
-          const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 60;
 
-          const cappedI2 = Math.min(i2Max, Math.max(0, rawHours));
-          const cappedLab = Math.min(lMax, Math.max(0, labHrs));
-          const cumAttd = Math.min(cumPrescribedMax, Math.min(i1Max, i1Attd) + cappedI2 + cappedLab);
+          if (i1Attd > 0) {
+            const cumPrescribedMax = (i1Max + i2Max + lMax) || tHours || 60;
+            const cappedI2 = Math.min(i2Max, Math.max(0, rawHours));
+            const cappedLab = Math.min(lMax, Math.max(0, labHrs));
+            const cumAttd = Math.min(cumPrescribedMax, Math.min(i1Max, i1Attd) + cappedI2 + cappedLab);
 
-          const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
-          attMark = getAttendanceMark(pct);
+            const pct = cumPrescribedMax > 0 ? Math.min(100, Math.round((cumAttd / cumPrescribedMax) * 100)) : 0;
+            attMark = getAttendanceMark(pct);
+          } else {
+            // When Internal 1 is not recorded / 0, calculate against Internal 2's prescribed hours
+            const activeMax = i2Max || tHours || 30;
+            const cappedI2 = Math.min(activeMax, Math.max(0, rawHours));
+            const pct = activeMax > 0 ? Math.min(100, Math.round((cappedI2 / activeMax) * 100)) : 0;
+            attMark = getAttendanceMark(pct);
+          }
         } else {
           // Internal 1: Calculate attendance mark percentage
           const prescribedHours = parseInt(req.body.int1Hours, 10) || tHours || 30;
           const cappedHours = Math.min(prescribedHours, Math.max(0, rawHours));
           const pct = prescribedHours > 0 ? Math.min(100, Math.round((cappedHours / prescribedHours) * 100)) : 0;
           attMark = getAttendanceMark(pct);
+        }
+
+        // If client explicitly passed a calculated attendanceMark, use it as fallback
+        if (a.attendanceMark !== undefined && a.attendanceMark !== null && !isNaN(parseFloat(a.attendanceMark)) && parseFloat(a.attendanceMark) > 0) {
+          attMark = parseFloat(a.attendanceMark);
         }
 
         // Track attendance & exam audit deltas
@@ -747,12 +758,19 @@ router.get('/sessions/:id', async (req, res) => {
     attendanceRows.forEach(r => {
       const rawHrs = r.actual_taken_hours !== null && r.actual_taken_hours !== undefined ? r.actual_taken_hours : r.hours_attended;
       attendance[r.student_id] = rawHrs;
-      if (r.attendance_mark !== null && r.attendance_mark !== undefined) {
-        attendanceMarks[r.student_id] = parseFloat(r.attendance_mark);
-      } else {
-        const tHours = parseInt(sessions[0]?.total_hours, 10) || 30;
-        const pct = tHours > 0 ? Math.min(100, Math.round((parseInt(rawHrs || 0, 10) / tHours) * 100)) : 0;
+      const rawHrsNum = parseInt(rawHrs || 0, 10);
+      const dbMark = (r.attendance_mark !== null && r.attendance_mark !== undefined) ? parseFloat(r.attendance_mark) : null;
+      if (dbMark !== null && dbMark > 0) {
+        attendanceMarks[r.student_id] = dbMark;
+      } else if (rawHrsNum > 0) {
+        const isInt2 = String(sessions[0]?.session_label || '').toLowerCase().trim() === 'internal2';
+        const sInt2Max = parseInt(sessions[0]?.int2_hours, 10) || parseInt(sessions[0]?.total_hours, 10) || 30;
+        const sInt1Max = parseInt(sessions[0]?.int1_hours, 10) || parseInt(sessions[0]?.total_hours, 10) || 30;
+        const sTargetMax = isInt2 ? sInt2Max : sInt1Max;
+        const pct = sTargetMax > 0 ? Math.min(100, Math.round((rawHrsNum / sTargetMax) * 100)) : 0;
         attendanceMarks[r.student_id] = getAttendanceMark(pct);
+      } else {
+        attendanceMarks[r.student_id] = 0;
       }
       internalExam[r.student_id] = r.internal_exam_mark;
       labData[r.student_id] = {

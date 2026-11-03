@@ -232,17 +232,16 @@ export const marksAPI = {
       
       if (res.attendance) {
         Object.keys(res.attendance).forEach(stId => {
-          if (res.attendanceMarks[stId] === undefined || res.attendanceMarks[stId] === null) {
-            res.attendanceMarks[stId] = resolveAttendanceMark(stId, {
-              attendanceMarks: res.attendanceMarks,
-              attendanceData: res.attendance,
-              totalHours: tHours,
-              assessmentMode: mode,
-              labData: res.labData || {}
-            });
-          } else {
-            res.attendanceMarks[stId] = parseFloat(res.attendanceMarks[stId]);
-          }
+          res.attendanceMarks[stId] = resolveAttendanceMark(stId, {
+            attendanceMarks: res.attendanceMarks,
+            attendanceData: res.attendance,
+            totalHours: tHours,
+            assessmentMode: mode,
+            int1Hours: parseInt(res.session.int1_hours, 10) || 30,
+            int2Hours: parseInt(res.session.int2_hours, 10) || 30,
+            labHours: parseInt(res.session.lab_hours, 10) || 0,
+            labData: res.labData || {}
+          });
         });
       }
     }

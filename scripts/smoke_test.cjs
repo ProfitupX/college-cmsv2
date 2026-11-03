@@ -133,16 +133,100 @@ try {
   assert(calculateAttendanceMark(79) === 0, 'Attendance Mark: 79% -> 0 Marks');
   assert(calculateAttendanceMark(50) === 0, 'Attendance Mark: 50% -> 0 Marks');
 
-  // Shared Calculation Resolution: Backend provided mark MUST be respected (Single Shared Source)
-  const resolveAttendanceMark = (studentId, { attendanceMarks = {} } = {}) => {
-    if (attendanceMarks && studentId && attendanceMarks[studentId] !== undefined) {
-      return parseFloat(attendanceMarks[studentId]);
+  // Canonical Attendance Calculation Suite:
+  const computeAttendancePercentage = ({
+    rawHours = 0,
+    totalHours = 30,
+    assessmentMode = 'internal1',
+    int1HoursAttended = 0,
+    int1Hours = 30,
+    int2Hours = 30,
+    labHours = 0,
+    labAttendance = 0
+  }) => {
+    const isInternal2 = String(assessmentMode || '').toLowerCase().trim() === 'internal2';
+    if (isInternal2) {
+      const i1Attd = parseInt(int1HoursAttended || 0, 10);
+      const i2Attd = parseInt(rawHours || 0, 10);
+      const lAttd  = parseInt(labAttendance || 0, 10);
+      const i1Max = parseInt(int1Hours || 30, 10);
+      const i2Max = parseInt(int2Hours || 30, 10);
+      const lMax  = parseInt(labHours || 0, 10);
+
+      if (i1Attd > 0) {
+        const cumAttended = Math.min(i1Max, Math.max(0, i1Attd)) +
+                            Math.min(i2Max, Math.max(0, i2Attd)) +
+                            Math.min(lMax, Math.max(0, lAttd));
+        const cumMax = (i1Max + i2Max + lMax) || parseInt(totalHours, 10) || 60;
+        return cumMax > 0 ? Math.min(100, Math.round((cumAttended / cumMax) * 100)) : 0;
+      }
+      const activeMax = i2Max || parseInt(totalHours, 10) || 30;
+      const capped = Math.min(activeMax, Math.max(0, i2Attd));
+      return activeMax > 0 ? Math.min(100, Math.round((capped / activeMax) * 100)) : 0;
+    } else {
+      const tMax = parseInt(int1Hours || totalHours || 30, 10);
+      const capped = Math.min(tMax, Math.max(0, parseInt(rawHours || 0, 10)));
+      return tMax > 0 ? Math.min(100, Math.round((capped / tMax) * 100)) : 0;
+    }
+  };
+
+  const resolveAttendanceMark = (studentId, {
+    attendanceMarks = {},
+    attendanceData = {},
+    totalHours = 30,
+    assessmentMode = 'internal1',
+    int1AttendanceData = {},
+    int1Hours = 30,
+    int2Hours = 30,
+    labHours = 0,
+    labData = {}
+  } = {}) => {
+    const sIdStr = String(studentId || '');
+    const rawHoursVal = attendanceData?.[studentId] ?? attendanceData?.[sIdStr];
+
+    if (rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null) {
+      const rawHours = parseInt(rawHoursVal, 10) || 0;
+      const int1Attd = int1AttendanceData?.[studentId] ?? int1AttendanceData?.[sIdStr] ?? 0;
+      const studentLab = labData?.[studentId] ?? labData?.[sIdStr] ?? {};
+      const labAttd = studentLab?.labAttendance ?? 0;
+      const pct = computeAttendancePercentage({
+        rawHours,
+        totalHours,
+        assessmentMode,
+        int1HoursAttended: int1Attd,
+        int1Hours,
+        int2Hours,
+        labHours,
+        labAttendance: labAttd
+      });
+      return calculateAttendanceMark(pct);
+    }
+
+    if (attendanceMarks) {
+      const saved = attendanceMarks[studentId] ?? attendanceMarks[sIdStr];
+      if (saved !== undefined && saved !== null && !isNaN(parseFloat(saved))) {
+        return parseFloat(saved);
+      }
     }
     return 0;
   };
 
-  assert(resolveAttendanceMark('ST001', { attendanceMarks: { 'ST001': 5 } }) === 5, 'resolveAttendanceMark Respects Backend Attendance Mark 5');
-  assert(resolveAttendanceMark('ST002', { attendanceMarks: { 'ST002': 0 } }) === 0, 'resolveAttendanceMark Respects Backend Attendance Mark 0');
+  // Internal 1 calculation tests:
+  assert(resolveAttendanceMark('ST001', { attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal1' }) === 5, 'Internal 1: 30/30 Hours -> 5 Marks');
+  assert(resolveAttendanceMark('ST002', { attendanceData: { 'ST002': 27 }, totalHours: 30, assessmentMode: 'internal1' }) === 3, 'Internal 1: 27/30 Hours -> 3 Marks');
+  assert(resolveAttendanceMark('ST003', { attendanceData: { 'ST003': 20 }, totalHours: 30, assessmentMode: 'internal1' }) === 0, 'Internal 1: 20/30 Hours (<80%) -> 0 Marks');
+
+  // Internal 2 calculation tests (CRITICAL BUG FIX: Never 0 when Int1 is absent and student attended 30/30):
+  assert(resolveAttendanceMark('ST001', { attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: {} }) === 5, 'Internal 2 (No Int1): 30/30 Hours -> 5 Marks (Fixed 0m bug)');
+  assert(resolveAttendanceMark('ST002', { attendanceData: { 'ST002': 29 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: {} }) === 5, 'Internal 2 (No Int1): 29/30 Hours (97%) -> 5 Marks');
+  assert(resolveAttendanceMark('ST003', { attendanceData: { 'ST003': 27 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: {} }) === 3, 'Internal 2 (No Int1): 27/30 Hours (90%) -> 3 Marks');
+  assert(resolveAttendanceMark('ST004', { attendanceData: { 'ST004': 26 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: {} }) === 2, 'Internal 2 (No Int1): 26/30 Hours (87%) -> 2 Marks');
+
+  // Internal 2 with Int 1 recorded:
+  assert(resolveAttendanceMark('ST001', { attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2', int1AttendanceData: { 'ST001': 28 }, int1Hours: 30, int2Hours: 30 }) === 5, 'Internal 2 (Cumulative 58/60): (28+30)/60 -> 5 Marks');
+
+  // Stale backend 0 mark must NOT override entered hours:
+  assert(resolveAttendanceMark('ST001', { attendanceMarks: { 'ST001': 0 }, attendanceData: { 'ST001': 30 }, totalHours: 30, assessmentMode: 'internal2' }) === 5, 'Stale Backend 0.00 Attendance Mark Does Not Block Real 30 Hours');
 
   // Grade Scale Test
   const GRADE_THRESHOLDS = [
