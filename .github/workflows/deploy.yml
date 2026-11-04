@@ -104,9 +104,7 @@ jobs:
 
             # 4. Clean reload PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            pkill -9 -u $(whoami) -f "server/index.js" 2>/dev/null || true
-            pkill -9 -u $(whoami) -f "node" 2>/dev/null || true
-            pm2 delete all >> "$LOG_FILE" 2>&1 || true
+            pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
 
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
