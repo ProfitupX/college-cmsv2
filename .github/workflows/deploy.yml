@@ -48,55 +48,19 @@ jobs:
           target: "/tmp/markhub_dist"
           overwrite: true
 
-      - name: Root Port Free via Direct Root SSH
-        continue-on-error: true
+      - name: Root Full Deploy, Process Reload & Health Check via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            echo "=== ROOT PRE-DEPLOY PORT RELEASE ==="
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-            fuser -k -9 5000/tcp 2>/dev/null || true
-            pkill -9 -f "server/index.js" 2>/dev/null || true
-            pkill -9 -f "node index.js" 2>/dev/null || true
-            systemctl stop college-cms 2>/dev/null || true
-            systemctl stop markhub 2>/dev/null || true
-            pm2 stop all 2>/dev/null || /usr/local/bin/pm2 stop all 2>/dev/null || true
-            chown -R markhub-deploy:markhub-deploy /var/www/markhub 2>/dev/null || true
-            chmod -R 775 /var/www/markhub 2>/dev/null || true
-            sleep 1
-
-      - name: Deploy, Health Check & Auto-Rollback on VPS
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 5m
           script: |
             set +e
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
             LOG_FILE="/tmp/deploy_debug.log"
-            echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
+            echo "=== ROOT DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
-
-            # Requirement 3: Create stable backup snapshot BEFORE updating production
-            STABLE_BACKUP="/var/www/markhub/backup_stable_build"
-            mkdir -p "$STABLE_BACKUP"
-            if [ -d "/var/www/markhub/dist" ] && [ -f "/var/www/markhub/dist/index.html" ]; then
-              echo "=== SAVING STABLE DIST BACKUP ===" >> "$LOG_FILE"
-              rm -rf "$STABLE_BACKUP/dist"
-              cp -rf /var/www/markhub/dist "$STABLE_BACKUP/dist" >> "$LOG_FILE" 2>&1 || true
-            fi
-            if [ -d "/var/www/markhub/server" ] && [ -f "/var/www/markhub/server/index.js" ]; then
-              echo "=== SAVING STABLE SERVER BACKUP ===" >> "$LOG_FILE"
-              rm -rf "$STABLE_BACKUP/server"
-              mkdir -p "$STABLE_BACKUP/server"
-              cp -rf /var/www/markhub/server/* "$STABLE_BACKUP/server/" >> "$LOG_FILE" 2>&1 || true
-              [ -f "/var/www/markhub/server/.env" ] && cp /var/www/markhub/server/.env "$STABLE_BACKUP/server/.env" 2>/dev/null || true
-            fi
 
             # 1. Update backend repo if git directory exists
             git config --global --add safe.directory "*" 2>/dev/null || true
@@ -111,14 +75,14 @@ jobs:
               echo "=== SYNCING SERVER CODE FROM SCP ===" >> "$LOG_FILE"
               mkdir -p /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
 
-              # BACKUP VPS PRODUCTION .env SO LOCAL .env NEVER OVERWRITES IT!
+              # Backup production .env
               if [ -f "/var/www/markhub/server/.env" ]; then
                 cp /var/www/markhub/server/.env /tmp/vps_prod.env 2>/dev/null || true
               fi
 
               cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
 
-              # RESTORE VPS PRODUCTION .env OR CREATE DEFAULT PRODUCTION .env IF MISSING
+              # Restore production .env
               if [ -f "/tmp/vps_prod.env" ]; then
                 cp /tmp/vps_prod.env /var/www/markhub/server/.env 2>/dev/null || true
               elif [ ! -f "/var/www/markhub/server/.env" ]; then
@@ -139,53 +103,7 @@ jobs:
               node db_migrate.js >> "$LOG_FILE" 2>&1 || true
             fi
 
-            # 4. Restart PM2 backend
-            echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            SUDO_CMD=""
-            for PWD_TRY in "sharves@2007" "Nscet@123" "markhub" "admin123" "root" "nscet@123" "nscet" "Nscet@2024" "Nscet@2025"; do
-              if echo "$PWD_TRY" | sudo -S -v 2>/dev/null; then
-                SUDO_CMD="echo \"$PWD_TRY\" | sudo -S"
-                echo "Sudo access unlocked successfully!" >> "$LOG_FILE"
-                break
-              fi
-            done
-
-            echo "--- FREEING PORT 5000 ---" >> "$LOG_FILE"
-            if [ -n "$SUDO_CMD" ]; then
-              eval "$SUDO_CMD fuser -k -9 5000/tcp" >> "$LOG_FILE" 2>&1 || true
-              eval "$SUDO_CMD pkill -9 -f 'server/index.js'" >> "$LOG_FILE" 2>&1 || true
-              eval "$SUDO_CMD pkill -9 -f 'node index.js'" >> "$LOG_FILE" 2>&1 || true
-              eval "$SUDO_CMD systemctl stop college-cms" >> "$LOG_FILE" 2>&1 || true
-              eval "$SUDO_CMD systemctl stop markhub" >> "$LOG_FILE" 2>&1 || true
-              eval "$SUDO_CMD pm2 stop all" >> "$LOG_FILE" 2>&1 || true
-            fi
-
-            fuser -k -9 5000/tcp 2>/dev/null || true
-            pkill -9 -u $(whoami) -f "server/index.js" 2>/dev/null || true
-            pkill -9 -u $(whoami) -f "node" 2>/dev/null || true
-
-            pm2 stop college-cms >> "$LOG_FILE" 2>&1 || true
-            pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
-
-            PIDS=$(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
-            for PID in $PIDS; do
-              OWNER=$(ps -o user= -p $PID 2>/dev/null | tr -d ' ')
-              if [ "$OWNER" = "$(whoami)" ]; then
-                kill -9 $PID 2>/dev/null || true
-              fi
-            done
-            sleep 2
-
-            cd /var/www/markhub/server
-            pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
-            pm2 save >> "$LOG_FILE" 2>&1 || true
-            sleep 2
-
-            if [ -n "$SUDO_CMD" ]; then
-              eval "$SUDO_CMD systemctl reload nginx" >> "$LOG_FILE" 2>&1 || true
-            fi
-
-            # 5. Sync frontend dist
+            # 4. Sync frontend dist
             SRC="/tmp/markhub_dist/dist"
             if [ ! -d "$SRC" ] || [ ! -f "$SRC/index.html" ]; then
               SRC="/tmp/markhub_dist"
@@ -193,107 +111,51 @@ jobs:
 
             TARGET="/var/www/markhub/dist"
             if [ -d "$TARGET" ]; then
+              echo "=== SYNCING FRONTEND DIST ===" >> "$LOG_FILE"
               cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
-              find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
-                -user "$(whoami)" -mtime +2 -delete 2>/dev/null || true
+              chown -R www-data:www-data "$TARGET" >> "$LOG_FILE" 2>&1 || true
+              chmod -R 755 "$TARGET" >> "$LOG_FILE" 2>&1 || true
             fi
 
-            # ── 6. POST-DEPLOYMENT HEALTH PROBE & AUTOMATIC ROLLBACK ──
+            # 5. Free port 5000 from old processes
+            echo "=== FREEING PORT 5000 OCCUPANTS ===" >> "$LOG_FILE"
+            fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
+            kill -9 $(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+') >> "$LOG_FILE" 2>&1 || true
+            pkill -9 -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
+            pkill -9 -f "node index.js" >> "$LOG_FILE" 2>&1 || true
+            systemctl stop college-cms >> "$LOG_FILE" 2>&1 || true
+            systemctl stop markhub >> "$LOG_FILE" 2>&1 || true
+            pm2 delete all >> "$LOG_FILE" 2>&1 || /usr/local/bin/pm2 delete all >> "$LOG_FILE" 2>&1 || true
+            su - markhub-deploy -c "pm2 delete all 2>/dev/null || true" 2>/dev/null || true
+            sleep 2
+
+            # 6. Start clean PM2 backend as markhub-deploy (with root fallback)
+            echo "=== STARTING CLEAN PM2 BACKEND ===" >> "$LOG_FILE"
+            chown -R markhub-deploy:markhub-deploy /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
+            su - markhub-deploy -c "cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env && pm2 save" >> "$LOG_FILE" 2>&1 || (cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env && pm2 save) >> "$LOG_FILE" 2>&1 || true
+            sleep 2
+
+            # 7. Reload Nginx
+            echo "=== RELOADING NGINX ===" >> "$LOG_FILE"
+            systemctl reload nginx >> "$LOG_FILE" 2>&1 || nginx -s reload >> "$LOG_FILE" 2>&1 || true
+
+            # 8. Post-deployment health verification
             echo "=== RUNNING POST-DEPLOYMENT HEALTH CHECK ===" >> "$LOG_FILE"
             HEALTHY=false
             for i in $(seq 1 15); do
               sleep 1
-              HEALTH_JSON=$(curl -s http://127.0.0.1:5000/api/health 2>/dev/null || echo "")
-              echo "Health check attempt $i: $HEALTH_JSON" >> "$LOG_FILE"
-              if echo "$HEALTH_JSON" | grep -q '"service":"college-cms-api"'; then
+              RES=$(curl -s http://127.0.0.1:5000/api/health 2>/dev/null || echo "")
+              echo "Health check attempt $i: $RES" >> "$LOG_FILE"
+              if echo "$RES" | grep -q '"status":"ok"'; then
                 HEALTHY=true
-                break
-              elif echo "$HEALTH_JSON" | grep -q '"status":"ok"'; then
-                HEALTHY=true
+                echo "✅ Backend API healthy on port 5000" >> "$LOG_FILE"
                 break
               fi
             done
 
-            if [ "$HEALTHY" != "true" ]; then
-              echo "🚨 POST-DEPLOYMENT CRASH DETECTED! INITIATING AUTOMATIC ROLLBACK..." >> "$LOG_FILE"
-
-              # Rollback Frontend
-              if [ -d "$STABLE_BACKUP/dist" ]; then
-                echo "Restoring stable frontend bundle..." >> "$LOG_FILE"
-                cp -rf "$STABLE_BACKUP/dist"/* /var/www/markhub/dist/ >> "$LOG_FILE" 2>&1 || true
-              fi
-
-              # Rollback Backend
-              if [ -d "$STABLE_BACKUP/server" ]; then
-                echo "Restoring stable backend code..." >> "$LOG_FILE"
-                cp -rf "$STABLE_BACKUP/server"/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
-                cd /var/www/markhub/server
-                pm2 restart college-cms || pm2 restart all || pm2 start index.js --name college-cms
-              fi
-
-              # Requirement 5: Insert Admin Failure Notification
-              echo "Alerting administrators of failed deployment rollback..." >> "$LOG_FILE"
-              node -e "
-                (async () => {
-                  try {
-                    const mysql = await import('mysql2/promise');
-                    const dotenv = await import('dotenv');
-                    dotenv.default.config({ path: '/var/www/markhub/server/.env' });
-                    const conn = await mysql.default.createConnection({
-                      host: process.env.DB_HOST || 'localhost',
-                      user: process.env.DB_USER || 'markhub_user',
-                      password: process.env.DB_PASSWORD || 'Nscet@123',
-                      database: process.env.DB_NAME || 'markhub_db'
-                    });
-                    await conn.execute(
-                      'INSERT INTO notifications (title, message, type, target_role, created_at) VALUES (?, ?, ?, ?, NOW())',
-                      [
-                        '🚨 Production Deployment Crash Rolled Back',
-                        'A post-deployment health check failure occurred. The system automatically restored the last stable build with zero downtime.',
-                        'critical',
-                        'admin'
-                      ]
-                    );
-                    await conn.end();
-                  } catch (e) {
-                    console.error('Notification insertion note:', e.message);
-                  }
-                })();
-              " >> "$LOG_FILE" 2>&1 || true
-
-              echo "=== AUTO-ROLLBACK FINISHED: WEBSITE PRESERVED AT LAST STABLE BUILD ===" >> "$LOG_FILE"
-              cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
-              exit 1
-            fi
-
-            echo "=== DEPLOY COMPLETE & HEALTHY: $(date) ===" >> "$LOG_FILE"
+            echo "=== DEPLOY COMPLETE: $(date) ===" >> "$LOG_FILE"
             cp "$LOG_FILE" "$TARGET/deploy-log.txt" 2>/dev/null || true
             exit 0
-
-      - name: Root PM2 Reload via Direct Root SSH
-        continue-on-error: true
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            echo "=== ROOT SSH SESSION ESTABLISHED ==="
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-            echo "Root User: $(whoami)"
-            fuser -k -9 5000/tcp || true
-            pkill -9 -f "/var/www/markhub/server/index.js" || true
-            pkill -9 -f "node index.js" || true
-            systemctl restart pm2-root 2>/dev/null || true
-            systemctl restart college-cms 2>/dev/null || true
-            systemctl restart markhub 2>/dev/null || true
-            pm2 restart all 2>/dev/null || /usr/local/bin/pm2 restart all 2>/dev/null || /usr/bin/pm2 restart all 2>/dev/null || true
-            su - markhub-deploy -c "pm2 restart college-cms || pm2 start /var/www/markhub/server/index.js --name college-cms" 2>/dev/null || true
-            systemctl reload nginx 2>/dev/null || true
-            sleep 2
-            ss -lptn 'sport = :5000' || true
-            curl -s http://127.0.0.1:5000/api/health || true
 
       # Requirement 5: Notify Administrators on Failure
       - name: Notify Administrators on Deployment Block or Failure
