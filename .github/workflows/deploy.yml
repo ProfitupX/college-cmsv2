@@ -69,6 +69,22 @@ jobs:
               echo "Deploy script not found!" && exit 1
             fi
 
+      - name: Root PM2 Reload via SSH (Safe Fallback)
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "Connected as root: $(whoami)"
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+            pm2 restart all || /usr/local/bin/pm2 restart all || /usr/bin/pm2 restart all
+            sleep 2
+            pm2 status
+            curl -s http://127.0.0.1:5000/api/health
+
       # Requirement 5: Notify Administrators on Failure
       - name: Notify Administrators on Deployment Block or Failure
         if: failure()

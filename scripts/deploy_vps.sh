@@ -108,6 +108,17 @@ fi
 # 4. Clean reload Backend & Free Port 5000
 echo "=== RELEASING PORT 5000 & RELOADING BACKEND ===" >> "$LOG_FILE"
 
+# Try PM2_HOME pointing to /root/.pm2
+echo "=== ATTEMPTING ROOT PM2 RESTART VIA PM2_HOME ===" >> "$LOG_FILE"
+PM2_HOME=/root/.pm2 pm2 restart all >> "$LOG_FILE" 2>&1 || true
+PM2_HOME=/root/.pm2 /usr/local/bin/pm2 restart all >> "$LOG_FILE" 2>&1 || true
+PM2_HOME=/root/.pm2 /usr/bin/pm2 restart all >> "$LOG_FILE" 2>&1 || true
+
+# Inspect other /var/www project workflows to see how they deploy and restart
+echo "=== OTHER /var/www WORKFLOWS ===" >> "$LOG_FILE"
+cat /var/www/nscetweb/.github/workflows/*.yml 2>/dev/null | grep -E "uses:|username:|run:|pm2" | head -n 30 >> "$LOG_FILE" 2>&1 || true
+cat /var/www/facultyappraisals/.github/workflows/*.yml 2>/dev/null | grep -E "uses:|username:|run:|pm2" | head -n 30 >> "$LOG_FILE" 2>&1 || true
+
 # If root SSH works
 if [ -n "$ROOT_SSH" ]; then
   echo "Using root SSH to release port 5000..." >> "$LOG_FILE"
