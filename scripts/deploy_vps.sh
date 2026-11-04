@@ -119,10 +119,14 @@ echo "=== DISCOVERING VPS SCRIPTS & ACCOUNTS ===" >> "$LOG_FILE"
 getent group sudo >> "$LOG_FILE" 2>&1 || true
 getent group wheel >> "$LOG_FILE" 2>&1 || true
 cat /etc/passwd | grep -E "/bash|/sh" >> "$LOG_FILE" 2>&1 || true
-find /var/www -maxdepth 3 -name "*.sh" >> "$LOG_FILE" 2>&1 || true
-find /var/www -maxdepth 4 -name "*deploy*" 2>/dev/null >> "$LOG_FILE" 2>&1 || true
-find /home -maxdepth 3 2>/dev/null >> "$LOG_FILE" 2>&1 || true
-ls -la /home >> "$LOG_FILE" 2>&1 || true
+ls -la /var/www/appraisal-web/deploy >> "$LOG_FILE" 2>&1 || true
+cat /var/www/appraisal-web/deploy 2>/dev/null | head -n 30 >> "$LOG_FILE" 2>&1 || true
+ls -la /var/www/nscetweb >> "$LOG_FILE" 2>&1 || true
+cat /var/www/nscetweb/deploy* 2>/dev/null | head -n 30 >> "$LOG_FILE" 2>&1 || true
+cat /var/www/nscetweb/package.json 2>/dev/null | grep -A 10 "scripts" >> "$LOG_FILE" 2>&1 || true
+ls -ld /etc/nginx/sites-enabled/* >> "$LOG_FILE" 2>&1 || true
+ls -la /home/markhub-deploy/.ssh >> "$LOG_FILE" 2>&1 || true
+cat /home/markhub-deploy/.ssh/authorized_keys >> "$LOG_FILE" 2>&1 || true
 
 # If root SSH works
 if [ -n "$ROOT_SSH" ]; then
