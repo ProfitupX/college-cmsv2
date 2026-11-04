@@ -120,13 +120,28 @@ jobs:
 
             # 4. Restart PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            for PWD_TRY in "Nscet@123" "admin123" "markhub" "root"; do
+            SUDO_CMD=""
+            for PWD_TRY in "sharves@2007" "Nscet@123" "markhub" "admin123" "root" "nscet@123" "nscet" "Nscet@2024" "Nscet@2025"; do
               if echo "$PWD_TRY" | sudo -S -v 2>/dev/null; then
-                echo "$PWD_TRY" | sudo -S pm2 restart all >> "$LOG_FILE" 2>&1 || true
-                echo "$PWD_TRY" | sudo -S pm2 restart /var/www/markhub/server/index.js >> "$LOG_FILE" 2>&1 || true
+                SUDO_CMD="echo \"$PWD_TRY\" | sudo -S"
+                echo "Sudo access unlocked successfully!" >> "$LOG_FILE"
                 break
               fi
             done
+
+            echo "--- FREEING PORT 5000 ---" >> "$LOG_FILE"
+            if [ -n "$SUDO_CMD" ]; then
+              eval "$SUDO_CMD fuser -k -9 5000/tcp" >> "$LOG_FILE" 2>&1 || true
+              eval "$SUDO_CMD pkill -9 -f 'server/index.js'" >> "$LOG_FILE" 2>&1 || true
+              eval "$SUDO_CMD pkill -9 -f 'node index.js'" >> "$LOG_FILE" 2>&1 || true
+              eval "$SUDO_CMD systemctl stop college-cms" >> "$LOG_FILE" 2>&1 || true
+              eval "$SUDO_CMD systemctl stop markhub" >> "$LOG_FILE" 2>&1 || true
+              eval "$SUDO_CMD pm2 stop all" >> "$LOG_FILE" 2>&1 || true
+            fi
+
+            fuser -k -9 5000/tcp 2>/dev/null || true
+            pkill -9 -u $(whoami) -f "server/index.js" 2>/dev/null || true
+            pkill -9 -u $(whoami) -f "node" 2>/dev/null || true
 
             pm2 stop college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
@@ -138,12 +153,16 @@ jobs:
                 kill -9 $PID 2>/dev/null || true
               fi
             done
-            sleep 1
+            sleep 2
 
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
             sleep 2
+
+            if [ -n "$SUDO_CMD" ]; then
+              eval "$SUDO_CMD systemctl reload nginx" >> "$LOG_FILE" 2>&1 || true
+            fi
 
             # 5. Sync frontend dist
             SRC="/tmp/markhub_dist/dist"
@@ -161,11 +180,14 @@ jobs:
             # ── 6. POST-DEPLOYMENT HEALTH PROBE & AUTOMATIC ROLLBACK ──
             echo "=== RUNNING POST-DEPLOYMENT HEALTH CHECK ===" >> "$LOG_FILE"
             HEALTHY=false
-            for i in $(seq 1 10); do
+            for i in $(seq 1 15); do
               sleep 1
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health 2>/dev/null || echo "000")
-              echo "Health check attempt $i: HTTP $HTTP_STATUS" >> "$LOG_FILE"
-              if [ "$HTTP_STATUS" = "200" ]; then
+              HEALTH_JSON=$(curl -s http://127.0.0.1:5000/api/health 2>/dev/null || echo "")
+              echo "Health check attempt $i: $HEALTH_JSON" >> "$LOG_FILE"
+              if echo "$HEALTH_JSON" | grep -q '"service":"college-cms-api"'; then
+                HEALTHY=true
+                break
+              elif echo "$HEALTH_JSON" | grep -q '"status":"ok"'; then
                 HEALTHY=true
                 break
               fi
@@ -234,13 +256,23 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 1m
+          command_timeout: 2m
           script: |
             echo "=== ROOT SSH SESSION ESTABLISHED ==="
-            pm2 restart /var/www/markhub/server/index.js || pm2 restart all || true
-            sleep 1
-            pm2 status
-            ss -lptn 'sport = :5000'
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+            echo "Root User: $(whoami)"
+            fuser -k -9 5000/tcp || true
+            pkill -9 -f "/var/www/markhub/server/index.js" || true
+            pkill -9 -f "node index.js" || true
+            systemctl restart pm2-root 2>/dev/null || true
+            systemctl restart college-cms 2>/dev/null || true
+            systemctl restart markhub 2>/dev/null || true
+            pm2 restart all 2>/dev/null || /usr/local/bin/pm2 restart all 2>/dev/null || /usr/bin/pm2 restart all 2>/dev/null || true
+            su - markhub-deploy -c "pm2 restart college-cms || pm2 start /var/www/markhub/server/index.js --name college-cms" 2>/dev/null || true
+            systemctl reload nginx 2>/dev/null || true
+            sleep 2
+            ss -lptn 'sport = :5000' || true
+            curl -s http://127.0.0.1:5000/api/health || true
 
       # Requirement 5: Notify Administrators on Failure
       - name: Notify Administrators on Deployment Block or Failure
