@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
-import { resolveAttendanceMark } from '../utils/attendanceCalculator';
-import { getHourSplits } from './pdfReportGenerator';
+import { resolveAttendanceMark } from '../utils/attendanceCalculator.js';
+import { getHourSplits } from './pdfReportGenerator.js';
 
 const triggerDownload = async (workbook, filename) => {
   const safeFilename = String(filename || 'Report.xlsx')
@@ -578,20 +578,65 @@ export const exportLaboratoryMarksExcel = async ({
     numCols
   });
 
-  // Metadata Block (Rows 7-9)
+  // Metadata Block (Rows 7-9) with merged cells for clean alignment & zero truncation
   const metaData = [
-    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
-    ['Staff In-Charge:', staffName, '', 'Academic Year:', '2026 - 2027'],
-    ['Subject Code / Name:', `${subject?.code || ''} — ${subject?.name || ''}`, '', 'Prescribed Lab Hrs:', `${prescribedLabHours} Hours`]
+    {
+      label1: 'Year / Semester:',
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      label2: 'Department:',
+      val2: subject?.department || classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Staff In-Charge:',
+      val1: staffName,
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Subject Code / Name:',
+      val1: `${subject?.code || ''} — ${subject?.name || ''}`,
+      label2: 'Prescribed Lab Hrs:',
+      val2: `${prescribedLabHours} Hours`
+    }
   ];
 
-  metaData.forEach((row, i) => {
-    const r = worksheet.getRow(7 + i);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9 };
-    r.getCell(1).font = { bold: true };
-    r.getCell(4).font = { bold: true };
-    r.height = 18;
+  metaData.forEach((item, i) => {
+    const rowNum = 7 + i;
+    worksheet.getRow(rowNum).height = 20;
+
+    // Col 1-2 merged for Label 1
+    worksheet.mergeCells(rowNum, 1, rowNum, 2);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    // Col 3 for Val 1
+    const v1 = worksheet.getCell(rowNum, 3);
+    v1.value = item.val1;
+    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    // Col 4 for Label 2
+    const l2 = worksheet.getCell(rowNum, 4);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    // Col 5-6 merged for Val 2
+    worksheet.mergeCells(rowNum, 5, rowNum, 6);
+    const v2 = worksheet.getCell(rowNum, 5);
+    v2.value = item.val2;
+    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= 6; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(10).height = 8; // spacer
@@ -1074,15 +1119,21 @@ export const exportSubjectAnalysisExcel = async ({
   user
 }) => {
   const workbook = new ExcelJS.Workbook();
-  workbook.views = [
-    {
-      x: 0, y: 0, width: 10000, height: 20000,
-      firstSheet: 0, activeTab: 0, visibility: 'visible'
-    }
-  ];
   const worksheet = workbook.addWorksheet('Subject Analysis');
   worksheet.views = [
     { state: 'normal', activeCell: 'A1', showGridLines: true }
+  ];
+
+  // Set 8 balanced column widths first (Total width: 116 chars)
+  worksheet.columns = [
+    { key: 'col1', width: 10 }, // A: S.No (10)
+    { key: 'col2', width: 18 }, // B: Roll No / 0-49 (U) (18)
+    { key: 'col3', width: 14 }, // C: 50-55 (E) / Student Name part 1 (14)
+    { key: 'col4', width: 14 }, // D: 56-59 (D) / Student Name part 2 (14)
+    { key: 'col5', width: 14 }, // E: 60-69 (C) / Student Name part 3 (14)
+    { key: 'col6', width: 14 }, // F: 70-79 (B) / Student Name part 4 (14)
+    { key: 'col7', width: 16 }, // G: 80-89 (A) / Marks Obtained (16)
+    { key: 'col8', width: 16 }, // H: 90-100 (S) / Result (16)
   ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || user?.name || 'Faculty Staff';
@@ -1197,7 +1248,7 @@ export const exportSubjectAnalysisExcel = async ({
   const passPct = appeared > 0 ? ((passed / appeared) * 100).toFixed(1) : '100.0';
   const avgMark = appeared > 0 ? (totalScore / appeared).toFixed(1) : '0.0';
 
-  // Draw Official College Header
+  // Draw Official College Header (Rows 1-5 + Spacer Row 6)
   await drawExcelCollegeHeader({
     workbook,
     worksheet,
@@ -1206,32 +1257,85 @@ export const exportSubjectAnalysisExcel = async ({
     numCols: 8
   });
 
-  // Metadata Block
-  const meta = [
-    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', subject?.department || classObj?.department || 'Information Technology'],
-    ['Staff In-Charge:', staffName, '', 'Academic Year:', '2026 - 2027'],
-    ['Subject Code / Name:', `${subject?.code || ''} — ${subject?.name || ''}`, '', 'Prescribed Hrs:', `${analysisPrescribedHrs} Hours`],
-    ['Internal Assessment:', assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+  // Metadata Block (Rows 7-10) with 2x2 merged columns:
+  // Cols A-B (Width 28) = Label 1 | Cols C-D (Width 28) = Value 1
+  // Cols E-F (Width 28) = Label 2 | Cols G-H (Width 32) = Value 2
+  const metaRows = [
+    {
+      label1: 'Year / Semester:',
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      label2: 'Department:',
+      val2: subject?.department || classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Staff In-Charge:',
+      val1: staffName,
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Subject Code / Name:',
+      val1: `${subject?.code || ''} — ${subject?.name || ''}`,
+      label2: 'Prescribed Hrs:',
+      val2: `${analysisPrescribedHrs} Hours`
+    },
+    {
+      label1: 'Internal Assessment:',
+      val1: assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment',
+      label2: 'Student Strength:',
+      val2: `${students.length} Students`
+    }
   ];
 
-  meta.forEach((row, i) => {
-    const r = worksheet.getRow(7 + i);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9 };
-    r.getCell(1).font = { bold: true };
-    r.getCell(4).font = { bold: true };
-    r.height = 18;
+  metaRows.forEach((item, i) => {
+    const rowNum = 7 + i;
+    const row = worksheet.getRow(rowNum);
+    row.height = 20;
+
+    worksheet.mergeCells(rowNum, 1, rowNum, 2);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 3, rowNum, 4);
+    const v1 = worksheet.getCell(rowNum, 3);
+    v1.value = item.val1;
+    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 5, rowNum, 6);
+    const l2 = worksheet.getCell(rowNum, 5);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 7, rowNum, 8);
+    const v2 = worksheet.getCell(rowNum, 7);
+    v2.value = item.val2;
+    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= 8; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(11).height = 8; // spacer
 
-  // Grade Distribution Table (Rows 12-14)
-  const gTitle = worksheet.getRow(12);
-  gTitle.values = ['1. Grade & Performance Analysis:'];
+  // Section 1: Grade & Performance Analysis (Rows 12-15)
+  worksheet.mergeCells(12, 1, 12, 8);
+  const gTitle = worksheet.getCell(12, 1);
+  gTitle.value = '1. Grade & Performance Analysis:';
   gTitle.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '1E3A8A' } };
+  worksheet.getRow(12).height = 20;
 
   const gHead = worksheet.getRow(13);
-  gHead.values = ['Description', '0-49 (U)', '50-55 (E)', '56-59 (D)', '60-69 (C)', '70-79 (B)', '80-89 (A)', '90-100 (S)'];
+  gHead.values = ['Grade Range', '0-49 (U)', '50-55 (E)', '56-59 (D)', '60-69 (C)', '70-79 (B)', '80-89 (A)', '90-100 (S)'];
   gHead.height = 22;
   gHead.eachCell(cell => {
     cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
@@ -1263,58 +1367,97 @@ export const exportSubjectAnalysisExcel = async ({
   gRow2.height = 20;
   gRow2.eachCell(cell => {
     cell.font = { name: 'Arial', size: 9 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F8FAFC' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     applyThinBorders(cell);
   });
 
-  // KPI Summary Row (Row 17)
-  const kpiRow = worksheet.getRow(17);
-  kpiRow.values = [
-    `Total Strength: ${students.length}`,
-    `Appeared: ${appeared}`,
-    `Passed: ${passed}`,
-    `Failed: ${failed}`,
-    `Pass %: ${passPct}%`,
-    `Average: ${avgMark}`,
-    `Highest: ${maxMark}`,
-    `Lowest: ${minMark}`
+  worksheet.getRow(16).height = 8; // spacer
+
+  // KPI Summary Cards (Rows 17-18)
+  // Formatted into 2 rows of 4 cards spanning 2 columns each (A:B, C:D, E:F, G:H)
+  const kpiRow1Cards = [
+    { start: 1, end: 2, label: `Total Strength: ${students.length}` },
+    { start: 3, end: 4, label: `Appeared: ${appeared}` },
+    { start: 5, end: 6, label: `Passed: ${passed}` },
+    { start: 7, end: 8, label: `Failed: ${failed}` }
   ];
-  kpiRow.height = 22;
-  kpiRow.eachCell(cell => {
-    cell.font = { name: 'Arial', size: 8.5, bold: true, color: { argb: '1E3A8A' } };
+  const r17 = worksheet.getRow(17);
+  r17.height = 22;
+  kpiRow1Cards.forEach(card => {
+    worksheet.mergeCells(17, card.start, 17, card.end);
+    const cell = worksheet.getCell(17, card.start);
+    cell.value = card.label;
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E3A8A' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    applyThinBorders(cell);
   });
+  for (let c = 1; c <= 8; c++) {
+    applyThinBorders(worksheet.getCell(17, c));
+  }
 
-  worksheet.getRow(18).height = 10; // spacer
+  const kpiRow2Cards = [
+    { start: 1, end: 2, label: `Pass %: ${passPct}%` },
+    { start: 3, end: 4, label: `Average: ${avgMark}` },
+    { start: 5, end: 6, label: `Highest: ${maxMark}` },
+    { start: 7, end: 8, label: `Lowest: ${minMark}` }
+  ];
+  const r18 = worksheet.getRow(18);
+  r18.height = 22;
+  kpiRow2Cards.forEach(card => {
+    worksheet.mergeCells(18, card.start, 18, card.end);
+    const cell = worksheet.getCell(18, card.start);
+    cell.value = card.label;
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E3A8A' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+  for (let c = 1; c <= 8; c++) {
+    applyThinBorders(worksheet.getCell(18, c));
+  }
 
-  // Student Marks Table
-  const sTitle = worksheet.getRow(19);
-  sTitle.values = ['2. Student Mark List:'];
+  worksheet.getRow(19).height = 8; // spacer
+
+  // Section 2: Student Mark List (Row 20 onwards)
+  worksheet.mergeCells(20, 1, 20, 8);
+  const sTitle = worksheet.getCell(20, 1);
+  sTitle.value = '2. Student Mark List:';
   sTitle.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '1E3A8A' } };
+  worksheet.getRow(20).height = 20;
 
-  const sHead = worksheet.getRow(20);
-  sHead.values = ['S.No', 'Roll No', 'Student Name', 'Marks Obtained (/ 100)', 'Result', '', '', ''];
-  sHead.height = 24;
-  sHead.eachCell((cell, col) => {
-    if (col <= 5) {
-      cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      applyThinBorders(cell);
-    }
-  });
+  // Header Row 21: Full 8-column layout (Student Name spans C:F)
+  const row21 = worksheet.getRow(21);
+  row21.height = 24;
+  worksheet.getCell(21, 1).value = 'S.No';
+  worksheet.getCell(21, 2).value = 'Roll No';
+  worksheet.mergeCells(21, 3, 21, 6);
+  worksheet.getCell(21, 3).value = 'Student Name';
+  worksheet.getCell(21, 7).value = 'Marks Obtained (/ 100)';
+  worksheet.getCell(21, 8).value = 'Result (Pass / Fail)';
 
-  let curRow = 21;
+  for (let c = 1; c <= 8; c++) {
+    const cell = worksheet.getCell(21, c);
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  }
+
+  let curRow = 22;
   studentRows.forEach((r, idx) => {
     const row = worksheet.getRow(curRow);
-    row.values = [r.sNo, r.rollNo, r.name, r.markStr, r.result];
     row.height = 20;
 
+    worksheet.getCell(curRow, 1).value = r.sNo;
+    worksheet.getCell(curRow, 2).value = r.rollNo;
+    worksheet.mergeCells(curRow, 3, curRow, 6);
+    worksheet.getCell(curRow, 3).value = r.name;
+    worksheet.getCell(curRow, 7).value = r.markStr;
+    worksheet.getCell(curRow, 8).value = r.result;
+
     const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
-    for (let c = 1; c <= 5; c++) {
-      const cell = row.getCell(c);
+    for (let c = 1; c <= 8; c++) {
+      const cell = worksheet.getCell(curRow, c);
       cell.font = { name: 'Arial', size: 9 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
       applyThinBorders(cell);
@@ -1325,7 +1468,11 @@ export const exportSubjectAnalysisExcel = async ({
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
 
-      if (c === 5) {
+      if (c === 7) {
+        cell.font = { name: 'Arial', size: 9, bold: true };
+      }
+
+      if (c === 8) {
         if (cell.value === 'PASS') {
           cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
         } else if (cell.value === 'FAIL') {
@@ -1338,34 +1485,48 @@ export const exportSubjectAnalysisExcel = async ({
     curRow++;
   });
 
-  curRow += 2;
-  // Signatures
+  // Class Summary Row
+  const summRow = worksheet.getRow(curRow);
+  summRow.height = 20;
+  worksheet.mergeCells(curRow, 1, curRow, 2);
+  worksheet.getCell(curRow, 1).value = 'CLASS SUMMARY';
+  worksheet.mergeCells(curRow, 3, curRow, 6);
+  worksheet.getCell(curRow, 3).value = `Passed: ${passed} | Failed: ${failed} | Pass %: ${passPct}%`;
+  worksheet.getCell(curRow, 7).value = `Avg: ${avgMark}`;
+  worksheet.getCell(curRow, 8).value = '>= 50% PASS';
+
+  for (let c = 1; c <= 8; c++) {
+    const cell = worksheet.getCell(curRow, c);
+    cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E2E8F0' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyThinBorders(cell);
+  }
+
+  curRow += 3;
+  // Signatures Row
   const sigRow = worksheet.getRow(curRow);
-  sigRow.values = ['', 'FACULTY IN-CHARGE', '', 'HOD', '', '', 'PRINCIPAL'];
   sigRow.height = 24;
-  sigRow.eachCell(cell => {
+  worksheet.mergeCells(curRow, 1, curRow, 2);
+  worksheet.getCell(curRow, 1).value = 'SUBJECT FACULTY';
+  worksheet.mergeCells(curRow, 3, curRow, 5);
+  worksheet.getCell(curRow, 3).value = 'HOD / ACADEMIC IN-CHARGE';
+  worksheet.mergeCells(curRow, 6, curRow, 8);
+  worksheet.getCell(curRow, 6).value = 'PRINCIPAL';
+
+  for (let c = 1; c <= 8; c++) {
+    const cell = worksheet.getCell(curRow, c);
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
-  });
+  }
 
-  // Print & Page Setup (Ensures table fits A4 width cleanly)
+  // Print & Page Setup (A4 Portrait, cleanly centered)
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: 'portrait',
     horizontalCentered: true,
     margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 }
   };
-
-  worksheet.columns = [
-    { width: 7 },
-    { width: 18 },
-    { width: 34 },
-    { width: 22 },
-    { width: 16 },
-    { width: 14 },
-    { width: 14 },
-    { width: 14 }
-  ];
 
   await triggerDownload(workbook, `${subject?.code || 'SUB'}_Test_Analysis_Report.xlsx`);
 };
@@ -1413,20 +1574,65 @@ export const exportConsolidatedMarksExcel = async ({
     numCols
   });
 
-  // Metadata Block
+  // Metadata Block (Rows 7-9) with properly merged cells
   const meta = [
-    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', classObj?.department || 'Information Technology'],
-    ['Class In-Charge:', inchargeNameParam || user?.name || 'Class In-charge', '', 'Academic Year:', '2026 - 2027'],
-    ['Internal Assessment:', sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+    {
+      label1: 'Year / Semester:',
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      label2: 'Department:',
+      val2: classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Class In-Charge:',
+      val1: inchargeNameParam || user?.name || 'Class In-charge',
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Internal Assessment:',
+      val1: sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment',
+      label2: 'Student Strength:',
+      val2: `${students.length} Students`
+    }
   ];
 
-  meta.forEach((row, i) => {
-    const r = worksheet.getRow(7 + i);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9 };
-    r.getCell(1).font = { bold: true };
-    r.getCell(4).font = { bold: true };
-    r.height = 18;
+  meta.forEach((item, i) => {
+    const rowNum = 7 + i;
+    worksheet.getRow(rowNum).height = 20;
+
+    const mid = Math.max(4, Math.floor(numCols / 2));
+    worksheet.mergeCells(rowNum, 1, rowNum, 2);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 3, rowNum, mid);
+    const v1 = worksheet.getCell(rowNum, 3);
+    v1.value = item.val1;
+    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    const l2End = Math.min(mid + 2, numCols - 1);
+    worksheet.mergeCells(rowNum, mid + 1, rowNum, l2End);
+    const l2 = worksheet.getCell(rowNum, mid + 1);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, l2End + 1, rowNum, numCols);
+    const v2 = worksheet.getCell(rowNum, l2End + 1);
+    v2.value = item.val2;
+    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= numCols; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(10).height = 8; // spacer
@@ -1612,20 +1818,63 @@ export const exportClassAnalysisExcel = async ({
     numCols: 9
   });
 
-  // Metadata Block
+  // Metadata Block (Rows 7-9) with merged cells
   const meta = [
-    ['Year / Semester:', `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, '', 'Department:', classObj?.department || 'Information Technology'],
-    ['Class In-Charge:', inchargeNameParam || user?.name || 'Class In-charge', '', 'Academic Year:', '2026 - 2027'],
-    ['Internal Test:', sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment', '', 'Student Strength:', `${students.length} Students`]
+    {
+      label1: 'Year / Semester:',
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      label2: 'Department:',
+      val2: classObj?.department || 'Information Technology'
+    },
+    {
+      label1: 'Class In-Charge:',
+      val1: inchargeNameParam || user?.name || 'Class In-charge',
+      label2: 'Academic Year:',
+      val2: '2026 - 2027'
+    },
+    {
+      label1: 'Internal Test:',
+      val1: sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment',
+      label2: 'Student Strength:',
+      val2: `${students.length} Students`
+    }
   ];
 
-  meta.forEach((row, i) => {
-    const r = worksheet.getRow(7 + i);
-    r.values = row;
-    r.font = { name: 'Arial', size: 9 };
-    r.getCell(1).font = { bold: true };
-    r.getCell(4).font = { bold: true };
-    r.height = 18;
+  meta.forEach((item, i) => {
+    const rowNum = 7 + i;
+    worksheet.getRow(rowNum).height = 20;
+
+    worksheet.mergeCells(rowNum, 1, rowNum, 2);
+    const l1 = worksheet.getCell(rowNum, 1);
+    l1.value = item.label1;
+    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 3, rowNum, 4);
+    const v1 = worksheet.getCell(rowNum, 3);
+    v1.value = item.val1;
+    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 5, rowNum, 6);
+    const l2 = worksheet.getCell(rowNum, 5);
+    l2.value = item.label2;
+    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    worksheet.mergeCells(rowNum, 7, rowNum, 9);
+    const v2 = worksheet.getCell(rowNum, 7);
+    v2.value = item.val2;
+    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+    for (let c = 1; c <= 9; c++) {
+      applyThinBorders(worksheet.getCell(rowNum, c));
+    }
   });
 
   worksheet.getRow(10).height = 8; // spacer
