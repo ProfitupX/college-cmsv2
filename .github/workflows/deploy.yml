@@ -94,16 +94,19 @@ jobs:
               fi
             fi
 
-            # 3. Install production dependencies and run database migrations
+            # 3. Install production dependencies (zero db schema changes or migrations)
             if [ -d "/var/www/markhub/server" ]; then
               cd /var/www/markhub/server
               npm install --omit=dev >> "$LOG_FILE" 2>&1 || true
-              echo "=== RUNNING DB MIGRATION & CLEANUP ===" >> "$LOG_FILE"
-              node db_migrate.js >> "$LOG_FILE" 2>&1 || true
             fi
 
             # 4. Clean reload PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
+            pkill -u markhub-deploy -f "server/index.js" 2>/dev/null || true
+            pkill -u markhub-deploy -f "node index.js" 2>/dev/null || true
+            fuser -k -9 5000/tcp 2>/dev/null || true
+            sleep 2
+
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
 
             cd /var/www/markhub/server
@@ -122,6 +125,7 @@ jobs:
             if [ -d "$TARGET" ]; then
               echo "=== SYNCING FRONTEND DIST ===" >> "$LOG_FILE"
               cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
+              cp -f "$SRC/index.html" "$TARGET/index.html" >> "$LOG_FILE" 2>&1 || true
               find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
                 -user "$(whoami)" -mtime +2 -delete 2>/dev/null || true
             fi
