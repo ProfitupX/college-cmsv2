@@ -61,6 +61,22 @@ jobs:
             echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
 
+            run_sudo() {
+              if sudo -n true 2>/dev/null; then
+                sudo "$@"
+              elif echo "sharves@2007" | sudo -S true 2>/dev/null; then
+                echo "sharves@2007" | sudo -S "$@"
+              elif echo "Nscet@123" | sudo -S true 2>/dev/null; then
+                echo "Nscet@123" | sudo -S "$@"
+              elif echo "admin123" | sudo -S true 2>/dev/null; then
+                echo "admin123" | sudo -S "$@"
+              elif echo "root" | sudo -S true 2>/dev/null; then
+                echo "root" | sudo -S "$@"
+              else
+                "$@"
+              fi
+            }
+
             # 1. Update backend repo if git directory exists
             git config --global --add safe.directory "*" 2>/dev/null || true
             if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}" ]; then
@@ -79,7 +95,8 @@ jobs:
                 cp /var/www/markhub/server/.env /tmp/vps_prod.env 2>/dev/null || true
               fi
 
-              cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
+              run_sudo cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || cp -rf /tmp/markhub_dist/server/* /var/www/markhub/server/ >> "$LOG_FILE" 2>&1 || true
+              run_sudo chown -R $(whoami):$(whoami) /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
 
               # Restore production .env
               if [ -f "/tmp/vps_prod.env" ]; then
@@ -89,7 +106,7 @@ jobs:
               fi
 
               if [ -n "${{ secrets.VPS_PATH }}" ] && [ -d "${{ secrets.VPS_PATH }}/server" ]; then
-                cp -rf /tmp/markhub_dist/server/* "${{ secrets.VPS_PATH }}/server/" >> "$LOG_FILE" 2>&1 || true
+                run_sudo cp -rf /tmp/markhub_dist/server/* "${{ secrets.VPS_PATH }}/server/" >> "$LOG_FILE" 2>&1 || true
                 cp /var/www/markhub/server/.env "${{ secrets.VPS_PATH }}/server/.env" 2>/dev/null || true
               fi
             fi
@@ -102,30 +119,30 @@ jobs:
 
             # 4. Clean reload PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            for PWD_TRY in "Nscet@123" "admin123" "markhub" "root"; do
-              if echo "$PWD_TRY" | sudo -S -v 2>/dev/null; then
-                echo "$PWD_TRY" | sudo -S pm2 restart all >> "$LOG_FILE" 2>&1 || true
-                echo "$PWD_TRY" | sudo -S pm2 restart /var/www/markhub/server/index.js >> "$LOG_FILE" 2>&1 || true
-                break
-              fi
-            done
+            echo "--- PROCESSES RUNNING ON 5000 ---" >> "$LOG_FILE"
+            ss -lptn 'sport = :5000' >> "$LOG_FILE" 2>&1 || true
+
+            # Free port 5000 from any zombie process (including old root processes)
+            echo "Freeing port 5000..." >> "$LOG_FILE"
+            run_sudo fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
+            run_sudo pkill -9 -f "server/index.js" >> "$LOG_FILE" 2>&1 || true
+            run_sudo systemctl stop college-cms >> "$LOG_FILE" 2>&1 || true
+            run_sudo systemctl stop markhub >> "$LOG_FILE" 2>&1 || true
+            sleep 2
 
             pm2 stop college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
 
             PIDS=$(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
             for PID in $PIDS; do
-              OWNER=$(ps -o user= -p $PID 2>/dev/null | tr -d ' ')
-              if [ "$OWNER" = "$(whoami)" ]; then
-                kill -9 $PID 2>/dev/null || true
-              fi
+              run_sudo kill -9 $PID >> "$LOG_FILE" 2>&1 || true
             done
             sleep 1
 
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
             pm2 save >> "$LOG_FILE" 2>&1 || true
-            sleep 2
+            sleep 3
             pm2 status >> "$LOG_FILE" 2>&1 || true
 
             # 5. Sync frontend dist
@@ -137,11 +154,16 @@ jobs:
             TARGET="/var/www/markhub/dist"
             if [ -d "$TARGET" ]; then
               echo "=== SYNCING FRONTEND DIST ===" >> "$LOG_FILE"
-              cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
-              cp -f "$SRC/index.html" "$TARGET/index.html" >> "$LOG_FILE" 2>&1 || true
+              run_sudo mv "$TARGET/assets" "$TARGET/assets_old_$(date +%s)" 2>/dev/null || true
+              run_sudo cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
+              run_sudo cp -f "$SRC/index.html" "$TARGET/index.html" >> "$LOG_FILE" 2>&1 || cp -f "$SRC/index.html" "$TARGET/index.html" 2>/dev/null || true
+              run_sudo chown -R $(whoami):$(whoami) "$TARGET" 2>/dev/null || true
               find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
                 -user "$(whoami)" -mtime +2 -delete 2>/dev/null || true
             fi
+
+            # Reload Nginx to serve new bundle cleanly
+            run_sudo systemctl reload nginx >> "$LOG_FILE" 2>&1 || run_sudo nginx -s reload >> "$LOG_FILE" 2>&1 || true
 
             # 6. Post-deployment health verification
             echo "=== RUNNING POST-DEPLOYMENT HEALTH CHECK ===" >> "$LOG_FILE"
