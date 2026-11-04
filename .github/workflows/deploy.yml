@@ -48,18 +48,17 @@ jobs:
           target: "/tmp/markhub_dist"
           overwrite: true
 
-      - name: Root Full Deploy, Process Reload & Health Check via SSH
+      - name: Deploy, Health Check & Process Reload via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: root
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 5m
           script: |
             set +e
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
             LOG_FILE="/tmp/deploy_debug.log"
-            echo "=== ROOT DEPLOY START: $(date) ===" > "$LOG_FILE"
+            echo "=== DEPLOY START: $(date) ===" > "$LOG_FILE"
             echo "User: $(whoami), PWD: $(pwd)" >> "$LOG_FILE"
 
             # 1. Update backend repo if git directory exists
@@ -103,7 +102,19 @@ jobs:
               node db_migrate.js >> "$LOG_FILE" 2>&1 || true
             fi
 
-            # 4. Sync frontend dist
+            # 4. Clean reload PM2 backend
+            echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
+            pkill -9 -u $(whoami) -f "server/index.js" 2>/dev/null || true
+            pkill -9 -u $(whoami) -f "node" 2>/dev/null || true
+            pm2 delete all >> "$LOG_FILE" 2>&1 || true
+
+            cd /var/www/markhub/server
+            pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
+            pm2 save >> "$LOG_FILE" 2>&1 || true
+            sleep 2
+            pm2 status >> "$LOG_FILE" 2>&1 || true
+
+            # 5. Sync frontend dist
             SRC="/tmp/markhub_dist/dist"
             if [ ! -d "$SRC" ] || [ ! -f "$SRC/index.html" ]; then
               SRC="/tmp/markhub_dist"
@@ -113,40 +124,18 @@ jobs:
             if [ -d "$TARGET" ]; then
               echo "=== SYNCING FRONTEND DIST ===" >> "$LOG_FILE"
               cp -rf "$SRC"/* "$TARGET/" >> "$LOG_FILE" 2>&1 || true
-              chown -R www-data:www-data "$TARGET" >> "$LOG_FILE" 2>&1 || true
-              chmod -R 755 "$TARGET" >> "$LOG_FILE" 2>&1 || true
+              find "$TARGET/assets" -maxdepth 1 -type f \( -name "*.js" -o -name "*.css" \) \
+                -user "$(whoami)" -mtime +2 -delete 2>/dev/null || true
             fi
 
-            # 5. Free port 5000 from old processes
-            echo "=== FREEING PORT 5000 OCCUPANTS ===" >> "$LOG_FILE"
-            fuser -k -9 5000/tcp >> "$LOG_FILE" 2>&1 || true
-            kill -9 $(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+') >> "$LOG_FILE" 2>&1 || true
-            pkill -9 -f "/var/www/markhub/server/index.js" >> "$LOG_FILE" 2>&1 || true
-            pkill -9 -f "node index.js" >> "$LOG_FILE" 2>&1 || true
-            systemctl stop college-cms >> "$LOG_FILE" 2>&1 || true
-            systemctl stop markhub >> "$LOG_FILE" 2>&1 || true
-            pm2 delete all >> "$LOG_FILE" 2>&1 || /usr/local/bin/pm2 delete all >> "$LOG_FILE" 2>&1 || true
-            su - markhub-deploy -c "pm2 delete all 2>/dev/null || true" 2>/dev/null || true
-            sleep 2
-
-            # 6. Start clean PM2 backend as markhub-deploy (with root fallback)
-            echo "=== STARTING CLEAN PM2 BACKEND ===" >> "$LOG_FILE"
-            chown -R markhub-deploy:markhub-deploy /var/www/markhub/server >> "$LOG_FILE" 2>&1 || true
-            su - markhub-deploy -c "cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env && pm2 save" >> "$LOG_FILE" 2>&1 || (cd /var/www/markhub/server && pm2 start index.js --name college-cms --update-env && pm2 save) >> "$LOG_FILE" 2>&1 || true
-            sleep 2
-
-            # 7. Reload Nginx
-            echo "=== RELOADING NGINX ===" >> "$LOG_FILE"
-            systemctl reload nginx >> "$LOG_FILE" 2>&1 || nginx -s reload >> "$LOG_FILE" 2>&1 || true
-
-            # 8. Post-deployment health verification
+            # 6. Post-deployment health verification
             echo "=== RUNNING POST-DEPLOYMENT HEALTH CHECK ===" >> "$LOG_FILE"
             HEALTHY=false
             for i in $(seq 1 15); do
               sleep 1
-              RES=$(curl -s http://127.0.0.1:5000/api/health 2>/dev/null || echo "")
-              echo "Health check attempt $i: $RES" >> "$LOG_FILE"
-              if echo "$RES" | grep -q '"status":"ok"'; then
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health 2>/dev/null || echo "000")
+              echo "Health check attempt $i: HTTP $HTTP_STATUS" >> "$LOG_FILE"
+              if [ "$HTTP_STATUS" = "200" ]; then
                 HEALTHY=true
                 echo "✅ Backend API healthy on port 5000" >> "$LOG_FILE"
                 break

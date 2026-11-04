@@ -322,15 +322,16 @@ export const statsAPI = {
     );
 
     if (!hasSH) {
-      // S&H branches and real student counts from nominal rolls
+      // S&H branches and real student counts from nominal rolls (section-wise)
       const shBranches = [
         { branch: 'B.E., (Civil)', year: 'I - B.E., (Civil)', strength: 36, passed: 0, percentage: '0.00' },
-        { branch: 'B.E., (CSE)', year: 'I - B.E., (CSE)', strength: 93, passed: 0, percentage: '0.00' },
+        { branch: 'B.E., (CSE-A)', year: 'I - B.E., (CSE-A)', strength: 60, passed: 0, percentage: '0.00' },
+        { branch: 'B.E., (CSE-B)', year: 'I - B.E., (CSE-B)', strength: 33, passed: 0, percentage: '0.00' },
         { branch: 'B.E., (EEE)', year: 'I - B.E., (EEE)', strength: 23, passed: 0, percentage: '0.00' },
         { branch: 'B.E., (ECE)', year: 'I - B.E., (ECE)', strength: 52, passed: 0, percentage: '0.00' },
         { branch: 'B.E., (Mech)', year: 'I - B.E., (Mech)', strength: 40, passed: 0, percentage: '0.00' },
         { branch: 'B.Tech., (IT)', year: 'I - B.Tech., (IT)', strength: 39, passed: 0, percentage: '0.00' },
-        { branch: 'B.Tech., (AI&DS)', year: 'I - B.Tech., (AI&DS)', strength: 0, passed: 0, percentage: '0.00' }
+        { branch: 'B.Tech., (AI&DS)', year: 'I - B.Tech., (AI&DS)', strength: 49, passed: 0, percentage: '0.00' }
       ];
 
       const shTotalStrength = shBranches.reduce((acc, b) => acc + b.strength, 0);
