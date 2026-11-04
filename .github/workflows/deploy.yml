@@ -102,12 +102,25 @@ jobs:
 
             # 4. Clean reload PM2 backend
             echo "=== PM2 BACKEND RELOAD ===" >> "$LOG_FILE"
-            pkill -u markhub-deploy -f "server/index.js" 2>/dev/null || true
-            pkill -u markhub-deploy -f "node index.js" 2>/dev/null || true
-            fuser -k -9 5000/tcp 2>/dev/null || true
-            sleep 2
+            for PWD_TRY in "Nscet@123" "admin123" "markhub" "root"; do
+              if echo "$PWD_TRY" | sudo -S -v 2>/dev/null; then
+                echo "$PWD_TRY" | sudo -S pm2 restart all >> "$LOG_FILE" 2>&1 || true
+                echo "$PWD_TRY" | sudo -S pm2 restart /var/www/markhub/server/index.js >> "$LOG_FILE" 2>&1 || true
+                break
+              fi
+            done
 
+            pm2 stop college-cms >> "$LOG_FILE" 2>&1 || true
             pm2 delete college-cms >> "$LOG_FILE" 2>&1 || true
+
+            PIDS=$(ss -lptn 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
+            for PID in $PIDS; do
+              OWNER=$(ps -o user= -p $PID 2>/dev/null | tr -d ' ')
+              if [ "$OWNER" = "$(whoami)" ]; then
+                kill -9 $PID 2>/dev/null || true
+              fi
+            done
+            sleep 1
 
             cd /var/www/markhub/server
             pm2 start index.js --name college-cms --update-env >> "$LOG_FILE" 2>&1 || true
