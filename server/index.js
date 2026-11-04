@@ -17,9 +17,6 @@ import settingRoutes  from './routes/settings.js';
 import remarkRoutes   from './routes/remarks.js';
 import logRoutes      from './routes/logs.js';
 
-import { execSync } from 'child_process';
-import fs from 'fs';
-import { runMigration } from './db_migrate.js';
 import db from './db.js';
 
 const app  = express();
@@ -48,22 +45,6 @@ app.get('/api/health', async (_req, res) => {
       database: 'disconnected',
       error: err.message
     });
-  }
-});
-
-// Diagnostic endpoint to check port occupants from API
-app.get('/api/diagnostic', async (_req, res) => {
-  try {
-    const whoami = execSync('whoami').toString().trim();
-    const nodeProcesses = execSync('ps -ef | grep node | grep -v grep').toString();
-    const port5000 = execSync("ss -lptn 'sport = :5000'").toString();
-    res.json({
-      whoami,
-      nodeProcesses,
-      port5000
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 
@@ -115,14 +96,9 @@ app.use(async (err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 College CMS API running on http://0.0.0.0:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
-  try {
-    await runMigration(false);
-  } catch (migErr) {
-    console.error('⚠️ Startup migration warning:', migErr.message);
-  }
 });
 
 server.on('error', (err) => {

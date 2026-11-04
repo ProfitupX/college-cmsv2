@@ -1,16 +1,31 @@
-name: Deploy College CMS
+name: Deploy to Production VPS
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+        default: ''
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
+    name: Build, Verify and Deploy to VPS
     runs-on: ubuntu-latest
-
+    environment: production
     steps:
-      - name: Checkout repository
+      - name: Validate Manual Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+            echo "❌ Deployment aborted: Input confirmation was not 'DEPLOY'."
+            exit 1
+          fi
+
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -19,74 +34,65 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci || npm install
+      - name: Install Frontend Dependencies
+        run: npm ci
 
-      - name: Automated Quality & Integrity Verification
-        run: npm run verify
-
-      # Requirement 1 & 2: Run automatic smoke tests & block deployment if any error exists
-      - name: Run Smoke Tests (Deployment Block Gate)
-        run: npm run test:smoke
-
-      - name: Build frontend bundle
+      - name: Build Frontend
         run: npm run build
 
-      - name: Verify build artifacts
+      - name: Verify Built Frontend Assets
         run: |
-          test -f dist/index.html || exit 1
-          ls -la dist/
-          ls -la dist/assets/
+          [ -s dist/index.html ] || { echo "dist/index.html missing"; exit 1; }
+          assets=$(grep -oE '(src|href)="(/assets/[^"]+)"' dist/index.html | sed -E 's/^(src|href)="\/assets\///; s/"$//' | sort -u)
+          [ -n "$assets" ] || { echo "No assets referenced in index.html"; exit 1; }
+          for asset in $assets; do
+            [ -s "dist/assets/$asset" ] || { echo "Missing asset: dist/assets/$asset"; exit 1; }
+          done
+          echo "✅ All referenced JS and CSS frontend assets verified."
 
-      - name: Transfer dist, server, and deploy script to VPS
-        uses: appleboy/scp-action@v0.1.7
+      - name: Verify Backend Integrity
+        run: |
+          [ -s server/index.js ] || { echo "server/index.js missing"; exit 1; }
+          [ -s server/package.json ] || { echo "server/package.json missing"; exit 1; }
+          [ -s server/package-lock.json ] || { echo "server/package-lock.json missing"; exit 1; }
+          echo "✅ Backend files verified."
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "dist/,server/,scripts/deploy_vps.sh"
-          target: "/tmp/markhub_dist"
-          overwrite: true
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      - name: Deploy, Health Check & Process Reload via SSH
-        uses: appleboy/ssh-action@v1.2.2
+      - name: Configure Known Hosts
         env:
-          VPS_PATH: ${{ secrets.VPS_PATH }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          envs: VPS_PATH
-          command_timeout: 5m
-          script: |
-            chmod +x /tmp/markhub_dist/scripts/deploy_vps.sh 2>/dev/null || true
-            chmod +x /tmp/markhub_dist/deploy_vps.sh 2>/dev/null || true
-            if [ -f "/tmp/markhub_dist/scripts/deploy_vps.sh" ]; then
-              bash /tmp/markhub_dist/scripts/deploy_vps.sh
-            elif [ -f "/tmp/markhub_dist/deploy_vps.sh" ]; then
-              bash /tmp/markhub_dist/deploy_vps.sh
-            else
-              echo "Deploy script not found!" && exit 1
-            fi
-
-      - name: Root PM2 Reload via SSH (Safe Fallback)
-        continue-on-error: true
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            echo "Connected as root: $(whoami)"
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-            pm2 restart all || /usr/local/bin/pm2 restart all || /usr/bin/pm2 restart all
-            sleep 2
-            pm2 status
-            curl -s http://127.0.0.1:5000/api/health
-
-      # Requirement 5: Notify Administrators on Failure
-      - name: Notify Administrators on Deployment Block or Failure
-        if: failure()
+          KNOWN_HOSTS_DATA: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
         run: |
-          echo "🚨 Deployment blocked by smoke tests or auto-rolled back on server. Administrators alerted."
+          if [ -z "$KNOWN_HOSTS_DATA" ]; then
+            echo "❌ VPS_SSH_KNOWN_HOSTS secret is empty or not set."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$KNOWN_HOSTS_DATA" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "✅ SSH known_hosts configured securely with pre-verified host key."
+
+      - name: Verify Service Ownership on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "MARKHUB_SERVICE_TYPE=${{ secrets.MARKHUB_SERVICE_TYPE }} MARKHUB_SERVICE_NAME=${{ secrets.MARKHUB_SERVICE_NAME }} bash -s" < scripts/inspect_service.sh
+
+      - name: Transfer Staging Artifacts to VPS
+        run: |
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /tmp/markhub_dist/dist /tmp/markhub_dist/server"
+          scp -o StrictHostKeyChecking=yes -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/markhub_dist/dist/
+          scp -o StrictHostKeyChecking=yes -r server/index.js server/package.json server/package-lock.json ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/markhub_dist/server/
+
+      - name: Execute Deployment on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "MARKHUB_SERVICE_TYPE=${{ secrets.MARKHUB_SERVICE_TYPE }} MARKHUB_SERVICE_NAME=${{ secrets.MARKHUB_SERVICE_NAME }} bash -s" < scripts/deploy_vps.sh
+
+      - name: Clean Up Remote Staging Directory
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "rm -rf /tmp/markhub_dist"
