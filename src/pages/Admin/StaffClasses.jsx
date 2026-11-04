@@ -490,8 +490,16 @@ export default function StaffClasses() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `NSCET_Staff_Class_Allocations_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
     a.click();
-    window.URL.revokeObjectURL(url);
+    setTimeout(() => {
+      try {
+        if (a.parentNode) document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (e) {
+        // ignore
+      }
+    }, 60000);
   };
 
   return (
