@@ -1533,7 +1533,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 // REPORT 4: Overall Marks & Attendance Statement (Based on Photo)
 // ─────────────────────────────────────────────────────────────
 // Helper function to split hours based on LTPC and subject type
-const getHourSplits = (ltpc, type, total) => {
+export const getHourSplits = (ltpc, type, total) => {
   const cleanLtpc = String(ltpc || '').trim().replace(/[\s-]+/g, '');
   let h = parseInt(total || 0, 10);
   if (h > 0 && h <= 10) h = h * 15;
@@ -2101,17 +2101,35 @@ export const generateLaboratoryMarksOnlyPDF = async ({
   await drawCollegeHeader(doc, title, 'NAC/TLP-LAB.01', '01', '', '1 of 1');
 
   // Determine prescribed lab hours:
-  let prescribedLabHours = parseInt(
-    totalHours ||
-    session?.total_hours ||
-    subject?.total_hours ||
-    subject?.lab_hours ||
-    labHours ||
-    60,
-    10
-  );
-  if (!prescribedLabHours || prescribedLabHours <= 0) {
-    prescribedLabHours = 60;
+  const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+  let prescribedLabHours;
+  if (isCombined) {
+    const rawTot = parseInt(subject?.total_hours || session?.total_hours || totalHours || 0, 10);
+    const splits = getHourSplits(subject?.ltpc, subject?.type, rawTot);
+    prescribedLabHours = parseInt(
+      subject?.lab_hours ||
+      session?.lab_hours ||
+      (labHours && labHours !== rawTot ? labHours : 0) ||
+      splits?.lab ||
+      30,
+      10
+    );
+    if (!prescribedLabHours || prescribedLabHours <= 0) {
+      prescribedLabHours = splits?.lab || 30;
+    }
+  } else {
+    prescribedLabHours = parseInt(
+      totalHours ||
+      session?.total_hours ||
+      subject?.total_hours ||
+      subject?.lab_hours ||
+      labHours ||
+      60,
+      10
+    );
+    if (!prescribedLabHours || prescribedLabHours <= 0) {
+      prescribedLabHours = 60;
+    }
   }
 
   let y = 46;

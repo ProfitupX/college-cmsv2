@@ -16,7 +16,8 @@ import {
   generateOverallMarksAndAttendancePDF,
   generateHodMarksPDF,
   generateCollegeOverviewPDF,
-  generateContinuousAssessmentAnalysisPDF
+  generateContinuousAssessmentAnalysisPDF,
+  getHourSplits
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
@@ -410,19 +411,26 @@ export default function ReportsPage() {
         }
       }
 
+      const isSubCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub?.type);
       const isSubPureLab = Boolean(
         sub && (
           sub.type === 'Practical' ||
           sub.type === 'Laboratory' ||
           sub.type === 'Lab' ||
-          (sub.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type))
+          (sub.name?.toLowerCase().includes('laboratory') && !isSubCombined)
         )
       );
+
+      const hourSplits = getHourSplits(sub?.ltpc, sub?.type, currentSession?.total_hours || sub?.total_hours || 60);
+      const computedLabHours = isSubCombined
+        ? parseInt(currentSession?.lab_hours || sub?.lab_hours || hourSplits?.lab || 30, 10)
+        : parseInt(currentSession?.lab_hours || sub?.lab_hours || (isSubPureLab ? (currentSession?.total_hours || sub?.total_hours || 60) : 0), 10);
+      const isLabStatement = isSubPureLab || subjectMarksMode === 'lab_marks_only';
 
       setPreviewPayload({
         is2021,
         isPureLab: isSubPureLab,
-        reportType: isSubPureLab ? 'lab_marks_only' : 'subject_marks_list',
+        reportType: isLabStatement ? 'lab_marks_only' : 'subject_marks_list',
         subject: sub || { code: 'SUB', name: 'Subject', department: cls.department, type: 'Theory' },
         classObj: cls,
         staff: staffObj,
@@ -438,7 +446,7 @@ export default function ReportsPage() {
         totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
         int1Hours: parseInt(currentSession?.int1_hours || sub?.int1_hours || 30, 10),
         int2Hours: parseInt(currentSession?.int2_hours || sub?.int2_hours || 30, 10),
-        labHours: parseInt(currentSession?.lab_hours || sub?.lab_hours || 0, 10),
+        labHours: computedLabHours,
         int1AttendanceData: int1Attd,
         withInternal,
         user
@@ -504,10 +512,12 @@ export default function ReportsPage() {
         }
       } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only') {
         const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
+        const isCombinedSub = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
         await generateLaboratoryMarksOnlyPDF({
           subject, classObj, staff, session, students,
           attendanceData, labData, internalExamData,
-          totalHours, labHours, assessmentMode, user
+          totalHours: isCombinedSub ? (labHours || 30) : totalHours,
+          labHours, assessmentMode, user
         });
       } else if (is2021) {
         await generateSubjectMarksListPDF2021({
@@ -583,10 +593,12 @@ export default function ReportsPage() {
           }
         }
       } else if (previewPayload?.isPureLab || reportType === 'lab_marks_only') {
+        const isCombinedSub = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
         await exportLaboratoryMarksExcel({
           subject, classObj, staff, session, students,
           attendanceData, labData, internalExamData,
-          totalHours, labHours, assessmentMode, user
+          totalHours: isCombinedSub ? (labHours || 30) : totalHours,
+          labHours, assessmentMode, user
         });
       } else {
         await exportSubjectMarksExcel({
@@ -635,16 +647,21 @@ export default function ReportsPage() {
 
       const withInternal = mode === 'with_internal';
 
+      const isSingleSubCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub?.type);
       const isSingleSubPureLab = Boolean(
         sub && (
           sub.type === 'Practical' ||
           sub.type === 'Laboratory' ||
           sub.type === 'Lab' ||
-          (sub.name?.toLowerCase().includes('laboratory') && !['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type))
+          (sub.name?.toLowerCase().includes('laboratory') && !isSingleSubCombined)
         )
       );
 
-      if (isSingleSubPureLab) {
+      if (isSingleSubPureLab || mode === 'lab_marks_only') {
+        const singleSplits = getHourSplits(sub?.ltpc, sub?.type, currentSession?.total_hours || sub?.total_hours || 60);
+        const singleLabHrs = isSingleSubCombined
+          ? parseInt(currentSession?.lab_hours || sub?.lab_hours || singleSplits?.lab || 30, 10)
+          : parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10);
         const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
         await generateLaboratoryMarksOnlyPDF({
           subject: sub, classObj: cls, staff: staffObj, session: currentSession,
@@ -652,8 +669,8 @@ export default function ReportsPage() {
           attendanceData: detail?.attendance || {},
           labData: detail?.labData || {},
           internalExamData: detail?.internalExam || {},
-          totalHours: parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
-          labHours: parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
+          totalHours: isSingleSubCombined ? singleLabHrs : parseInt(currentSession?.total_hours || sub?.total_hours || 60, 10),
+          labHours: singleLabHrs,
           assessmentMode: sessionMode,
           user
         });
@@ -955,6 +972,9 @@ export default function ReportsPage() {
                 >
                   <option value="with_internal">With Assignment Marks</option>
                   <option value="without_internal">Without Assignment Marks</option>
+                  {Boolean(subjects.find(s => s.id === selectedSubjectId) && ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory', 'Lab'].includes(subjects.find(s => s.id === selectedSubjectId)?.type)) && (
+                    <option value="lab_marks_only">🔬 Laboratory Marks Statement</option>
+                  )}
                 </select>
                 <button
                   style={{

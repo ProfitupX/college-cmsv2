@@ -709,6 +709,11 @@ export default function MarksEntryPage() {
   const executeSubjectPDF = async (options = {}) => {
     try {
       if (reportType === 'lab_marks_only') {
+        const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+        const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
+        const calcLab = isCombined
+          ? parseInt(selectedSubject?.lab_hours || currentSession?.lab_hours || splits?.lab || 30, 10)
+          : parseInt(labHours || totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10);
         const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
         await generateLaboratoryMarksOnlyPDF({
           subject: selectedSubject,
@@ -719,8 +724,8 @@ export default function MarksEntryPage() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours,
-          labHours,
+          totalHours: isCombined ? calcLab : totalHours,
+          labHours: calcLab,
           assessmentMode,
           targetPages: options?.targetPages || 'auto',
           user
@@ -837,6 +842,11 @@ export default function MarksEntryPage() {
   const executeSubjectExcel = async (options = {}) => {
     try {
       if (reportType === 'lab_marks_only') {
+        const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+        const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
+        const calcLab = isCombined
+          ? parseInt(selectedSubject?.lab_hours || currentSession?.lab_hours || splits?.lab || 30, 10)
+          : parseInt(labHours || totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10);
         await exportLaboratoryMarksExcel({
           subject: selectedSubject,
           classObj: selectedClass,
@@ -846,8 +856,8 @@ export default function MarksEntryPage() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours,
-          labHours,
+          totalHours: isCombined ? calcLab : totalHours,
+          labHours: calcLab,
           assessmentMode,
           user
         });

@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator';
+import { getHourSplits } from './pdfReportGenerator';
 
 const triggerDownload = async (workbook, filename) => {
   const safeFilename = String(filename || 'Report.xlsx')
@@ -536,7 +537,36 @@ export const exportLaboratoryMarksExcel = async ({
   ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
-  const prescribedLabHours = parseInt(totalHours || session?.total_hours || subject?.total_hours || subject?.lab_hours || labHours || 60, 10) || 60;
+  const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+  let prescribedLabHours;
+  if (isCombined) {
+    const rawTot = parseInt(subject?.total_hours || session?.total_hours || totalHours || 0, 10);
+    const splits = getHourSplits(subject?.ltpc, subject?.type, rawTot);
+    prescribedLabHours = parseInt(
+      subject?.lab_hours ||
+      session?.lab_hours ||
+      (labHours && labHours !== rawTot ? labHours : 0) ||
+      splits?.lab ||
+      30,
+      10
+    );
+    if (!prescribedLabHours || prescribedLabHours <= 0) {
+      prescribedLabHours = splits?.lab || 30;
+    }
+  } else {
+    prescribedLabHours = parseInt(
+      totalHours ||
+      session?.total_hours ||
+      subject?.total_hours ||
+      subject?.lab_hours ||
+      labHours ||
+      60,
+      10
+    );
+    if (!prescribedLabHours || prescribedLabHours <= 0) {
+      prescribedLabHours = 60;
+    }
+  }
   const numCols = 6;
 
   // Draw Official College Header

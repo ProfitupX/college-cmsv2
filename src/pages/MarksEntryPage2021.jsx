@@ -662,6 +662,11 @@ export default function MarksEntryPage2021() {
   const executeSubjectPDF = async (options = {}) => {
     try {
       if (reportType === 'lab_marks_only') {
+        const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+        const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
+        const calcLab = isCombined
+          ? parseInt(selectedSubject?.lab_hours || currentSession?.lab_hours || splits?.lab || 30, 10)
+          : parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10);
         const { generateLaboratoryMarksOnlyPDF } = await import('../services/pdfReportGenerator');
         await generateLaboratoryMarksOnlyPDF({
           subject: selectedSubject,
@@ -672,8 +677,8 @@ export default function MarksEntryPage2021() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10),
-          labHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10),
+          totalHours: isCombined ? calcLab : parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || 60, 10),
+          labHours: calcLab,
           assessmentMode,
           targetPages: options.targetPages || 'auto',
           user
@@ -782,6 +787,11 @@ export default function MarksEntryPage2021() {
   const executeSubjectExcel = async (options = {}) => {
     try {
       if (reportType === 'lab_marks_only') {
+        const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+        const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
+        const calcLab = isCombined
+          ? parseInt(selectedSubject?.lab_hours || currentSession?.lab_hours || splits?.lab || 30, 10)
+          : parseInt(totalHours || currentSession?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 60, 10);
         await exportLaboratoryMarksExcel({
           subject: selectedSubject,
           classObj: selectedClass,
@@ -791,8 +801,8 @@ export default function MarksEntryPage2021() {
           attendanceData,
           labData,
           internalExamData,
-          totalHours: parseInt(totalHours || currentSession?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30),
-          labHours: 40,
+          totalHours: isCombined ? calcLab : parseInt(totalHours || currentSession?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 60, 10),
+          labHours: calcLab,
           assessmentMode,
           user
         });
