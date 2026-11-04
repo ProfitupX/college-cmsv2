@@ -469,7 +469,7 @@ export default function ReportsPage() {
           allMarks: marksData || allMarks,
           marksData: marksData || allMarks,
           components, attendanceData, internalExamData, labData,
-          assessmentMode, declarationData, user
+          assessmentMode, totalHours, declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await generateClassAnalysisPDF({
@@ -548,7 +548,7 @@ export default function ReportsPage() {
         await exportSubjectAnalysisExcel({
           subject, classObj, staff, session, students,
           marksData, allMarks, components, attendanceData, internalExamData, labData,
-          assessmentMode, declarationData, user
+          assessmentMode, totalHours, declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await exportClassAnalysisExcel({

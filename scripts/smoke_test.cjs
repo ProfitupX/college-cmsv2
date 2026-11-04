@@ -447,6 +447,63 @@ try {
   const portraitOutput = portraitDoc.output('arraybuffer');
   assert(portraitOutput && portraitOutput.byteLength > 1000, `Portrait PDF Generation Complete (Buffer size: ${portraitOutput.byteLength} bytes)`);
 
+  // Verify Subject Analysis (NAC/TLP-07a.21) totalHours resolution logic
+  const resolveSubjectAnalysisHours = ({ totalHours = 0, session = null, subject = null, assessmentMode = 'internal1' } = {}) => {
+    return parseInt(
+      totalHours ||
+      session?.total_hours ||
+      ((assessmentMode === 'internal2')
+        ? (subject?.int2_hours || 30)
+        : (subject?.int1_hours || 30)) ||
+      30,
+      10
+    );
+  };
+
+  assert(resolveSubjectAnalysisHours({ totalHours: 45 }) === 45, 'Subject Analysis Hours: Explicit totalHours=45 honoured');
+  assert(resolveSubjectAnalysisHours({ session: { total_hours: 32 } }) === 32, 'Subject Analysis Hours: Fallback to session.total_hours=32');
+  assert(resolveSubjectAnalysisHours({ subject: { int1_hours: 28 }, assessmentMode: 'internal1' }) === 28, 'Subject Analysis Hours: Fallback to subject.int1_hours=28');
+  assert(resolveSubjectAnalysisHours({ subject: { int2_hours: 34 }, assessmentMode: 'internal2' }) === 34, 'Subject Analysis Hours: Fallback to subject.int2_hours=34');
+  assert(resolveSubjectAnalysisHours({}) === 30, 'Subject Analysis Hours: Default fallback is safely 30 without throwing ReferenceError');
+
+  // Verify Subject Analysis Grade Distribution
+  const calculateAnalysisGrades = (students, internalExamData) => {
+    const gradeCounts = { U: 0, E: 0, D: 0, C: 0, B: 0, A: 0, S: 0 };
+    let appeared = 0, passed = 0, failed = 0, absent = 0, maxMark = 0, minMark = 100;
+    students.forEach(st => {
+      const raw = internalExamData[st.id];
+      if (raw === undefined || raw === null || raw === '' || raw === 'AB') {
+        absent++;
+        return;
+      }
+      const mark = parseFloat(raw) || 0;
+      appeared++;
+      if (mark > maxMark) maxMark = mark;
+      if (mark < minMark) minMark = mark;
+      if (mark >= 50) passed++; else failed++;
+      if (mark < 50) gradeCounts.U++;
+      else if (mark <= 55) gradeCounts.E++;
+      else if (mark <= 59) gradeCounts.D++;
+      else if (mark <= 69) gradeCounts.C++;
+      else if (mark <= 79) gradeCounts.B++;
+      else if (mark <= 89) gradeCounts.A++;
+      else gradeCounts.S++;
+    });
+    if (appeared === 0) minMark = 0;
+    return { appeared, passed, failed, absent, maxMark, minMark, gradeCounts };
+  };
+
+  const testAnalysisStudents = [{ id: 's1' }, { id: 's2' }, { id: 's3' }, { id: 's4' }, { id: 's5' }];
+  const testExamMarks = { 's1': 95, 's2': 78, 's3': 52, 's4': 40, 's5': 'AB' };
+  const resGrades = calculateAnalysisGrades(testAnalysisStudents, testExamMarks);
+  assert(resGrades.appeared === 4, 'Subject Analysis Metrics: Appeared Count = 4');
+  assert(resGrades.absent === 1, 'Subject Analysis Metrics: Absent Count = 1');
+  assert(resGrades.passed === 3, 'Subject Analysis Metrics: Passed Count = 3');
+  assert(resGrades.failed === 1, 'Subject Analysis Metrics: Failed Count = 1');
+  assert(resGrades.maxMark === 95, 'Subject Analysis Metrics: Max Mark = 95');
+  assert(resGrades.minMark === 40, 'Subject Analysis Metrics: Min Mark = 40');
+  assert(resGrades.gradeCounts.S === 1 && resGrades.gradeCounts.B === 1 && resGrades.gradeCounts.E === 1 && resGrades.gradeCounts.U === 1, 'Subject Analysis Grade Buckets: S=1, B=1, E=1, U=1 correctly assigned');
+
 
   // ─────────────────────────────────────────────────────────────
   // 6. SMOKE TEST: EXCEL EXPORT WORKBOOK GENERATORS

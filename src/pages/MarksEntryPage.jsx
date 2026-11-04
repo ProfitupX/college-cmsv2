@@ -695,6 +695,7 @@ export default function MarksEntryPage() {
       await generateSubjectAnalysisPDF({
         ...pdfPayload,
         marksData: pdfPayload.allMarks, // Because pdfReportGenerator uses marksData (although we'll also pass allMarks)
+        totalHours,
         declarationData,
         user
       });
@@ -743,6 +744,7 @@ export default function MarksEntryPage() {
           internalExamData,
           labData,
           assessmentMode,
+          totalHours,
           user
         });
         return;
@@ -866,6 +868,7 @@ export default function MarksEntryPage() {
           internalExamData,
           labData,
           assessmentMode,
+          totalHours,
           user
         });
         return;
@@ -1388,7 +1391,9 @@ export default function MarksEntryPage() {
         }}
         title={reportType === 'lab_marks_only'
           ? `Laboratory Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
-          : `Subject Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
+          : reportType === 'subject_analysis'
+            ? `Subject Test Analysis (NAC/TLP-07a.21) — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+            : `Subject Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
         subject={selectedSubject}
         classObj={selectedClass}
         staff={{ name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' }}

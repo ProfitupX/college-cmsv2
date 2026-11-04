@@ -139,7 +139,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
 // REPORT 1: Test Analysis Report (Subject Wise) - Format NAC/TLP-07a.21
 // ─────────────────────────────────────────────────────────────
 export const generateSubjectAnalysisPDF = async ({
-  subject, classObj, staff, session, remedialAction, students, marksData, components, attendanceData, internalExamData, labData, assessmentMode, declarationData, user
+  subject, classObj, staff, session, remedialAction, students = [], marksData, allMarks, components, attendanceData, internalExamData, labData, assessmentMode, totalHours = 0, declarationData, user
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -162,7 +162,8 @@ export const generateSubjectAnalysisPDF = async ({
     session?.total_hours ||
     ((assessmentMode === 'internal2')
       ? (subject?.int2_hours || 30)
-      : (subject?.int1_hours || 30)),
+      : (subject?.int1_hours || 30)) ||
+    30,
     10
   );
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${analysisPrescribedHrs}`, 14, y);
@@ -185,6 +186,7 @@ export const generateSubjectAnalysisPDF = async ({
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
+  const activeMarksData = marksData || allMarks || {};
 
   students.forEach(st => {
     let mark = 0;
@@ -193,16 +195,16 @@ export const generateSubjectAnalysisPDF = async ({
     if (is2021) {
       // Regulation 2021: CIA components + internal exam (converted)
       let rawCIA = 0;
-      if (components && marksData) {
-        const isArray = Array.isArray(marksData);
+      if (components && activeMarksData) {
+        const isArray = Array.isArray(activeMarksData);
         components.forEach(comp => {
           let val = 0;
           if (isArray) {
-            const markObj = marksData.find(m => m.component_id === comp.id && m.student_id === st.id);
+            const markObj = activeMarksData.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
             val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
           } else {
             // Support MarksEntryPage2021 marksData format which could be { [st.id]: { [uid]: mark } }
-            val = (marksData[st.id] && marksData[st.id][comp.uid || comp.id]) ? parseFloat(marksData[st.id][comp.uid || comp.id]) : 0;
+            val = (activeMarksData[st.id] && activeMarksData[st.id][comp.uid || comp.id]) ? parseFloat(activeMarksData[st.id][comp.uid || comp.id]) : 0;
           }
           const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
           rawCIA += Math.min(val, conducted);
@@ -238,7 +240,7 @@ export const generateSubjectAnalysisPDF = async ({
       } else {
         // Fall back: sum CIA component marks + attendance contribution
         let rawCIA = 0;
-        const dataSource = marksData;
+        const dataSource = activeMarksData;
         if (components && dataSource) {
           const isArray = Array.isArray(dataSource);
           components.forEach(comp => {

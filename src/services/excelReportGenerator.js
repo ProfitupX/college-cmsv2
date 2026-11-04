@@ -1079,6 +1079,7 @@ export const exportSubjectAnalysisExcel = async ({
   internalExamData = {},
   labData = {},
   assessmentMode = 'internal1',
+  totalHours = 0,
   declarationData = {},
   user
 }) => {
@@ -1099,9 +1100,15 @@ export const exportSubjectAnalysisExcel = async ({
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
-  const analysisPrescribedHrs = (assessmentMode === 'internal2')
-    ? (parseInt(subject?.int2_hours, 10) || 30)
-    : (parseInt(subject?.int1_hours, 10) || 30);
+  const analysisPrescribedHrs = parseInt(
+    totalHours ||
+    session?.total_hours ||
+    ((assessmentMode === 'internal2')
+      ? (subject?.int2_hours || 30)
+      : (subject?.int1_hours || 30)) ||
+    30,
+    10
+  );
 
   const gradeCounts = { U: 0, E: 0, D: 0, C: 0, B: 0, A: 0, S: 0 };
   let appeared = 0;

@@ -648,6 +648,7 @@ export default function MarksEntryPage2021() {
       await generateSubjectAnalysisPDF({
         ...pdfPayload,
         marksData: pdfPayload.allMarks, // Map allMarks to marksData for pdfReportGenerator
+        totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
         declarationData,
         user
       });
@@ -695,6 +696,7 @@ export default function MarksEntryPage2021() {
           internalExamData,
           labData,
           assessmentMode,
+          totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
           user
         });
         return;
@@ -811,6 +813,7 @@ export default function MarksEntryPage2021() {
           internalExamData,
           labData,
           assessmentMode,
+          totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
           user
         });
         return;
@@ -1386,7 +1389,9 @@ export default function MarksEntryPage2021() {
         }}
         title={reportType === 'lab_marks_only'
           ? `Laboratory Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
-          : `Report Preview — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
+          : reportType === 'subject_analysis'
+            ? `Subject Test Analysis (NAC/TLP-07a.21) — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+            : `Report Preview — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
         subject={selectedSubject}
         classObj={selectedClass}
         staff={{ name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' }}
