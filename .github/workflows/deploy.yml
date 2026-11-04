@@ -48,6 +48,27 @@ jobs:
           target: "/tmp/markhub_dist"
           overwrite: true
 
+      - name: Root Port Free via Direct Root SSH
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "=== ROOT PRE-DEPLOY PORT RELEASE ==="
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+            fuser -k -9 5000/tcp 2>/dev/null || true
+            pkill -9 -f "server/index.js" 2>/dev/null || true
+            pkill -9 -f "node index.js" 2>/dev/null || true
+            systemctl stop college-cms 2>/dev/null || true
+            systemctl stop markhub 2>/dev/null || true
+            pm2 stop all 2>/dev/null || /usr/local/bin/pm2 stop all 2>/dev/null || true
+            chown -R markhub-deploy:markhub-deploy /var/www/markhub 2>/dev/null || true
+            chmod -R 775 /var/www/markhub 2>/dev/null || true
+            sleep 1
+
       - name: Deploy, Health Check & Auto-Rollback on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
