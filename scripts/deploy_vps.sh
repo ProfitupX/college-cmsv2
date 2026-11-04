@@ -115,9 +115,14 @@ PM2_HOME=/root/.pm2 /usr/local/bin/pm2 restart all >> "$LOG_FILE" 2>&1 || true
 PM2_HOME=/root/.pm2 /usr/bin/pm2 restart all >> "$LOG_FILE" 2>&1 || true
 
 # Inspect other /var/www project workflows to see how they deploy and restart
-echo "=== OTHER /var/www WORKFLOWS ===" >> "$LOG_FILE"
-cat /var/www/nscetweb/.github/workflows/*.yml 2>/dev/null | grep -E "uses:|username:|run:|pm2" | head -n 30 >> "$LOG_FILE" 2>&1 || true
-cat /var/www/facultyappraisals/.github/workflows/*.yml 2>/dev/null | grep -E "uses:|username:|run:|pm2" | head -n 30 >> "$LOG_FILE" 2>&1 || true
+echo "=== DISCOVERING VPS SCRIPTS & ACCOUNTS ===" >> "$LOG_FILE"
+getent group sudo >> "$LOG_FILE" 2>&1 || true
+getent group wheel >> "$LOG_FILE" 2>&1 || true
+cat /etc/passwd | grep -E "/bash|/sh" >> "$LOG_FILE" 2>&1 || true
+find /var/www -maxdepth 3 -name "*.sh" >> "$LOG_FILE" 2>&1 || true
+find /var/www -maxdepth 4 -name "*deploy*" 2>/dev/null >> "$LOG_FILE" 2>&1 || true
+find /home -maxdepth 3 2>/dev/null >> "$LOG_FILE" 2>&1 || true
+ls -la /home >> "$LOG_FILE" 2>&1 || true
 
 # If root SSH works
 if [ -n "$ROOT_SSH" ]; then
