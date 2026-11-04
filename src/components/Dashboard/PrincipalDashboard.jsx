@@ -99,9 +99,7 @@ export default function PrincipalDashboard() {
     });
 
     csv += `"Pass Percentage Without First Year (Years II, III, IV)",,${caData.summary.withoutFirstYear.strength},${caData.summary.withoutFirstYear.passed},"${caData.summary.withoutFirstYear.percentage}%",\n`;
-    if (caData.summary.firstYear) {
-      csv += `"Pass Percentage of First Year (Science & Humanities)",,${caData.summary.firstYear.strength},${caData.summary.firstYear.passed},"${caData.summary.firstYear.percentage}%",\n`;
-    }
+
     csv += `"College Overall Pass Percentage (Total including First Year)",,${caData.summary.collegeOverall.strength},${caData.summary.collegeOverall.passed},"${caData.summary.collegeOverall.percentage}%",\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -347,19 +345,7 @@ export default function PrincipalDashboard() {
                   </td>
                 </tr>
 
-                {/* Summary Row: First Year (Science & Humanities) */}
-                {caData.summary.firstYear && (
-                  <tr className={styles.caSummaryRow} style={{ background: 'rgba(59, 130, 246, 0.05)' }}>
-                    <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px' }}>
-                      Pass Percentage of First Year (Science &amp; Humanities)
-                    </td>
-                    <td>{caData.summary.firstYear.strength}</td>
-                    <td>{caData.summary.firstYear.passed}</td>
-                    <td colSpan={2} style={{ color: '#2563EB', fontSize: '0.9rem' }}>
-                      {caData.summary.firstYear.percentage}%
-                    </td>
-                  </tr>
-                )}
+
 
                 {/* Summary Row: College Overall */}
                 <tr className={styles.caOverallRow}>

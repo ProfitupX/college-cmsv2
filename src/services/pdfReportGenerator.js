@@ -1472,14 +1472,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
     { content: `${caData.summary.withoutFirstYear.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 243, 248], halign: 'center' } }
   ]);
 
-  if (caData.summary.firstYear) {
-    bodyRows.push([
-      { content: 'Pass Percentage of First Year (Science & Humanities)', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 248, 255] } },
-      { content: caData.summary.firstYear.strength, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } },
-      { content: caData.summary.firstYear.passed, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } },
-      { content: `${caData.summary.firstYear.percentage}%`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 248, 255], halign: 'center' } }
-    ]);
-  }
+
 
   // Summary Row: College Overall Pass Percentage
   bodyRows.push([

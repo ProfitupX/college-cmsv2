@@ -450,65 +450,100 @@ router.get('/continuous-assessment', async (req, res) => {
       const yearRows = [];
 
       if (d.name === 'Science and Humanities') {
-        const shBranches = [
-          { branch: 'B.E., (Civil)', year: 'I - B.E., (Civil)', pattern: 'Civil' },
-          { branch: 'B.E., (CSE)', year: 'I - B.E., (CSE)', pattern: 'CSE' },
-          { branch: 'B.E., (EEE)', year: 'I - B.E., (EEE)', pattern: 'EEE' },
-          { branch: 'B.E., (ECE)', year: 'I - B.E., (ECE)', pattern: 'ECE' },
-          { branch: 'B.E., (Mech)', year: 'I - B.E., (Mech)', pattern: 'Mech' },
-          { branch: 'B.Tech., (IT)', year: 'I - B.Tech., (IT)', pattern: 'IT' },
-          { branch: 'B.Tech., (AI&DS)', year: 'I - B.Tech., (AI&DS)', pattern: 'AI' }
-        ];
+        // Query all first-year Science & Humanities classes
+        const [shClasses] = await db.execute(
+          "SELECT id, name, department, year_label, semester, section FROM classes WHERE (year_label = 'I' OR department = 'Science and Humanities' OR department = 'First Year') ORDER BY id"
+        );
 
-        for (const b of shBranches) {
-          const [classes] = await db.execute(
-            "SELECT id, name FROM classes WHERE (year_label = 'I' OR department = 'Science and Humanities' OR department = 'First Year') AND (name LIKE ? OR id LIKE ?)",
-            [`%${b.pattern}%`, `%${b.pattern}%`]
+        const getFirstYearClassLabel = (cls) => {
+          const name = String(cls.name || '').toUpperCase();
+          const id = String(cls.id || '').toUpperCase();
+          const sec = String(cls.section || '').trim().toUpperCase();
+
+          if (name.includes('CIVIL') || id.includes('CIVIL')) {
+            return sec && sec !== 'A' ? `I - B.E., (Civil-${sec})` : 'I - B.E., (Civil)';
+          }
+          if (name.includes('CSE') || id.includes('CSE')) {
+            if (name.includes('CSE A') || name.includes('CSE-A') || id.includes('CSE_A') || sec === 'A') {
+              return 'I - B.E., (CSE-A)';
+            }
+            if (name.includes('CSE B') || name.includes('CSE-B') || id.includes('CSE_B') || sec === 'B') {
+              return 'I - B.E., (CSE-B)';
+            }
+            return sec ? `I - B.E., (CSE-${sec})` : 'I - B.E., (CSE)';
+          }
+          if (name.includes('EEE') || id.includes('EEE')) {
+            return sec && sec !== 'A' ? `I - B.E., (EEE-${sec})` : 'I - B.E., (EEE)';
+          }
+          if (name.includes('ECE') || id.includes('ECE')) {
+            return sec && sec !== 'A' ? `I - B.E., (ECE-${sec})` : 'I - B.E., (ECE)';
+          }
+          if (name.includes('MECH') || id.includes('MECH')) {
+            return sec && sec !== 'A' ? `I - B.E., (Mech-${sec})` : 'I - B.E., (Mech)';
+          }
+          if (name.includes('IT') || id.includes('IT')) {
+            return sec && sec !== 'A' ? `I - B.Tech., (IT-${sec})` : 'I - B.Tech., (IT)';
+          }
+          if (name.includes('AI') || id.includes('AIDS') || name.includes('DATA SCIENCE')) {
+            return sec && sec !== 'A' ? `I - B.Tech., (AI&DS-${sec})` : 'I - B.Tech., (AI&DS)';
+          }
+          return cls.name || `I - ${cls.id}`;
+        };
+
+        const getFirstYearSortWeight = (cls) => {
+          const name = String(cls.name || '').toUpperCase();
+          const id = String(cls.id || '').toUpperCase();
+          if (name.includes('CIVIL') || id.includes('CIVIL')) return 1;
+          if ((name.includes('CSE') || id.includes('CSE')) && (name.includes('CSE A') || name.includes('CSE-A') || id.includes('CSE_A') || cls.section === 'A')) return 2;
+          if ((name.includes('CSE') || id.includes('CSE')) && (name.includes('CSE B') || name.includes('CSE-B') || id.includes('CSE_B') || cls.section === 'B')) return 3;
+          if (name.includes('EEE') || id.includes('EEE')) return 4;
+          if (name.includes('ECE') || id.includes('ECE')) return 5;
+          if (name.includes('MECH') || id.includes('MECH')) return 6;
+          if (name.includes('IT') || id.includes('IT')) return 7;
+          if (name.includes('AI') || id.includes('AIDS') || name.includes('DATA SCIENCE')) return 8;
+          return 99;
+        };
+
+        shClasses.sort((a, b) => getFirstYearSortWeight(a) - getFirstYearSortWeight(b));
+
+        // Evaluate each class strictly independently
+        for (const c of shClasses) {
+          const [students] = await db.execute(
+            'SELECT id, name FROM students WHERE class_id = ?',
+            [c.id]
           );
-
-          let yearStrength = 0;
+          const yearStrength = students.length;
           let yearPassed = 0;
 
-          if (classes.length > 0) {
-            const classIds = classes.map(c => c.id);
-            const placeholders = classIds.map(() => '?').join(',');
+          const [sessions] = await db.execute(
+            'SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id = ? AND session_label = ?',
+            [c.id, sessionLabel]
+          );
 
-            const [students] = await db.execute(
-              `SELECT id, name FROM students WHERE class_id IN (${placeholders})`,
-              classIds
-            );
-            yearStrength = students.length;
-
-            const [sessions] = await db.execute(
-              `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND session_label = ?`,
-              [...classIds, sessionLabel]
+          if (sessions.length > 0 && students.length > 0) {
+            const sessionIds = sessions.map(s => s.id);
+            const sessPlaceholders = sessionIds.map(() => '?').join(',');
+            const [attRows] = await db.execute(
+              `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
+              sessionIds
             );
 
-            if (sessions.length > 0 && students.length > 0) {
-              const sessionIds = sessions.map(s => s.id);
-              const sessPlaceholders = sessionIds.map(() => '?').join(',');
-              const [attRows] = await db.execute(
-                `SELECT student_id, session_id, internal_exam_mark FROM session_attendance WHERE session_id IN (${sessPlaceholders})`,
-                sessionIds
-              );
+            const studentAttMap = {};
+            attRows.forEach(a => {
+              if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
+              studentAttMap[a.student_id].push(a);
+            });
 
-              const studentAttMap = {};
-              attRows.forEach(a => {
-                if (!studentAttMap[a.student_id]) studentAttMap[a.student_id] = [];
-                studentAttMap[a.student_id].push(a);
-              });
-
-              students.forEach(st => {
-                const records = studentAttMap[st.id] || [];
-                if (records.length === sessions.length && records.length > 0) {
-                  const allPass = records.every(r => {
-                    const score = parseFloat(r.internal_exam_mark);
-                    return !isNaN(score) && score >= 50;
-                  });
-                  if (allPass) yearPassed++;
-                }
-              });
-            }
+            students.forEach(st => {
+              const records = studentAttMap[st.id] || [];
+              if (records.length === sessions.length && records.length > 0) {
+                const allPass = records.every(r => {
+                  const score = parseFloat(r.internal_exam_mark);
+                  return !isNaN(score) && score >= 50;
+                });
+                if (allPass) yearPassed++;
+              }
+            });
           }
 
           deptStrength += yearStrength;
@@ -516,8 +551,10 @@ router.get('/continuous-assessment', async (req, res) => {
 
           const passPct = yearStrength > 0 ? ((yearPassed / yearStrength) * 100).toFixed(2) : '0.00';
           yearRows.push({
-            year: b.year,
-            branch: b.branch,
+            year: getFirstYearClassLabel(c),
+            classId: c.id,
+            className: c.name,
+            section: c.section,
             strength: yearStrength,
             passed: yearPassed,
             percentage: passPct
