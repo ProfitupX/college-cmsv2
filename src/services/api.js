@@ -12,9 +12,18 @@ const BASE = window.location.protocol === 'https:'
 
 // Generic fetch helper
 async function request(method, path, body = null) {
+  const token = typeof window !== 'undefined' && window.sessionStorage
+    ? window.sessionStorage.getItem('cms_auth_token')
+    : null;
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
   };
   if (body) opts.body = JSON.stringify(body);
 
@@ -229,7 +238,7 @@ export const marksAPI = {
       if (!res.attendanceMarks) res.attendanceMarks = {};
       const tHours = parseInt(res.session.total_hours, 10) || 30;
       const mode = res.session.session_label || 'internal1';
-      
+
       if (res.attendance) {
         Object.keys(res.attendance).forEach(stId => {
           res.attendanceMarks[stId] = resolveAttendanceMark(stId, {
@@ -316,7 +325,7 @@ export const statsAPI = {
     if (!res || !res.departments) return res;
 
     // Check if Science and Humanities is already present
-    const hasSH = res.departments.some(d => 
+    const hasSH = res.departments.some(d =>
       (d.departmentFullName && d.departmentFullName.toLowerCase().includes('science')) ||
       (d.department && d.department.toLowerCase().includes('science'))
     );

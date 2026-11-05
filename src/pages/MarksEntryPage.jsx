@@ -7,20 +7,20 @@ import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 import ComponentBuilder from '../components/MarksEntry/ComponentBuilder';
 import MarksTable from '../components/MarksEntry/MarksTable';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
-import { 
-  generateSubjectAnalysisPDF, 
-  generateClassAnalysisPDF, 
-  generateConsolidatedMarksPDF 
+import {
+  generateSubjectAnalysisPDF,
+  generateClassAnalysisPDF,
+  generateConsolidatedMarksPDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import ReportPreviewModal from '../components/Common/ReportPreviewModal';
-import { 
-  exportSubjectMarksExcel, 
-  exportLaboratoryMarksExcel, 
-  exportOverallMarksExcel, 
-  exportSubjectAnalysisExcel, 
-  exportConsolidatedMarksExcel, 
-  exportClassAnalysisExcel 
+import {
+  exportSubjectMarksExcel,
+  exportLaboratoryMarksExcel,
+  exportOverallMarksExcel,
+  exportSubjectAnalysisExcel,
+  exportConsolidatedMarksExcel,
+  exportClassAnalysisExcel
 } from '../services/excelReportGenerator';
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
@@ -131,9 +131,9 @@ export default function MarksEntryPage() {
           // All 1st & 2nd year classes
         } else if (user?.role === 'hod') {
           const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
-          filtered = filtered.filter(c => 
+          filtered = filtered.filter(c =>
             c && (
-              c.department === user.department || 
+              c.department === user.department ||
               (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0])) ||
               teachIds.includes(String(c.id))
             )
@@ -141,10 +141,10 @@ export default function MarksEntryPage() {
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c && String(c.id));
           const teachIds = (user.teachingClasses || []).map(c => c && String(c.id));
-          filtered = filtered.filter(c => 
+          filtered = filtered.filter(c =>
             c && (
-              coordIds.includes(String(c.id)) || 
-              (user.coordinatedClassId && String(c.id) === String(user.coordinatedClassId)) || 
+              coordIds.includes(String(c.id)) ||
+              (user.coordinatedClassId && String(c.id) === String(user.coordinatedClassId)) ||
               teachIds.includes(String(c.id))
             )
           );
@@ -199,7 +199,7 @@ export default function MarksEntryPage() {
       const subsList = Array.isArray(allSubs) ? allSubs.filter(Boolean) : [];
       const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
       const isCoordinator = user?.isClassCoordinator && (
-        user.coordinatedClassId === effectiveClassId || 
+        user.coordinatedClassId === effectiveClassId ||
         (user.coordinatedClasses || []).some(c => c && String(c.id) === String(effectiveClassId))
       );
 
@@ -304,7 +304,7 @@ export default function MarksEntryPage() {
       setIsComponentsDirty(false);
       return;
     }
-    
+
     setLoading(true);
 
     const searchParams = new URLSearchParams(location.search);
@@ -499,7 +499,7 @@ export default function MarksEntryPage() {
 
       const attendancePayload = students.map(st => {
         const rawAttd = (attendanceData[st.id] !== undefined && attendanceData[st.id] !== '')
-          ? parseInt(attendanceData[st.id], 10) || 0 
+          ? parseInt(attendanceData[st.id], 10) || 0
           : (isPureLab ? (parseInt(labData[st.id]?.labAttendance, 10) || 0) : 0);
 
         const stLab = labData[st.id] || {};
@@ -616,7 +616,7 @@ export default function MarksEntryPage() {
     }
   };
 
-  const handleReset = async () => { 
+  const handleReset = async () => {
     if (!window.confirm('Are you sure you want to completely clear all marks for this subject? This will permanently delete any saved or fake marks in the database and give you a fresh, clean sheet.')) {
       return;
     }
@@ -629,12 +629,12 @@ export default function MarksEntryPage() {
         sessionId: currentSession?.id,
         staffId: user?.id || currentSession?.staff_id || 'staff'
       });
-      clearMarks(); 
+      clearMarks();
       setCurrentSession(null);
       setAssessmentComponents([]);
       setSessionStatus('draft');
-      setSaved(false); 
-      setSaveErr(''); 
+      setSaved(false);
+      setSaveErr('');
       setIsComponentsDirty(false);
       const splits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, selectedSubject.total_hours) : { int1: 30, int2: 30 };
       const prescribed = assessmentMode === 'internal2'
@@ -996,15 +996,48 @@ export default function MarksEntryPage() {
   const classDept = (selectedClassObj?.department || '').trim().toLowerCase();
   const className = (selectedClassObj?.name || '').trim().toLowerCase();
 
-  const isClassDeptHod = user?.role === 'hod' && Boolean(
-    (classDept && userDept && classDept === userDept) ||
-    (selectedClassObj?.year_label === 'I' && (userDept.includes('science') || userDept.includes('humanities'))) ||
-    (!classDept && userDept && className && className.includes(userDept.split(' ')[0]))
-  );
-  const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isClassDeptHod);
+  const normDept = (d) => {
+    if (!d) return '';
+    const s = String(d).toLowerCase().trim();
+    if (s.includes('artificial') || s.includes('data') || s.includes('aids') || s.includes('ai&ds') || s === 'ad') return 'aids';
+    if (s.includes('information') || s === 'it') return 'it';
+    if (s.includes('computer') || s === 'cse') return 'cse';
+    if (s.includes('mech')) return 'mech';
+    if (s.includes('civil')) return 'civil';
+    if (s.includes('electrical') || s === 'eee') return 'eee';
+    if (s.includes('electronic') || s === 'ece') return 'ece';
+    if (s.includes('science') || s.includes('humanities') || s === 's&h') return 'sh';
+    return s;
+  };
+
+  const inferDeptFromCode = (code) => {
+    if (!code) return '';
+    const c = String(code).trim().toUpperCase();
+    // 1. Longest / specific prefixes first (3 characters)
+    if (/^(CBM|CEC)/.test(c)) return 'ece';
+    if (/^CCS/.test(c)) return 'cse';
+    if (/^(CME|CRA|OME|OML)/.test(c)) return 'mech';
+    if (/^OGI/.test(c)) return 'civil';
+    if (/^OHS/.test(c)) return 'sh';
+    // 2. Standard 2-character prefixes
+    if (/^(MA|PH|CY|GE|HS|BS|UC|EN)/.test(c)) return 'sh';
+    if (/^(CS|CB)/.test(c)) return 'cse';
+    if (/^(IT|CW)/.test(c)) return 'it';
+    if (/^AD/.test(c)) return 'aids';
+    if (/^EC/.test(c)) return 'ece';
+    if (/^EE/.test(c)) return 'eee';
+    if (/^ME/.test(c)) return 'mech';
+    if (/^(CE|AG|GI)/.test(c)) return 'civil';
+    return '';
+  };
+
+  const userDeptNorm = normDept(user?.department);
+  const subDeptNorm = normDept(selectedSubject?.department) || inferDeptFromCode(selectedSubject?.code);
+  const isSubjectDeptHod = user?.role === 'hod' && Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm);
+  const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isSubjectDeptHod);
   const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
-  const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && user?.role !== 'hod' && user?.role !== 'admin');
+  const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && !canDirectlyUnlock);
   const canEnterMarks = isPrincipal || isPureLab ? true : assessmentComponents.length > 0;
 
   if (loading) {
@@ -1051,7 +1084,7 @@ export default function MarksEntryPage() {
             <div className={styles.lockBanner}>
               <div className={styles.lockBannerLeft}>
                 <Lock size={18} />
-                <span>This Marks Sheet is <strong>Locked</strong> after submission. {canDirectlyUnlock ? 'You can unlock it.' : 'Changes require Class HOD approval.'}</span>
+                <span>This Marks Sheet is <strong>Locked</strong> after submission. {canDirectlyUnlock ? 'You can unlock it.' : 'Changes require Subject HOD approval.'}</span>
               </div>
               {canDirectlyUnlock ? (
                 <button className={styles.requestUnlockBtn} onClick={handleUnlockSheet}>
@@ -1148,8 +1181,8 @@ export default function MarksEntryPage() {
             <div className={styles.subjectStripRight}>
               <div className={styles.assessmentSelector}>
                 <label>Assessment Mode:</label>
-                <select 
-                  value={assessmentMode} 
+                <select
+                  value={assessmentMode}
                   onChange={(e) => setAssessmentMode(e.target.value)}
                   className={styles.dropdown}
                 >
@@ -1277,7 +1310,7 @@ export default function MarksEntryPage() {
           </div>
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
-              <select 
+              <select
                 className={styles.downloadSelect}
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
@@ -1374,16 +1407,16 @@ export default function MarksEntryPage() {
             <div className={styles.modalActions}>
               <button className={styles.modalCancelBtn} onClick={() => setShowUnlockModal(false)}>Cancel</button>
               <button className={styles.modalSubmitBtn} onClick={handleRequestUnlock} disabled={submittingUnlock || !unlockReason.trim()}>
-                {submittingUnlock ? 'Submitting…' : 'Submit Request to HOD'}
+                {submittingUnlock ? 'Submitting…' : 'Submit Request to Subject HOD'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <DeclarationModal 
-        isOpen={declarationModalOpen} 
-        onClose={() => setDeclarationModalOpen(false)} 
+      <DeclarationModal
+        isOpen={declarationModalOpen}
+        onClose={() => setDeclarationModalOpen(false)}
         onSubmit={handleGenerateSubjectPDF}
         session={currentSession}
       />

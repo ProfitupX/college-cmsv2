@@ -11,25 +11,25 @@ import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
 import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI, classesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { 
-  generateClassAnalysisPDF, 
-  generateConsolidatedMarksPDF, 
-  generateSubjectAnalysisPDF, 
+import {
+  generateClassAnalysisPDF,
+  generateConsolidatedMarksPDF,
+  generateSubjectAnalysisPDF,
   generateSubjectMarksListPDF,
   generateSubjectMarksListPDF2021,
   generateOverallMarksAndAttendancePDF,
-  generateHodMarksPDF 
+  generateHodMarksPDF
 } from '../services/pdfReportGenerator';
 import DeclarationModal from '../components/Reports/DeclarationModal';
 import SubjectSelectionModal from '../components/Reports/SubjectSelectionModal';
 import ReportPreviewModal from '../components/Common/ReportPreviewModal';
-import { 
-  exportSubjectMarksExcel, 
-  exportLaboratoryMarksExcel, 
-  exportOverallMarksExcel, 
-  exportSubjectAnalysisExcel, 
-  exportConsolidatedMarksExcel, 
-  exportClassAnalysisExcel 
+import {
+  exportSubjectMarksExcel,
+  exportLaboratoryMarksExcel,
+  exportOverallMarksExcel,
+  exportSubjectAnalysisExcel,
+  exportConsolidatedMarksExcel,
+  exportClassAnalysisExcel
 } from '../services/excelReportGenerator';
 import styles from './DashboardPage.module.css';
 
@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const [pdfPayload, setPdfPayload] = useState(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewPayload, setPreviewPayload] = useState(null);
-  
+
   const [subjectModalOpen, setSubjectModalOpen] = useState(false);
   const [subjectModalPdfType, setSubjectModalPdfType] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState([]);
@@ -76,12 +76,12 @@ export default function DashboardPage() {
   const loadData = () => {
     setLoading(true);
     const promises = [
-      user?.role === 'admin' 
+      user?.role === 'admin'
         ? statsAPI.getCollegeStats()
         : statsAPI.get('', user?.id, user?.role, user?.department),
       marksAPI.getSessions(
-        user?.role === 'hod' 
-          ? { department: user?.department } 
+        user?.role === 'hod'
+          ? { department: user?.department }
           : (user?.role === 'staff' || user?.role === 'faculty')
             ? { staffId: user?.id }
             : {}
@@ -92,7 +92,7 @@ export default function DashboardPage() {
 
     if (user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
       // Fetch all requests and route strictly to the class's department HOD
-      promises.push(marksAPI.getUnlockRequests().catch(() => []));
+      promises.push(marksAPI.getUnlockRequests(user?.role === 'hod' ? user?.department : undefined).catch(() => []));
     } else {
       promises.push(Promise.resolve([]));
     }
@@ -106,7 +106,7 @@ export default function DashboardPage() {
     promises.push(backupPromise);
 
     Promise.all(promises)
-      .then(([stats, sess, dl, loadedClasses, requests, backupData]) => { 
+      .then(([stats, sess, dl, loadedClasses, requests, backupData]) => {
         if (Array.isArray(loadedClasses)) {
           setClasses(loadedClasses);
         }
@@ -122,8 +122,8 @@ export default function DashboardPage() {
           'IV': 38.6
         };
 
-        let yearPerf = Array.isArray(finalStats.yearPerformance) 
-          ? finalStats.yearPerformance.filter(y => y.name !== 'I' && y.name !== '1') 
+        let yearPerf = Array.isArray(finalStats.yearPerformance)
+          ? finalStats.yearPerformance.filter(y => y.name !== 'I' && y.name !== '1')
           : [];
 
         targetYears.forEach(yr => {
@@ -192,7 +192,7 @@ export default function DashboardPage() {
         yearPerf.sort((a, b) => (yrOrder[a.name] || 99) - (yrOrder[b.name] || 99));
         finalStats.yearPerformance = yearPerf;
 
-        setData(finalStats); 
+        setData(finalStats);
         setSessions(sess.slice(0, 5));
         if (dl && dl.value) {
           setDeadline(dl.value);
@@ -202,11 +202,11 @@ export default function DashboardPage() {
         if (user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
           setUnlockRequests(pending);
         } else if (user?.role === 'hod') {
-          // Strictly route to Class Department HOD (e.g. Mechanical staff teaching AI&DS class goes to AI&DS HOD only)
+          // Strictly route to Subject Department HOD
           const norm = (d) => {
             if (!d) return '';
             const s = String(d).toLowerCase().trim();
-            if (s.includes('artificial') || s.includes('data') || s.includes('aids') || s.includes('ai&ds') || s.startsWith('ad')) return 'aids';
+            if (s.includes('artificial') || s.includes('data') || s.includes('aids') || s.includes('ai&ds') || s === 'ad') return 'aids';
             if (s.includes('information') || s === 'it') return 'it';
             if (s.includes('computer') || s === 'cse') return 'cse';
             if (s.includes('mech')) return 'mech';
@@ -217,20 +217,32 @@ export default function DashboardPage() {
             return s;
           };
 
+          const inferDeptFromCode = (code) => {
+            if (!code) return '';
+            const c = String(code).trim().toUpperCase();
+            // 1. Longest / specific prefixes first (3 characters)
+            if (/^(CBM|CEC)/.test(c)) return 'ece';
+            if (/^CCS/.test(c)) return 'cse';
+            if (/^(CME|CRA|OME|OML)/.test(c)) return 'mech';
+            if (/^OGI/.test(c)) return 'civil';
+            if (/^OHS/.test(c)) return 'sh';
+            // 2. Standard 2-character prefixes
+            if (/^(MA|PH|CY|GE|HS|BS|UC|EN)/.test(c)) return 'sh';
+            if (/^(CS|CB)/.test(c)) return 'cse';
+            if (/^(IT|CW)/.test(c)) return 'it';
+            if (/^AD/.test(c)) return 'aids';
+            if (/^EC/.test(c)) return 'ece';
+            if (/^EE/.test(c)) return 'eee';
+            if (/^ME/.test(c)) return 'mech';
+            if (/^(CE|AG|GI)/.test(c)) return 'civil';
+            return '';
+          };
+
           const userDeptNorm = norm(user?.department);
 
           const filtered = pending.filter(r => {
-            const reqClass = (loadedClasses || []).find(c => c.id === r.class_id || c.name === r.class_name);
-            const classDeptNorm = norm(reqClass?.department || r.class_department);
-            const classNameNorm = norm(r.class_name || reqClass?.name);
-
-            // 1. Direct class department match
-            if (userDeptNorm && classDeptNorm && userDeptNorm === classDeptNorm) return true;
-
-            // 2. Class name prefix / acronym match (e.g. "AD - IV Year" belongs to AI&DS)
-            if (userDeptNorm && classNameNorm && userDeptNorm === classNameNorm) return true;
-
-            return false;
+            const subDeptNorm = norm(r.subject_department) || inferDeptFromCode(r.subject_code);
+            return Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm);
           });
           setUnlockRequests(filtered);
         } else {
@@ -264,15 +276,15 @@ export default function DashboardPage() {
         if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
           allowed = allClasses;
         } else if (user?.role === 'hod') {
-          allowed = allClasses.filter(c => 
-            c.department === user.department || 
+          allowed = allClasses.filter(c =>
+            c.department === user.department ||
             (c.department === 'Science and Humanities' && user.department !== 'Science and Humanities' && c.name?.toLowerCase().includes(user.department?.toLowerCase().split(' ')[0]))
           );
         } else if (user?.isClassCoordinator) {
           const coordIds = (user.coordinatedClasses || []).map(c => c.id);
           const teachIds = (user.teachingClasses || []).map(c => c.id);
-          allowed = allClasses.filter(c => 
-            coordIds.includes(c.id) || 
+          allowed = allClasses.filter(c =>
+            coordIds.includes(c.id) ||
             (user.coordinatedClassId && c.id === user.coordinatedClassId) ||
             teachIds.includes(c.id)
           );
@@ -311,7 +323,7 @@ export default function DashboardPage() {
         let visibleSubs = allSubs;
         const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
         const isCoordOfThis = user?.isClassCoordinator && (
-          user.coordinatedClassId === selectedClassId || 
+          user.coordinatedClassId === selectedClassId ||
           (user.coordinatedClasses || []).some(c => c.id === selectedClassId)
         );
         if (!isElevated && !isCoordOfThis) {
@@ -360,8 +372,7 @@ export default function DashboardPage() {
       await marksAPI.approveUnlock({
         requestId: reqId,
         sessionId: sessId,
-        hodId: user?.id || 'HOD',
-        action
+                action
       });
       loadData();
     } catch (err) {
@@ -391,14 +402,14 @@ export default function DashboardPage() {
     const type = subjectModalPdfType;
     const period = modalTargetSession || inchargeSession || quickSession || 'internal1';
     const classId = modalTargetClassId || user?.coordinatedClassId || selectedClassId || 'CL001';
-    
+
     setGenLoading(true);
     setSubjectModalOpen(false);
-    
+
     try {
       const summary = await marksAPI.getClassSummary(classId, period);
       const isCoordOfThis = user?.isClassCoordinator && (
-        user.coordinatedClassId === classId || 
+        user.coordinatedClassId === classId ||
         (user.coordinatedClasses || []).some(c => c.id === classId)
       );
       const inchargeNameParam = isCoordOfThis ? user?.name : '';
@@ -496,7 +507,7 @@ export default function DashboardPage() {
       const withInternal = mode === 'with_internal';
 
       const stds = (classStudents && classStudents.length > 0 && selectedClassId === clsId)
-        ? classStudents 
+        ? classStudents
         : await studentsAPI.getByClass(clsId);
 
       const sessDetail = await marksAPI.getSessions({ classId: clsId, subjectId: subId, sessionLabel: period });
@@ -737,7 +748,7 @@ export default function DashboardPage() {
       }
 
       const students = (classStudents && classStudents.length > 0 && selectedClassId === clsId)
-        ? classStudents 
+        ? classStudents
         : await studentsAPI.getByClass(clsId);
 
       const sessDetail = await marksAPI.getSessions({ classId: clsId, subjectId: sub.id, sessionLabel: period });
@@ -838,14 +849,14 @@ export default function DashboardPage() {
   const isHodOrAdmin = user?.role === 'hod' || user?.role === 'admin';
   const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
   const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
-    user.coordinatedClassId === selectedClassId || 
+    user.coordinatedClassId === selectedClassId ||
     (user.coordinatedClasses || []).some(c => c && c.id === selectedClassId)
   );
   const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
   const assignedClassList = Array.isArray(data?.assignedClasses)
     ? data.assignedClasses
     : (user?.teachingClasses || []).map(c => typeof c === 'string' ? c : (c?.name || '')).filter(Boolean);
-  
+
   let studentSubtext = `${user?.department || 'Information Technology'} Department (All Years)`;
   if (!isHodOrAdmin) {
     if (assignedClassList.length > 1) {
@@ -857,8 +868,8 @@ export default function DashboardPage() {
     }
   }
 
-  const subjectLabel = isHodOrAdmin 
-    ? (data?.myTeachingSubjects > 0 ? 'My Teaching Subjects' : 'Total Department Subjects') 
+  const subjectLabel = isHodOrAdmin
+    ? (data?.myTeachingSubjects > 0 ? 'My Teaching Subjects' : 'Total Department Subjects')
     : 'My Assigned Subjects';
 
   const subjectValue = isHodOrAdmin
@@ -866,8 +877,8 @@ export default function DashboardPage() {
     : ((user?.assignedSubjects?.length) || (data?.totalSubjects ?? 0));
 
   const subjectSubtext = isHodOrAdmin
-    ? (data?.myTeachingSubjects > 0 
-        ? `${data.myTeachingSubjects} subject(s) taught by HOD (${data?.totalSubjects ?? 0} total in dept)` 
+    ? (data?.myTeachingSubjects > 0
+        ? `${data.myTeachingSubjects} subject(s) taught by HOD (${data?.totalSubjects ?? 0} total in dept)`
         : `Across all ${user?.department || 'IT'} classes`)
     : (assignedClassList.length > 0 ? `${assignedClassList.length} Class(es) Teaching` : 'This semester');
 
@@ -1030,7 +1041,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <select 
+              <select
                 value={hodSession}
                 onChange={e => setHodSession(e.target.value)}
                 style={{
@@ -1048,7 +1059,7 @@ export default function DashboardPage() {
                 <option value="internal2">Internal 2 (CA-2)</option>
               </select>
 
-              <button 
+              <button
                 onClick={handleDownloadHodPDF}
                 disabled={genLoading || !hodMarksData}
                 style={{
@@ -1132,7 +1143,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <select 
+              <select
                 value={inchargeSession}
                 onChange={e => setInchargeSession(e.target.value)}
                 style={{
@@ -1147,7 +1158,7 @@ export default function DashboardPage() {
           </div>
 
           <div className={styles.inchargeButtons} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-            <button 
+            <button
               style={{
                 background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
@@ -1159,7 +1170,7 @@ export default function DashboardPage() {
               <FileText size={16} /> Download Class Performance Report (NAC/TLP-20)
             </button>
 
-            <button 
+            <button
               style={{
                 background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
@@ -1187,20 +1198,20 @@ export default function DashboardPage() {
                 <option value="with_internal">With Assignment Marks</option>
                 <option value="without_internal">Without Assignment Marks</option>
               </select>
-              <input 
-                type="date" 
-                value={overallFromDate} 
+              <input
+                type="date"
+                value={overallFromDate}
                 onChange={e => setOverallFromDate(e.target.value)}
                 style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
               />
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>to</span>
-              <input 
-                type="date" 
-                value={overallToDate} 
+              <input
+                type="date"
+                value={overallToDate}
                 onChange={e => setOverallToDate(e.target.value)}
                 style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
               />
-              <button 
+              <button
                 style={{
                   background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
                   padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
@@ -1213,7 +1224,7 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <button 
+            <button
               style={{
                 background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
                 padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
@@ -1266,7 +1277,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div className={styles.subjectActions} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    <button 
+                    <button
                       className={styles.enterMarksBtn}
                       onClick={() => navigate(`${targetRoute}?classId=${sub.class_id}&subjectId=${sub.id}`, {
                         state: {
@@ -1278,7 +1289,7 @@ export default function DashboardPage() {
                     >
                       <ClipboardCheck size={14} /> Enter Marks
                     </button>
-                    <button 
+                    <button
                       className={styles.subReportBtn}
                       onClick={() => handleDownloadSubjectPDF(sub, 'internal1')}
                       title="Download Subject Test Analysis Report (NAC/TLP-07a.21)"
@@ -1286,7 +1297,7 @@ export default function DashboardPage() {
                     >
                       <FileText size={13} /> Analysis PDF
                     </button>
-                    <button 
+                    <button
                       className={styles.subReportBtn}
                       onClick={() => handleDownloadSubjectMarksPDF(sub.id, sub.class_id, 'internal1', 'with_internal')}
                       title="Download Subject Marks Statement (With Assignment Marks)"
@@ -1305,10 +1316,10 @@ export default function DashboardPage() {
 
       {/* Year-wise & Department Performance Chart (Years II, III, IV — 1st Year Excluded) */}
       <div style={{ marginBottom: '24px' }}>
-        <YearPerformanceChart 
-          data={data?.yearPerformance || []} 
+        <YearPerformanceChart
+          data={data?.yearPerformance || []}
           departmentStats={data?.departmentStats || []}
-          user={user} 
+          user={user}
         />
       </div>
 
@@ -1325,13 +1336,13 @@ export default function DashboardPage() {
             Set a global deadline for all staff to complete their internal marks entry.
           </p>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input 
-              type="date" 
+            <input
+              type="date"
               value={newDeadline}
               onChange={e => setNewDeadline(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.9rem', outline: 'none', background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
             />
-            <button 
+            <button
               onClick={handleSetDeadline}
               style={{
                 background: 'var(--primary)', color: 'white', border: 'none',
@@ -1364,7 +1375,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <button 
+          <button
             style={{
               background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
               padding: '7px 14px', borderRadius: '8px', cursor: 'pointer',
@@ -1382,7 +1393,7 @@ export default function DashboardPage() {
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
               {user?.isClassCoordinator ? 'My In-charge / Teaching Class:' : 'Select Target Class:'}
             </label>
-            <select 
+            <select
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}
             >
@@ -1397,7 +1408,7 @@ export default function DashboardPage() {
 
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Assessment Period:</label>
-            <select 
+            <select
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={quickSession} onChange={(e) => setQuickSession(e.target.value)}
             >
@@ -1408,7 +1419,7 @@ export default function DashboardPage() {
 
           <div>
             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject (For Subject Statements):</label>
-            <select 
+            <select
               style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
               value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
             >
@@ -1497,7 +1508,7 @@ export default function DashboardPage() {
 
             {/* Subject Test Analysis Report */}
             <div style={{ paddingTop: '14px', borderTop: '1px dashed var(--border-solid)' }}>
-              <button 
+              <button
                 style={{
                   width: '100%', background: 'linear-gradient(135deg, #6C63FF 0%, #4F46E5 100%)', color: '#fff', border: 'none',
                   padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
@@ -1536,7 +1547,7 @@ export default function DashboardPage() {
               {canDownloadClassReports ? (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-                    <button 
+                    <button
                       style={{
                         background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)', color: '#fff', border: 'none',
                         padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
@@ -1548,7 +1559,7 @@ export default function DashboardPage() {
                       <Download size={14} /> Consolidated Mark (TLP-07a.20)
                     </button>
 
-                    <button 
+                    <button
                       style={{
                         background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff', border: 'none',
                         padding: '10px 12px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
@@ -1583,23 +1594,23 @@ export default function DashboardPage() {
                       </select>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input 
-                          type="date" 
-                          value={overallFromDate} 
+                        <input
+                          type="date"
+                          value={overallFromDate}
                           onChange={e => setOverallFromDate(e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
                         />
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>to</span>
-                        <input 
-                          type="date" 
-                          value={overallToDate} 
+                        <input
+                          type="date"
+                          value={overallToDate}
                           onChange={e => setOverallToDate(e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-solid)', fontSize: '0.75rem', color: 'var(--text-primary)', background: 'var(--surface-hover)' }}
                         />
                       </div>
                     </div>
 
-                    <button 
+                    <button
                       style={{
                         width: '100%', background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff', border: 'none',
                         padding: '9px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
@@ -1637,20 +1648,22 @@ export default function DashboardPage() {
             {unlockRequests.map((req) => (
               <div key={req.id} className={styles.requestItem}>
                 <div className={styles.requestInfo}>
-                  <strong>{req.staff_name}</strong> {req.staff_department ? <span style={{ opacity: 0.8, fontSize: '0.85em' }}>({req.staff_department})</span> : ''} requested to unlock <strong>{req.subject_code ? `${req.subject_code} ` : ''}{req.subject_name}</strong> for class <strong>{req.class_name}</strong>
+                  <strong>{req.staff_name}</strong> {req.staff_department ? <span style={{ opacity: 0.85, fontSize: '0.85em' }}>({req.staff_department})</span> : ''} requested to unlock <strong>{req.subject_code ? `${req.subject_code} ` : ''}{req.subject_name}</strong> {req.subject_department ? <span style={{ background: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 600, marginLeft: '4px' }}>[{req.subject_department}]</span> : ''} for class <strong>{req.class_name}</strong>
+                  {req.session_label && <span style={{ marginLeft: '6px', fontSize: '0.82em', opacity: 0.85 }}>• Assessment: <em>{req.session_label}</em></span>}
+                  {req.requested_at && <span style={{ marginLeft: '6px', fontSize: '0.8em', color: 'var(--text-muted)' }}>• {new Date(req.requested_at).toLocaleDateString()}</span>}
                 </div>
                 <div className={styles.requestReason}>
                   "{req.reason}"
                 </div>
                 <div className={styles.requestActions}>
-                  <button 
-                    className={styles.approveBtn} 
+                  <button
+                    className={styles.approveBtn}
                     onClick={() => handleApproveUnlock(req.id, req.session_id, 'approve')}
                   >
                     <Check size={14} /> Approve Unlock
                   </button>
-                  <button 
-                    className={styles.rejectBtn} 
+                  <button
+                    className={styles.rejectBtn}
                     onClick={() => handleApproveUnlock(req.id, req.session_id, 'reject')}
                   >
                     <X size={14} /> Reject
@@ -1662,9 +1675,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <DeclarationModal 
-        isOpen={declarationModalOpen} 
-        onClose={() => setDeclarationModalOpen(false)} 
+      <DeclarationModal
+        isOpen={declarationModalOpen}
+        onClose={() => setDeclarationModalOpen(false)}
         onSubmit={handleGenerateSubjectPDF}
         session={pdfPayload?.session}
       />

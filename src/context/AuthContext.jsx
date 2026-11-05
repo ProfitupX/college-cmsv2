@@ -52,6 +52,9 @@ export function AuthProvider({ children }) {
       const data = await authAPI.login(email, password);
       setUser(data.user);
       sessionStorage.setItem('cms_user', JSON.stringify(data.user));
+      if (data.token) {
+        sessionStorage.setItem('cms_auth_token', data.token);
+      }
       return true;
     } catch (err) {
       setError(err.message || 'Invalid email or password.');
@@ -64,6 +67,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     sessionStorage.removeItem('cms_user');
+    sessionStorage.removeItem('cms_auth_token');
   };
 
   return (
