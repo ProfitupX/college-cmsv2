@@ -564,7 +564,7 @@ router.post('/submit', async (req, res) => {
           `UPDATE assessment_components
            SET type_id = ?, label = ?, conducted_max = ?, max_marks = ?, icon = ?, color = ?, sort_order = ?
            WHERE id = ?`,
-          [c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i, compId]
+          [c.typeId || 'written_test', c.label || c.name || 'Component', parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i, compId]
         );
         componentIdMap[i] = compId;
       } else {
@@ -572,7 +572,7 @@ router.post('/submit', async (req, res) => {
           `INSERT INTO assessment_components
              (session_id, type_id, label, conducted_max, max_marks, icon, color, sort_order)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [sessionId, c.typeId, c.label, parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i]
+          [sessionId, c.typeId || 'written_test', c.label || c.name || 'Component', parseFloat(c.conductedMax) || 100, parseFloat(c.maxMarks) || 0, c.icon || '', c.color || '', i]
         );
         componentIdMap[i] = compResult.insertId;
       }
