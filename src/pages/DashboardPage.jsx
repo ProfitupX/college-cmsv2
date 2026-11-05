@@ -39,6 +39,8 @@ export default function DashboardPage() {
   const [data,     setData]     = useState(null);
   const [sessions, setSessions] = useState([]);
   const [unlockRequests, setUnlockRequests] = useState([]);
+  const [adminDeptFilter, setAdminDeptFilter] = useState('all');
+  const [unlockActionLoadingId, setUnlockActionLoadingId] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
   const [deadline, setDeadline] = useState('');
@@ -368,15 +370,18 @@ export default function DashboardPage() {
   };
 
   const handleApproveUnlock = async (reqId, sessId, action) => {
+    setUnlockActionLoadingId(reqId);
     try {
       await marksAPI.approveUnlock({
         requestId: reqId,
         sessionId: sessId,
-                action
+        action
       });
       loadData();
     } catch (err) {
       alert('Failed to process unlock action: ' + err.message);
+    } finally {
+      setUnlockActionLoadingId(null);
     }
   };
 
@@ -1633,46 +1638,150 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* HOD Unlock Request Approval Center */}
-      {(user?.role === 'hod' || user?.role === 'admin') && unlockRequests.length > 0 && (
-        <div id="unlocks" className={styles.requestsCard} style={{ marginBottom: '12px' }}>
-          <div className={styles.requestsHeader}>
-            <div className={styles.requestsTitle}>
-              <Key size={20} color="#D97706" />
-              <span>Pending Mark Edit Unlock Requests ({unlockRequests.length})</span>
-            </div>
-            <span className={styles.requestsBadge}>HOD Action Required</span>
-          </div>
+      {/* Unlock Request Approval Center (Admin Across All 8 Departments & HOD Department Queue) */}
+      {((user?.role === 'hod' && unlockRequests.length > 0) || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') && (
+        (() => {
+          const isPrivileged = user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
+          const displayedRequests = isPrivileged && adminDeptFilter !== 'all'
+            ? unlockRequests.filter(r => {
+                const f = (adminDeptFilter || '').toLowerCase();
+                return (r.subject_department || '').toLowerCase().includes(f) || (r.staff_department || '').toLowerCase().includes(f);
+              })
+            : unlockRequests;
 
-          <div className={styles.requestsGrid}>
-            {unlockRequests.map((req) => (
-              <div key={req.id} className={styles.requestItem}>
-                <div className={styles.requestInfo}>
-                  <strong>{req.staff_name}</strong> {req.staff_department ? <span style={{ opacity: 0.85, fontSize: '0.85em' }}>({req.staff_department})</span> : ''} requested to unlock <strong>{req.subject_code ? `${req.subject_code} ` : ''}{req.subject_name}</strong> {req.subject_department ? <span style={{ background: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 600, marginLeft: '4px' }}>[{req.subject_department}]</span> : ''} for class <strong>{req.class_name}</strong>
-                  {req.session_label && <span style={{ marginLeft: '6px', fontSize: '0.82em', opacity: 0.85 }}>• Assessment: <em>{req.session_label}</em></span>}
-                  {req.requested_at && <span style={{ marginLeft: '6px', fontSize: '0.8em', color: 'var(--text-muted)' }}>• {new Date(req.requested_at).toLocaleDateString()}</span>}
+          return (
+            <div id="unlocks" className={styles.requestsCard} style={{ marginBottom: '16px' }}>
+              <div className={styles.requestsHeader}>
+                <div className={styles.requestsTitle}>
+                  <Key size={20} color="#D97706" />
+                  <span>
+                    {isPrivileged
+                      ? `Faculty Mark Edit Unlock Requests (${displayedRequests.length}${adminDeptFilter !== 'all' ? ` filtered` : ''})`
+                      : `Pending Mark Edit Unlock Requests (${unlockRequests.length})`}
+                  </span>
                 </div>
-                <div className={styles.requestReason}>
-                  "{req.reason}"
-                </div>
-                <div className={styles.requestActions}>
-                  <button
-                    className={styles.approveBtn}
-                    onClick={() => handleApproveUnlock(req.id, req.session_id, 'approve')}
-                  >
-                    <Check size={14} /> Approve Unlock
-                  </button>
-                  <button
-                    className={styles.rejectBtn}
-                    onClick={() => handleApproveUnlock(req.id, req.session_id, 'reject')}
-                  >
-                    <X size={14} /> Reject
-                  </button>
-                </div>
+                <span
+                  className={styles.requestsBadge}
+                  style={{
+                    background: isPrivileged ? '#FEF3C7' : 'var(--warning-bg)',
+                    color: isPrivileged ? '#B45309' : 'var(--warning)'
+                  }}
+                >
+                  {isPrivileged ? 'Administrative Approval Center' : 'HOD Action Required'}
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
+
+              {/* Department Filter for Admin across all eight departments */}
+              {isPrivileged && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Department Filter:</span>
+                  <select
+                    value={adminDeptFilter}
+                    onChange={(e) => setAdminDeptFilter(e.target.value)}
+                    aria-label="Filter unlock requests by department"
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-solid)',
+                      background: 'var(--bg)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <option value="all">All Departments (8)</option>
+                    <option value="Computer Science and Engineering">Computer Science and Engineering (CSE)</option>
+                    <option value="Information Technology">Information Technology (IT)</option>
+                    <option value="Artificial Intelligence and Data Science">Artificial Intelligence and Data Science (AI&DS)</option>
+                    <option value="Electronics and Communication Engineering">Electronics and Communication Engineering (ECE)</option>
+                    <option value="Electrical and Electronics Engineering">Electrical and Electronics Engineering (EEE)</option>
+                    <option value="Civil Engineering">Civil Engineering (Civil)</option>
+                    <option value="Mechanical Engineering">Mechanical Engineering (Mech)</option>
+                    <option value="Science and Humanities">Science and Humanities (S&H)</option>
+                  </select>
+                </div>
+              )}
+
+              {displayedRequests.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  No pending mark edit unlock requests found{adminDeptFilter !== 'all' ? ` for ${adminDeptFilter}` : ' across all eight departments'}.
+                </div>
+              ) : (
+                <div className={styles.requestsGrid}>
+                  {displayedRequests.map((req) => {
+                    const is2021 = req.regulation === '2021' || req.class_year === 'III' || req.class_year === 'IV' || (req.class_semester && parseInt(req.class_semester, 10) >= 5);
+                    const regLabel = is2021 ? '2021' : '2025';
+                    return (
+                      <div key={req.id} className={styles.requestItem}>
+                        <div className={styles.requestInfo}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                            <strong>{req.staff_name}</strong>
+                            {req.staff_department && (
+                              <span style={{ opacity: 0.85, fontSize: '0.85em' }}>({req.staff_department})</span>
+                            )}
+                            <span
+                              style={{
+                                background: is2021 ? '#EEF2FF' : '#ECFDF5',
+                                color: is2021 ? '#4F46E5' : '#059669',
+                                border: `1px solid ${is2021 ? '#C7D2FE' : '#A7F3D0'}`,
+                                padding: '1px 8px',
+                                borderRadius: '10px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700
+                              }}
+                            >
+                              Regulation {regLabel}
+                            </span>
+                          </div>
+                          <div>
+                            Subject: <strong>{req.subject_code ? `${req.subject_code} ` : ''}{req.subject_name}</strong>
+                            {req.subject_department && (
+                              <span style={{ background: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 600, marginLeft: '4px' }}>
+                                [{req.subject_department}]
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ marginTop: '3px' }}>
+                            Class: <strong>{req.class_name}</strong>
+                            {req.session_label && (
+                              <span style={{ marginLeft: '6px', fontSize: '0.82em', opacity: 0.85 }}>• Assessment: <em>{req.session_label}</em></span>
+                            )}
+                            {req.requested_at && (
+                              <span style={{ marginLeft: '6px', fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                                • Requested: {new Date(req.requested_at).toLocaleDateString()} {new Date(req.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={styles.requestReason}>
+                          "{req.reason}"
+                        </div>
+                        <div className={styles.requestActions}>
+                          <button
+                            className={styles.approveBtn}
+                            disabled={unlockActionLoadingId === req.id}
+                            style={{ opacity: unlockActionLoadingId === req.id ? 0.6 : 1, cursor: unlockActionLoadingId === req.id ? 'not-allowed' : 'pointer' }}
+                            onClick={() => handleApproveUnlock(req.id, req.session_id, 'approve')}
+                          >
+                            <Check size={14} /> Approve Unlock
+                          </button>
+                          <button
+                            className={styles.rejectBtn}
+                            disabled={unlockActionLoadingId === req.id}
+                            style={{ opacity: unlockActionLoadingId === req.id ? 0.6 : 1, cursor: unlockActionLoadingId === req.id ? 'not-allowed' : 'pointer' }}
+                            onClick={() => handleApproveUnlock(req.id, req.session_id, 'reject')}
+                          >
+                            <X size={14} /> Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()
       )}
 
       <DeclarationModal

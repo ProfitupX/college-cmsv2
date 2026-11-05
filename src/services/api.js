@@ -304,6 +304,16 @@ export const marksAPI = {
     return get(`/marks/audit-logs/${sessionId}${q}`);
   },
 
+  getSubjectFreezeStatus: (params = {}) => {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const q = new URLSearchParams(cleanParams).toString();
+    return get(`/marks/admin/subject-freeze-status${q ? `?${q}` : ''}`);
+  },
+
+  toggleSubjectFreeze: (payload) => post('/marks/admin/toggle-freeze', payload),
+
   deleteSession: (id) => remove(`/marks/sessions/${id}`),
 };
 

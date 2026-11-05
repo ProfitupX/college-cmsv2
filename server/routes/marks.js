@@ -1259,6 +1259,19 @@ router.post('/request-unlock', async (req, res) => {
       return res.status(400).json({ error: 'Cannot submit unlock request: No subject is associated with this session. Marks remain frozen.' });
     }
 
+    // 0. Guard against redundant or duplicate unlock requests
+    if (sessRows[0].status === 'draft' || sessRows[0].status === 'unlocked') {
+      return res.status(400).json({ error: 'This marks sheet is already unlocked and editable.' });
+    }
+
+    const [existingPending] = await db.execute(
+      `SELECT id FROM mark_unlock_requests WHERE session_id = ? AND status = 'pending'`,
+      [sessionId]
+    );
+    if (existingPending.length > 0 || sessRows[0].status === 'unlock_requested') {
+      return res.status(400).json({ error: 'An unlock request for this marks sheet is already pending approval.' });
+    }
+
     // 1. Retrieve the actual subject associated with the unlock request
     const [subRows] = await db.execute(
       `SELECT id, code, name, department, class_id FROM subjects WHERE id = ?`,
@@ -1383,6 +1396,8 @@ router.get('/unlock-requests', async (req, res) => {
              COALESCE(cl.name, 'Class') AS class_name,
              cl.department AS class_department,
              cl.year_label AS class_year,
+             cl.semester AS class_semester,
+             sub.semester AS subject_semester,
              ms.session_label,
              ms.status AS session_status
       FROM mark_unlock_requests ur
@@ -1396,16 +1411,22 @@ router.get('/unlock-requests', async (req, res) => {
 
     const [rows] = await db.execute(sql);
 
-    // Enrich each request with authoritative subject department
+    // Enrich each request with authoritative subject department and regulation
     const enriched = rows.map(r => {
       const authDept = getAuthoritativeSubjectDepartment({
         department: r.raw_subject_department,
         code: r.subject_code,
         name: r.subject_name
       });
+      const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
+                     r.class_year === '3' || r.class_year === '4' ||
+                     (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
+                     (r.subject_semester && parseInt(r.subject_semester, 10) >= 5);
+      const regulation = is2021 ? '2021' : '2025';
       return {
         ...r,
-        subject_department: authDept || r.raw_subject_department || 'Unassigned'
+        subject_department: authDept || r.raw_subject_department || 'Unassigned',
+        regulation
       };
     });
 
@@ -1540,9 +1561,10 @@ router.post('/approve-unlock', async (req, res) => {
       if (reqData.staff_id) {
         const subTitle = reqData.subject_code ? `${reqData.subject_code} ${reqData.subject_name || ''}` : 'the subject';
         const actionTitle = action === 'approve' ? 'Marks Unlock Approved' : 'Marks Unlock Declined';
+        const actorLabel = isPrivileged ? 'College Administration' : `${authoritativeDept} HOD`;
         const actionMsg = action === 'approve'
-          ? `Your request to edit marks for ${subTitle} was approved by ${authoritativeDept} HOD (${staff.name}). You may now modify and re-freeze the marks sheet.`
-          : `Your request to edit marks for ${subTitle} was declined by ${authoritativeDept} HOD (${staff.name}).`;
+          ? `Your request to edit marks for ${subTitle} was approved by ${actorLabel} (${staff.name}). You may now modify and re-freeze the marks sheet.`
+          : `Your request to edit marks for ${subTitle} was declined by ${actorLabel} (${staff.name}).`;
         const actionLink = action === 'approve' ? `/marks-entry?classId=${reqData.class_id || ''}` : '/reports';
 
         await db.execute(
@@ -1708,6 +1730,320 @@ router.get('/audit-logs/:sessionId', async (req, res) => {
   } catch (err) {
     console.error('GET /marks/audit-logs error:', err);
     res.status(500).json({ error: 'Failed to fetch audit logs.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/marks/admin/subject-freeze-status
+// List all subjects with their current marks freeze / unlock status
+// Supports filtering by department, regulation (2021/2025), semester, class, and assessment session
+// ─────────────────────────────────────────────────────────────
+router.get('/admin/subject-freeze-status', async (req, res) => {
+  try {
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser || !authUser.id) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    let staff;
+    try {
+      staff = await resolveActingStaff(db, authUser.id, authUser.pwf);
+    } catch (authErr) {
+      return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
+    }
+    if (!staff) {
+      return res.status(403).json({ error: 'Unauthorized: User not found in staff registry.' });
+    }
+
+    const staffRole = (staff.role || '').toLowerCase();
+    const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
+    if (!isPrivileged) {
+      return res.status(403).json({ error: 'Access denied: Administrative privileges required to manage subject freeze status.' });
+    }
+
+    const sessionLabel = (req.query.sessionLabel || 'internal1').trim();
+    const { department, regulation, semester, classId, search } = req.query;
+
+    const sql = `
+      SELECT s.id AS subject_id,
+             s.code AS subject_code,
+             s.name AS subject_name,
+             s.department AS raw_subject_department,
+             s.semester AS subject_semester,
+             s.class_id,
+             c.name AS class_name,
+             c.department AS class_department,
+             c.year_label AS class_year,
+             c.semester AS class_semester,
+             ms.id AS session_id,
+             ms.session_label,
+             ms.status AS session_status,
+             ms.total_hours,
+             ms.updated_at AS session_updated_at,
+             ms.staff_id,
+             st.name AS staff_name
+      FROM subjects s
+      JOIN classes c ON c.id = s.class_id
+      LEFT JOIN marks_sessions ms ON ms.subject_id = s.id AND ms.session_label = ?
+      LEFT JOIN staffs st ON st.id = ms.staff_id
+      ORDER BY c.year_label ASC, c.name ASC, s.code ASC
+    `;
+
+    const [rows] = await db.execute(sql, [sessionLabel]);
+
+    const enriched = rows.map(r => {
+      const authDept = getAuthoritativeSubjectDepartment({
+        department: r.raw_subject_department,
+        code: r.subject_code,
+        name: r.subject_name
+      });
+      const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
+                     r.class_year === '3' || r.class_year === '4' ||
+                     (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
+                     (r.subject_semester && parseInt(r.subject_semester, 10) >= 5);
+      const reg = is2021 ? '2021' : '2025';
+      const status = r.session_status || 'not_started';
+      const isFrozen = status === 'locked' || status === 'frozen';
+      return {
+        ...r,
+        subject_department: authDept || r.raw_subject_department || 'Unassigned',
+        regulation: reg,
+        status,
+        is_frozen: isFrozen,
+        is_unlocked: !isFrozen
+      };
+    });
+
+    let filtered = enriched;
+
+    if (department && department !== 'all') {
+      const d = department.toLowerCase().trim();
+      filtered = filtered.filter(item => {
+        const subDept = (item.subject_department || '').toLowerCase();
+        const classDept = (item.class_department || '').toLowerCase();
+        return subDept.includes(d) || classDept.includes(d);
+      });
+    }
+
+    if (regulation && regulation !== 'all') {
+      filtered = filtered.filter(item => item.regulation === regulation);
+    }
+
+    if (semester && semester !== 'all') {
+      const semNum = parseInt(semester, 10);
+      filtered = filtered.filter(item => {
+        const cSem = parseInt(item.class_semester, 10);
+        const sSem = parseInt(item.subject_semester, 10);
+        return cSem === semNum || sSem === semNum;
+      });
+    }
+
+    if (classId && classId !== 'all') {
+      filtered = filtered.filter(item => String(item.class_id) === String(classId));
+    }
+
+    if (search && search.trim()) {
+      const q = search.toLowerCase().trim();
+      filtered = filtered.filter(item => {
+        const code = (item.subject_code || '').toLowerCase();
+        const name = (item.subject_name || '').toLowerCase();
+        const cName = (item.class_name || '').toLowerCase();
+        const sName = (item.staff_name || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || cName.includes(q) || sName.includes(q);
+      });
+    }
+
+    res.json(filtered);
+  } catch (err) {
+    if (err.status === 401) return res.status(401).json({ error: err.message });
+    console.error('GET /marks/admin/subject-freeze-status error:', err);
+    res.status(500).json({ error: 'Failed to fetch subject freeze status: ' + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/marks/admin/toggle-freeze
+// Direct Admin Freeze or Unlock of a subject's marks session without requiring a faculty request
+// Records state transition immediately in marks_audit_logs and sends targeted notifications
+// ─────────────────────────────────────────────────────────────
+router.post('/admin/toggle-freeze', async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser || !authUser.id) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    let staff;
+    try {
+      staff = await resolveActingStaff(db, authUser.id, authUser.pwf);
+    } catch (authErr) {
+      return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
+    }
+    if (!staff) {
+      return res.status(403).json({ error: 'Unauthorized: User not found in staff registry.' });
+    }
+
+    const staffRole = (staff.role || '').toLowerCase();
+    const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
+    if (!isPrivileged) {
+      return res.status(403).json({ error: 'Unauthorized: Administrative privileges required to directly freeze or unlock subjects.' });
+    }
+
+    const { subjectId, sessionLabel = 'internal1', action, reason } = req.body;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'Missing subjectId.' });
+    }
+    if (action !== 'freeze' && action !== 'unlock') {
+      return res.status(400).json({ error: "Invalid action. Must be 'freeze' or 'unlock'." });
+    }
+
+    await conn.beginTransaction();
+
+    // 1. Fetch Subject & Class
+    const [subRows] = await conn.execute(
+      `SELECT s.id, s.code, s.name, s.department AS raw_subject_department, s.class_id, s.faculty_id,
+              c.name AS class_name, c.department AS class_department
+       FROM subjects s
+       JOIN classes c ON c.id = s.class_id
+       WHERE s.id = ?`,
+      [subjectId]
+    );
+
+    if (subRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Subject not found.' });
+    }
+
+    const subject = subRows[0];
+    const authoritativeDept = getAuthoritativeSubjectDepartment({
+      department: subject.raw_subject_department,
+      code: subject.code,
+      name: subject.name
+    }) || subject.raw_subject_department || 'General';
+
+    // Resolve valid staff ID for foreign key constraint (subjects.faculty_id or staffs table record)
+    let targetStaffId = null;
+    if (subject.faculty_id) {
+      const [fRows] = await conn.execute(`SELECT id FROM staffs WHERE id = ?`, [subject.faculty_id]);
+      if (fRows.length > 0) targetStaffId = fRows[0].id;
+    }
+    if (!targetStaffId) {
+      const [sRows] = await conn.execute(`SELECT id FROM staffs WHERE id = ?`, [staff.id]);
+      if (sRows.length > 0) {
+        targetStaffId = sRows[0].id;
+      } else {
+        targetStaffId = 'ADM001';
+      }
+    }
+
+    // 2. Check if marks_session already exists
+    const [sessRows] = await conn.execute(
+      `SELECT id, status, staff_id FROM marks_sessions WHERE subject_id = ? AND session_label = ?`,
+      [subjectId, sessionLabel]
+    );
+
+    let sessionId;
+    let oldStatus = 'not_started';
+    const newStatus = action === 'freeze' ? 'locked' : 'unlocked';
+
+    if (sessRows.length > 0) {
+      sessionId = sessRows[0].id;
+      oldStatus = sessRows[0].status;
+
+      await conn.execute(
+        `UPDATE marks_sessions SET status = ?, updated_at = NOW() WHERE id = ?`,
+        [newStatus, sessionId]
+      );
+
+      // Handle any active unlock requests for this session
+      if (action === 'freeze') {
+        await conn.execute(
+          `UPDATE mark_unlock_requests SET status = 'rejected' WHERE session_id = ? AND status = 'pending'`,
+          [sessionId]
+        );
+      } else if (action === 'unlock') {
+        await conn.execute(
+          `UPDATE mark_unlock_requests SET status = 'approved' WHERE session_id = ? AND status = 'pending'`,
+          [sessionId]
+        );
+      }
+    } else {
+      // Create session row directly
+      const [insertRes] = await conn.execute(
+        `INSERT INTO marks_sessions (subject_id, class_id, staff_id, session_label, status, total_hours)
+         VALUES (?, ?, ?, ?, ?, 30)`,
+        [subject.id, subject.class_id, targetStaffId, sessionLabel, newStatus]
+      );
+      sessionId = insertRes.insertId;
+    }
+
+    // 3. Record in marks_audit_logs
+    try {
+      await conn.execute(
+        `INSERT INTO marks_audit_logs
+           (session_id, student_id, component_id, field_name, old_value, new_value, user_id, user_name, action_type)
+         VALUES (?, 'ALL', NULL, 'status', ?, ?, ?, ?, ?)`,
+        [
+          sessionId,
+          oldStatus,
+          newStatus,
+          staff.id,
+          staff.name || 'College Administration',
+          action === 'freeze' ? 'DIRECT_ADMIN_FREEZE' : 'DIRECT_ADMIN_UNLOCK'
+        ]
+      );
+    } catch (auditErr) {
+      console.warn('marks_audit_logs insert note:', auditErr.message);
+    }
+
+    // 4. Send Targeted Notifications
+    try {
+      const actorName = staff.name ? `${staff.name} (Administration)` : 'College Administration';
+      const actionText = action === 'freeze' ? 'directly frozen and locked' : 'directly unlocked for editing';
+      const notifMsg = `Marks for ${subject.code} ${subject.name} (${sessionLabel}) have been ${actionText} by ${actorName}.`;
+
+      // Notify Subject Department HOD
+      await conn.execute(
+        `INSERT INTO notifications (target_role, target_department, title, message, link)
+         VALUES ('hod', ?, ?, ?, '/dashboard')`,
+        [
+          authoritativeDept,
+          action === 'freeze' ? 'Subject Marks Frozen by Admin' : 'Subject Marks Unlocked by Admin',
+          notifMsg
+        ]
+      );
+
+      // Notify Class Coordinator
+      await conn.execute(
+        `INSERT INTO notifications (target_role, target_department, title, message, link)
+         VALUES ('class_coordinator', ?, ?, ?, '/reports')`,
+        [
+          subject.class_department || authoritativeDept,
+          action === 'freeze' ? 'Class Subject Frozen' : 'Class Subject Unlocked',
+          notifMsg
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Notification insert note:', notifErr.message);
+    }
+
+    await conn.commit();
+
+    res.json({
+      success: true,
+      message: `Subject ${subject.code} ${subject.name} (${sessionLabel}) has been ${action === 'freeze' ? 'frozen and locked' : 'unlocked for editing'} successfully.`,
+      sessionId,
+      status: newStatus,
+      is_frozen: newStatus === 'locked'
+    });
+  } catch (err) {
+    await conn.rollback();
+    if (err.status === 401) return res.status(401).json({ error: err.message });
+    console.error('POST /marks/admin/toggle-freeze error:', err);
+    res.status(500).json({ error: 'Failed to toggle subject freeze status: ' + err.message });
+  } finally {
+    conn.release();
   }
 });
 
