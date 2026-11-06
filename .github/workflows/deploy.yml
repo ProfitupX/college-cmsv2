@@ -1,19 +1,186 @@
-- name: Test VPS SSH Authentication
-  env:
-    VPS_HOST: ${{ secrets.VPS_HOST }}
-    VPS_USER: ${{ secrets.VPS_USER }}
-    VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-    VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
-  run: |
-    set -euo pipefail
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
-    printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
-    chmod 600 ~/.ssh/id_ed25519
-    printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-    chmod 600 ~/.ssh/known_hosts
-    ssh -i ~/.ssh/id_ed25519 \
-      -o IdentitiesOnly=yes \
-      -o StrictHostKeyChecking=yes \
-      "$VPS_USER@$VPS_HOST" \
-      "whoami && hostname"
+
+name: Deploy MarkHub to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: 'Type DEPLOY to confirm production deployment'
+        required: true
+        default: ''
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build, Verify and Deploy to VPS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Validate Manual Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+            echo "Deployment aborted: confirmation must be DEPLOY."
+            exit 1
+          fi
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Build Frontend
+        run: npm run build
+
+      - name: Verify Application Files
+        run: |
+          set -euo pipefail
+
+          test -s dist/index.html
+          test -s server/index.js
+          test -s server/package.json
+          test -s server/package-lock.json
+          test -s scripts/deploy_vps.sh
+          test -s scripts/inspect_service.sh
+
+          echo "Frontend and deployment files verified."
+
+      - name: Verify Frontend Assets
+        run: |
+          set -euo pipefail
+
+          grep -qE '(/assets/|assets/)' dist/index.html
+          find dist/assets -type f -size +0c | grep -q .
+
+          echo "Frontend assets verified."
+
+      - name: Configure SSH Known Hosts
+        env:
+          KNOWN_HOSTS_DATA: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+
+          test -n "$KNOWN_HOSTS_DATA"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$KNOWN_HOSTS_DATA" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Test VPS SSH Authentication
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              "$VPS_USER@$VPS_HOST" \
+              "whoami && hostname"
+
+      - name: Verify Production Service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "MARKHUB_SERVICE_TYPE=pm2 MARKHUB_SERVICE_NAME=markhub-server bash -s" \
+            < scripts/inspect_service.sh
+
+      - name: Transfer Complete Application to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "mkdir -p /tmp/markhub_dist"
+
+          tar \
+            --exclude='server/.env' \
+            --exclude='server/.env.*' \
+            --exclude='server/node_modules' \
+            -czf - \
+            dist server scripts/deploy_vps.sh scripts/inspect_service.sh \
+          | ssh "$VPS_USER@$VPS_HOST" \
+              "tar -xzf - -C /tmp/markhub_dist"
+
+          echo "Complete application transferred."
+
+      - name: Verify Staging Files on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" '
+            test -s /tmp/markhub_dist/dist/index.html
+            test -s /tmp/markhub_dist/server/index.js
+            test -s /tmp/markhub_dist/server/package.json
+            test -s /tmp/markhub_dist/server/package-lock.json
+            test -s /tmp/markhub_dist/server/routes/auth.js
+            test -s /tmp/markhub_dist/scripts/deploy_vps.sh
+
+            echo "Staging verification successful."
+          '
+
+      - name: Execute Production Deployment
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "MARKHUB_SERVICE_TYPE=pm2 \
+             MARKHUB_SERVICE_NAME=markhub-server \
+             MARKHUB_APP_ROOT=/var/www/markhub \
+             MARKHUB_STAGING_DIR=/tmp/markhub_dist \
+             bash /tmp/markhub_dist/scripts/deploy_vps.sh"
+
+      - name: Verify Production Health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" '
+            curl --fail --silent --show-error \
+              http://127.0.0.1:5000/api/health
+          '
+
+          echo "MarkHub health verification successful."
+
+      - name: Clean Up Remote Staging
+        if: always()
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" \
+            "rm -rf /tmp/markhub_dist" || true
