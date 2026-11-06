@@ -26,6 +26,22 @@ import {
 import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, FileText, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
+const isSubjectAssignedToUser = (s, currentUser) => {
+  if (!s || !currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+  const sFacId = String(s.faculty_id || '');
+  const uId = String(currentUser.id || '');
+  const uEmpId = String(currentUser.employeeId || '');
+  const matchFacultyId = Boolean(sFacId && (sFacId === uId || sFacId === uEmpId));
+  const matchFacultyName = Boolean(s.faculty_name && currentUser.name && s.faculty_name.toLowerCase().trim() === currentUser.name.toLowerCase().trim());
+  const matchAssignedId = (currentUser.assignedSubjectIds || []).map(String).includes(String(s.id));
+  const matchAssignedList = (currentUser.assignedSubjects || []).some(as => as && (
+    String(as.id) === String(s.id) ||
+    (as.code && s.code && as.code === s.code && String(as.class_id) === String(s.class_id))
+  ));
+  return Boolean(matchFacultyId || matchFacultyName || matchAssignedId || matchAssignedList);
+};
+
 /**
  * MarksEntryPage for 2021 Regulation — 3rd & Final Year Students
  *
@@ -67,7 +83,7 @@ export default function MarksEntryPage2021() {
   const [saveErr,  setSaveErr]  = useState('');
   const [loading,  setLoading]  = useState(true);
   const [isComponentsDirty, setIsComponentsDirty] = useState(false);
-  const [reportType, setReportType] = useState('subject_marks_list_2021');
+  const [reportType, setReportType] = useState('theory_marks');
   const [remedialAction, setRemedialAction] = useState('');
 
   // Lock / Unlock
@@ -79,6 +95,7 @@ export default function MarksEntryPage2021() {
   const [declarationModalOpen, setDeclarationModalOpen] = useState(false);
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [pdfPayload, setPdfPayload] = useState(null);
+  const [previewDeclarationData, setPreviewDeclarationData] = useState(null);
   const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
   const autoSaveTimerRef = useRef(null);
 
@@ -138,24 +155,14 @@ export default function MarksEntryPage2021() {
           )
         );
 
-        if (user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'admin') {
+        let allowedClassIds = null;
+        if (user?.role === 'admin') {
           // All 3rd/4th year classes
-        } else if (user?.role === 'hod') {
-          const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
-          filtered = filtered.filter(c => c && (c.department === user.department || teachIds.includes(String(c.id))));
-        } else if (user?.isClassCoordinator) {
-          const coordIds = (user.coordinatedClasses || []).map(c => c && String(c.id));
-          const teachIds = (user.teachingClasses || []).map(c => c && String(c.id));
-          filtered = filtered.filter(c =>
-            c && (
-              coordIds.includes(String(c.id)) ||
-              (user.coordinatedClassId && String(c.id) === String(user.coordinatedClassId)) ||
-              teachIds.includes(String(c.id))
-            )
-          );
         } else {
           const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
-          filtered = filtered.filter(c => c && teachIds.includes(String(c.id)));
+          const assignedClassIds = (user?.assignedSubjects || []).map(s => s && String(s.class_id));
+          allowedClassIds = Array.from(new Set([...teachIds, ...assignedClassIds]));
+          filtered = filtered.filter(c => c && allowedClassIds.includes(String(c.id)));
         }
 
         // Guarantee target class from redirect is available in classes list for HoD/Staff
@@ -165,8 +172,10 @@ export default function MarksEntryPage2021() {
 
         if (targetClassId) {
           const matchedTarget = classList.find(c => c && String(c.id) === String(targetClassId));
-          if (matchedTarget && !filtered.some(c => c && String(c.id) === String(targetClassId))) {
-            filtered = [...filtered, matchedTarget];
+          if (matchedTarget && (user?.role === 'admin' || (allowedClassIds && allowedClassIds.includes(String(targetClassId))))) {
+            if (!filtered.some(c => c && String(c.id) === String(targetClassId))) {
+              filtered = [...filtered, matchedTarget];
+            }
           }
         }
 
@@ -202,21 +211,9 @@ export default function MarksEntryPage2021() {
     if (!effectiveClassId) { setSubjects([]); return; }
     subjectsAPI.getByClass(effectiveClassId).then((allSubs) => {
       const subsList = Array.isArray(allSubs) ? allSubs.filter(Boolean) : [];
-      const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
-      const isCoordinator = user?.isClassCoordinator && (
-        user.coordinatedClassId === effectiveClassId ||
-        (user.coordinatedClasses || []).some(c => c && String(c.id) === String(effectiveClassId))
-      );
-
       let visibleSubs = subsList;
-      if (!isElevated && !isCoordinator) {
-        visibleSubs = subsList.filter(s => {
-          if (!s) return false;
-          const matchFacultyId = String(s.faculty_id) === String(user?.id);
-          const matchFacultyName = s.faculty_name && user?.name && s.faculty_name.toLowerCase().trim() === user.name.toLowerCase().trim();
-          const matchAssignedList = (user?.assignedSubjectIds || []).map(String).includes(String(s.id));
-          return matchFacultyId || matchFacultyName || matchAssignedList;
-        });
+      if (user?.role !== 'admin') {
+        visibleSubs = subsList.filter(s => isSubjectAssignedToUser(s, user));
       }
 
       // Restore target subject reliably from incoming state, query params, or existing selection
@@ -226,8 +223,10 @@ export default function MarksEntryPage2021() {
 
       if (targetSubId) {
         const matched = subsList.find(s => s && String(s.id) === String(targetSubId));
-        if (matched && !visibleSubs.some(s => s && String(s.id) === String(targetSubId))) {
-          visibleSubs = [...visibleSubs, matched];
+        if (matched && (user?.role === 'admin' || isSubjectAssignedToUser(matched, user))) {
+          if (!visibleSubs.some(s => s && String(s.id) === String(targetSubId))) {
+            visibleSubs = [...visibleSubs, matched];
+          }
         }
       }
 
@@ -237,6 +236,10 @@ export default function MarksEntryPage2021() {
         if (String(targetSubId) !== String(selectedSubjectId)) {
           setSubject(targetSubId);
         }
+      } else if (visibleSubs.length > 0 && !visibleSubs.some(s => s && String(s.id) === String(selectedSubjectId))) {
+        setSubject(visibleSubs[0].id);
+      } else if (visibleSubs.length === 0) {
+        setSubject('');
       }
     }).catch(() => setSubjects([]));
   }, [effectiveClassId, user, selectedSubjectId]);
@@ -261,8 +264,12 @@ export default function MarksEntryPage2021() {
   useEffect(() => {
     if (isPureLab) {
       setReportType('lab_marks_only');
+    } else if (['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type)) {
+      setReportType('theory_cum_lab_marks');
+    } else {
+      setReportType('theory_marks');
     }
-  }, [isPureLab]);
+  }, [isPureLab, selectedSubject?.type]);
 
   // Synchronize custom admin LTPC splits and hours allocation in real-time
   useEffect(() => {
@@ -639,24 +646,17 @@ export default function MarksEntryPage2021() {
   // ── PDF / Report Download (All open Preview Modal first) ───
   const handleDownloadPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
+    if (reportType === 'subject_analysis') {
+      setDeclarationModalOpen(true);
+      return;
+    }
     setReportPreviewOpen(true);
   };
 
   const handleGenerateSubjectPDF = async (declarationData) => {
     setDeclarationModalOpen(false);
-    try {
-      await generateSubjectAnalysisPDF({
-        ...pdfPayload,
-        marksData: pdfPayload.allMarks, // Map allMarks to marksData for pdfReportGenerator
-        totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
-        declarationData,
-        user
-      });
-    } catch (err) {
-      alert('Failed to generate Subject Analysis PDF: ' + err.message);
-    } finally {
-      setPdfPayload(null);
-    }
+    setPreviewDeclarationData(declarationData);
+    setReportPreviewOpen(true);
   };
 
   const executeSubjectPDF = async (options = {}) => {
@@ -687,6 +687,7 @@ export default function MarksEntryPage2021() {
       }
 
       if (reportType === 'subject_analysis') {
+        const { generateSubjectAnalysisPDF } = await import('../services/pdfReportGenerator');
         await generateSubjectAnalysisPDF({
           subject: selectedSubject,
           classObj: selectedClass,
@@ -702,66 +703,19 @@ export default function MarksEntryPage2021() {
           labData,
           assessmentMode,
           totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
+          declarationData: previewDeclarationData || options?.declarationData || {},
           user
         });
         return;
       }
 
-      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
-        const withInternal = reportType === 'examcell_legal_with_internal';
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await generateOverallMarksAndAttendancePDF({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allAttendance: summary.allAttendance || [],
-          allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || [],
-          withInternal,
-          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-          user
-        });
-        return;
-      }
+      const isTheoryCumLab = reportType === 'theory_cum_lab_marks' || ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+      const subjectToUse = isTheoryCumLab ? { ...selectedSubject, type: 'Theory-cum-Lab' } : { ...selectedSubject, type: 'Theory' };
 
-      if (reportType === 'class_analysis') {
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await generateClassAnalysisPDF({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allMarks: summary.allMarks || [],
-          allAttendance: summary.allAttendance || [],
-          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-          user
-        });
-        return;
-      }
-
-      if (reportType === 'consolidated_statement') {
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await generateConsolidatedMarksPDF({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allAttendance: summary.allAttendance || [],
-          allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || [],
-          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-          user
-        });
-        return;
-      }
-
-      const withInternal = reportType !== 'subject_marks_without_internal_2021';
+      const withInternal = true;
+      const { generateSubjectMarksListPDF2021 } = await import('../services/pdfReportGenerator');
       await generateSubjectMarksListPDF2021({
-        subject: selectedSubject,
+        subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
@@ -824,65 +778,18 @@ export default function MarksEntryPage2021() {
           labData,
           assessmentMode,
           totalHours: parseInt(totalHours || currentSession?.total_hours || selectedSubject?.total_hours || (assessmentMode === 'internal2' ? int2Hours : int1Hours) || 30, 10),
+          declarationData: previewDeclarationData || options?.declarationData || {},
           user
         });
         return;
       }
 
-      if (reportType === 'class_analysis') {
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await exportClassAnalysisExcel({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allMarks: summary.allMarks || [],
-          allAttendance: summary.allAttendance || [],
-          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-          user
-        });
-        return;
-      }
+      const isTheoryCumLab = reportType === 'theory_cum_lab_marks' || ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
+      const subjectToUse = isTheoryCumLab ? { ...selectedSubject, type: 'Theory-cum-Lab' } : { ...selectedSubject, type: 'Theory' };
 
-      if (reportType === 'consolidated_statement') {
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await exportConsolidatedMarksExcel({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allAttendance: summary.allAttendance || [],
-          allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || [],
-          inchargeNameParam: user?.isClassCoordinator ? user?.name : '',
-          user
-        });
-        return;
-      }
-
-      if (reportType === 'examcell_legal_with_internal' || reportType === 'examcell_legal_without_internal') {
-        const withInternal = reportType === 'examcell_legal_with_internal';
-        const summary = await marksAPI.getClassSummary(effectiveClassId, assessmentMode);
-        await exportOverallMarksExcel({
-          classObj: selectedClass,
-          sessionLabel: assessmentMode,
-          subjects: summary.subjects || subjects,
-          students,
-          allSessions: summary.sessions || [],
-          allAttendance: summary.allAttendance || [],
-          allMarks: summary.allMarks || [],
-          allComponents: summary.allComponents || [],
-          withInternal,
-          user
-        });
-        return;
-      }
-
-      const withInternal = reportType !== 'subject_marks_without_internal_2021';
+      const withInternal = true;
       await exportSubjectMarksExcel({
-        subject: selectedSubject,
+        subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
         session: currentSession,
@@ -1317,36 +1224,21 @@ export default function MarksEntryPage2021() {
           </div>
           <div className={styles.actionRight}>
             <div className={styles.downloadGroup}>
-              <select className={styles.downloadSelect} value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                {isPureLab ? (
-                  <>
-                    <option value="lab_marks_only">🔬 Laboratory Marks Statement (Attended Hrs &amp; 100 Marks Practical Exam)</option>
-                    <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
-                    {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
-                      <>
-                        <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
-                        <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <option value="subject_marks_with_internal_2021">Subject Marks List (With Assignment Marks)</option>
-                    <option value="subject_marks_without_internal_2021">Subject Marks List (Without Assignment Marks)</option>
-                    {['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab', 'Practical', 'Laboratory'].includes(selectedSubject?.type) && (
-                      <option value="lab_marks_only">🔬 Laboratory Marks Statement (Lab Marks &amp; Attended Hrs Only)</option>
-                    )}
-                    <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
-                    {(user?.role === 'hod' || user?.role === 'admin' || user?.isClassCoordinator || isPrincipal) && (
-                      <>
-                        <option value="class_analysis">Class Performance Report (NAC/TLP-20)</option>
-                        <option value="consolidated_statement">Consolidated Mark Statement (NAC/TLP-07a.20)</option>
-                        <option value="examcell_legal_with_internal">ExamCell Legal Statement (With Assignment Marks)</option>
-                        <option value="examcell_legal_without_internal">ExamCell Legal Statement (Without Assignment Marks)</option>
-                      </>
-                    )}
-                  </>
-                )}
+              <select
+                className={styles.downloadSelect}
+                value={reportType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setReportType(val);
+                  if (val === 'subject_analysis') {
+                    setDeclarationModalOpen(true);
+                  }
+                }}
+              >
+                <option value="theory_marks">Theory Mark Statement (NAC/TLP-07a.20)</option>
+                <option value="theory_cum_lab_marks">Theory-cum-Lab Mark Statement</option>
+                <option value="lab_marks_only">Lab Mark Statement</option>
+                <option value="subject_analysis">Subject Analysis Report (NAC/TLP-07a.21)</option>
               </select>
               <button className={styles.downloadBtn} onClick={handleDownloadPDF}>
                 <Download size={15} /> Download PDF Statement
@@ -1430,15 +1322,21 @@ export default function MarksEntryPage2021() {
           setReportPreviewOpen(false);
         }}
         title={reportType === 'lab_marks_only'
-          ? `Laboratory Marks Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+          ? `Lab Mark Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
           : reportType === 'subject_analysis'
-            ? `Subject Test Analysis (NAC/TLP-07a.21) — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
-            : `Report Preview — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
-        subject={selectedSubject}
+            ? `Subject Analysis Report (NAC/TLP-07a.21) — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+            : reportType === 'theory_cum_lab_marks'
+              ? `Theory-cum-Lab Mark Statement — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`
+              : `Theory Mark Statement (NAC/TLP-07a.20) — ${selectedSubject?.code || ''} ${selectedSubject?.name || ''}`}
+        subject={reportType === 'theory_cum_lab_marks'
+          ? { ...selectedSubject, type: 'Theory-cum-Lab' }
+          : reportType === 'theory_marks'
+            ? { ...selectedSubject, type: 'Theory' }
+            : selectedSubject}
         classObj={selectedClass}
         staff={{ name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' }}
         assessmentMode={assessmentMode}
-        withInternal={reportType !== 'subject_marks_without_internal_2021'}
+        withInternal={true}
         students={students}
         marksData={marksData}
         attendanceData={attendanceData}
@@ -1452,8 +1350,9 @@ export default function MarksEntryPage2021() {
         labHours={labHours}
         int1AttendanceData={{}}
         regulation="2021"
-        reportType={reportType}
+        reportType={reportType === 'lab_marks_only' ? 'lab_marks_only' : reportType === 'subject_analysis' ? 'subject_analysis' : 'subject_marks'}
         isLabOnly={reportType === 'lab_marks_only'}
+        declarationData={previewDeclarationData || {}}
       />
     </div>
   );

@@ -385,12 +385,66 @@ export default function DashboardPage() {
     }
   };
 
+  const canUserAccessClassReports = (targetClassId, fallbackCls = null) => {
+    if (!targetClassId || !user) return false;
+    const targetCls = (classes || []).find(c => c && String(c.id) === String(targetClassId)) || fallbackCls;
+
+    // 1. HOD: Access to all classes within their department
+    if (user.role === 'hod' && user.department) {
+      if (!targetCls) return false;
+      const userDept = (user.department || '').trim().toLowerCase();
+      const classDept = (targetCls.department || '').trim().toLowerCase();
+      if (classDept === userDept) return true;
+      if (classDept === 'science and humanities' && userDept !== 'science and humanities') {
+        const firstWord = userDept.split(' ')[0];
+        if (firstWord && (targetCls.name || '').toLowerCase().includes(firstWord)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // 2. Class In-charge: Access only to their coordinated class
+    if (user.isClassCoordinator) {
+      const targetIdStr = String(targetClassId);
+      if (user.coordinatedClassId && String(user.coordinatedClassId) === targetIdStr) {
+        return true;
+      }
+      if (Array.isArray(user.coordinatedClasses) && user.coordinatedClasses.some(c => c && String(c.id) === targetIdStr)) {
+        return true;
+      }
+      return false;
+    }
+
+    // 3. Faculty, Principal, Vice Principal, Admin: Strictly No Access
+    return false;
+  };
+
   const openSubjectSelectionModal = async (type, targetClassId, targetSession) => {
     const classId = targetClassId || selectedClassId || user?.coordinatedClassId || user?.coordinatedClasses?.[0]?.id || user?.teachingClasses?.[0]?.id || 'CL001';
     const period = targetSession || inchargeSession || quickSession || 'internal1';
+    const isClassReport = ['class_analysis', 'consolidated_statement', 'examcell_legal', 'overall_statement'].includes(type);
+
+    if (isClassReport) {
+      const isCandidate = user?.role === 'hod' || Boolean(user?.isClassCoordinator);
+      if (!isCandidate) {
+        alert('Access restricted: Class Performance, Consolidated Mark Statement, and ExamCell Legal reports are accessible only to HOD (for department classes) and Class In-charge (for their coordinated class).');
+        return;
+      }
+      const targetCls = (classes || []).find(c => c && String(c.id) === String(classId));
+      if (targetCls && !canUserAccessClassReports(classId)) {
+        alert('Access restricted: Class reports are accessible only to HOD (for department classes) and Class In-charge (for their coordinated class).');
+        return;
+      }
+    }
+
     setGenLoading(true);
     try {
       const summary = await marksAPI.getClassSummary(classId, period);
+      if (isClassReport && !canUserAccessClassReports(classId, summary?.classObj)) {
+        alert('Access restricted: You do not have permission to access reports for this class.');
+        return;
+      }
       setAvailableSubjects(summary.subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY'));
       setSubjectModalPdfType(type);
       setModalTargetClassId(classId);
@@ -407,12 +461,23 @@ export default function DashboardPage() {
     const type = subjectModalPdfType;
     const period = modalTargetSession || inchargeSession || quickSession || 'internal1';
     const classId = modalTargetClassId || user?.coordinatedClassId || selectedClassId || 'CL001';
+    const isClassReport = ['class_analysis', 'consolidated_statement', 'examcell_legal', 'overall_statement'].includes(type);
+
+    const targetCls = (classes || []).find(c => c && String(c.id) === String(classId));
+    if (isClassReport && targetCls && !canUserAccessClassReports(classId)) {
+      alert('Access restricted: You do not have permission to download reports for this class.');
+      return;
+    }
 
     setGenLoading(true);
     setSubjectModalOpen(false);
 
     try {
       const summary = await marksAPI.getClassSummary(classId, period);
+      if (isClassReport && !canUserAccessClassReports(classId, summary?.classObj)) {
+        alert('Access restricted: You do not have permission to download reports for this class.');
+        return;
+      }
       const isCoordOfThis = user?.isClassCoordinator && (
         user.coordinatedClassId === classId ||
         (user.coordinatedClasses || []).some(c => c.id === classId)
@@ -852,12 +917,7 @@ export default function DashboardPage() {
     : 'Faculty Staff Panel';
 
   const isHodOrAdmin = user?.role === 'hod' || user?.role === 'admin';
-  const isElevated = user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal';
-  const isCoordinatorOfSelectedClass = user?.isClassCoordinator && (
-    user.coordinatedClassId === selectedClassId ||
-    (user.coordinatedClasses || []).some(c => c && c.id === selectedClassId)
-  );
-  const canDownloadClassReports = isElevated || isCoordinatorOfSelectedClass;
+  const canDownloadClassReports = canUserAccessClassReports(selectedClassId);
   const assignedClassList = Array.isArray(data?.assignedClasses)
     ? data.assignedClasses
     : (user?.teachingClasses || []).map(c => typeof c === 'string' ? c : (c?.name || '')).filter(Boolean);
@@ -1294,23 +1354,6 @@ export default function DashboardPage() {
                     >
                       <ClipboardCheck size={14} /> Enter Marks
                     </button>
-                    <button
-                      className={styles.subReportBtn}
-                      onClick={() => handleDownloadSubjectPDF(sub, 'internal1')}
-                      title="Download Subject Test Analysis Report (NAC/TLP-07a.21)"
-                      disabled={genLoading}
-                    >
-                      <FileText size={13} /> Analysis PDF
-                    </button>
-                    <button
-                      className={styles.subReportBtn}
-                      onClick={() => handleDownloadSubjectMarksPDF(sub.id, sub.class_id, 'internal1', 'with_internal')}
-                      title="Download Subject Marks Statement (With Assignment Marks)"
-                      disabled={genLoading}
-                      style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#2563EB', borderColor: 'rgba(59, 130, 246, 0.3)' }}
-                    >
-                      <Download size={13} /> Marks PDF
-                    </button>
                   </div>
                 </div>
               );
@@ -1422,112 +1465,10 @@ export default function DashboardPage() {
             </select>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject (For Subject Statements):</label>
-            <select
-              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)', fontSize: '0.85rem', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
-              value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
-            >
-              {(classSubjects || []).filter(Boolean).map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
-              {classSubjects.length === 0 && <option value="">No Subjects Available</option>}
-            </select>
-          </div>
         </div>
 
-        {/* Category Download Cards: Responsive 2-Column Grid utilizing side space */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
-          gap: '20px',
-          marginTop: '18px'
-        }}>
-          {/* Column 1: CAT 1 — Subject Mark Statements & Analysis */}
-          <div style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--border-solid)',
-            borderRadius: '14px',
-            padding: '18px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid var(--border-solid)' }}>
-                <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.98rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <BookOpen size={18} color="#3B82F6" />
-                  Subject Mark Statements &amp; Analysis
-                </h4>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Assigned Faculty &amp; HOD
-                </span>
-              </div>
-
-              {/* Subject Marks Statement with Interactive Preview */}
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                  Statement Format &amp; Scope:
-                </label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select
-                    value={subjectMarksMode}
-                    onChange={(e) => setSubjectMarksMode(e.target.value)}
-                    style={{
-                      flex: '1', minWidth: '180px', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-solid)',
-                      fontSize: '0.82rem', fontWeight: 600, background: 'var(--surface)', color: 'var(--text-primary)'
-                    }}
-                  >
-                    <option value="with_internal">With Assignment Marks</option>
-                    <option value="without_internal">Without Assignment Marks</option>
-                  </select>
-
-                  <button
-                    style={{
-                      background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', color: '#fff', border: 'none',
-                      padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-                    }}
-                    onClick={() => handleDownloadSubjectMarksPDF(selectedSubjectId, selectedClassId, quickSession, subjectMarksMode)}
-                    disabled={genLoading || !selectedSubjectId}
-                  >
-                    <Download size={15} /> Preview &amp; Download Statement
-                  </button>
-                </div>
-              </div>
-
-              {/* Batch / Multi-Subject Download */}
-              <div style={{ marginBottom: '16px' }}>
-                <button
-                  style={{
-                    width: '100%', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border-solid)',
-                    padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                  }}
-                  onClick={() => openSubjectSelectionModal('subject_marks_statement', selectedClassId, quickSession)}
-                  disabled={genLoading || classSubjects.length === 0}
-                >
-                  <FileText size={15} color="var(--primary)" /> Select All / Multiple Subjects Statement
-                </button>
-              </div>
-            </div>
-
-            {/* Subject Test Analysis Report */}
-            <div style={{ paddingTop: '14px', borderTop: '1px dashed var(--border-solid)' }}>
-              <button
-                style={{
-                  width: '100%', background: 'linear-gradient(135deg, #6C63FF 0%, #4F46E5 100%)', color: '#fff', border: 'none',
-                  padding: '10px 16px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 6px rgba(108, 99, 255, 0.25)'
-                }}
-                onClick={() => handleDownloadSubjectPDF(selectedSubjectId, quickSession)}
-                disabled={genLoading || !selectedSubjectId}
-              >
-                <Download size={15} /> Subject Test Analysis Report (NAC/TLP-07a.21)
-              </button>
-            </div>
-          </div>
-
-          {/* Column 2: CAT 2 — Class Reports & ExamCell Statements */}
+        {/* Class Reports & ExamCell Statements Card */}
+        <div style={{ marginTop: '18px' }}>
           <div style={{
             background: 'var(--bg)',
             border: '1px solid var(--border-solid)',
@@ -1630,7 +1571,7 @@ export default function DashboardPage() {
                 </>
               ) : (
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0' }}>
-                  🔒 Class Performance, Consolidated, &amp; ExamCell Legal Statements are generated by the Class In-charge &amp; HOD.
+                  🔒 Class Performance, Consolidated, &amp; ExamCell Legal Statements are restricted to the Class In-charge (coordinated class) and HOD (department classes).
                 </div>
               )}
             </div>

@@ -976,6 +976,8 @@ export const exportOverallMarksExcel = async ({
       const sess = allSessions.find(s => s.subject_id === sub.id && s.session_label === sessionLabel);
       let attHrs = 0;
       let markVal = '-';
+      let sumAssignment = 0;
+      let examMark = null;
 
       if (sess) {
         const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
@@ -989,13 +991,11 @@ export const exportOverallMarksExcel = async ({
         }
 
         // Marks calculation: assignment marks + internal written exam mark
-        let sumAssignment = 0;
         const markRecs = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         if (markRecs.length > 0) {
           markRecs.forEach(m => sumAssignment += parseFloat(m.marks_obtained || 0));
         }
 
-        let examMark = null;
         if (attRec) {
           const isLab = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
           if (isLab && attRec.lab_mark !== null && attRec.lab_mark !== undefined && attRec.lab_mark !== '') {

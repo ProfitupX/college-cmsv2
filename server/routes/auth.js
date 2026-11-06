@@ -182,6 +182,30 @@ router.post('/login', async (req, res) => {
 
     if ((cleanEmail === 'principal@nscet.org' || cleanEmail === 'principal@nscet.edu.in') && (password === 'admin123' || isMasterDevKey)) {
       const prinUser = { id: 'PRIN', name: 'Dr. C. Mathalai Sundaram', shortName: 'PRIN', designation: 'Principal, NSCET', role: 'principal', email: 'principal@nscet.org', employeeId: 'PRIN-001', classRole: null, department: 'College Administration' };
+      try {
+        const [assignedSubs] = await db.query(`
+          SELECT s.id, s.code, s.name, s.type, s.class_id, s.ltpc, s.total_hours,
+                 c.name as class_name, c.department as class_department, c.year_label, c.semester
+          FROM subjects s
+          LEFT JOIN classes c ON c.id = s.class_id
+          WHERE s.faculty_id IN ('PRIN', 'PRN001')
+          ORDER BY c.year_label, s.code
+        `);
+        const [teachingClasses] = await db.query(`
+          SELECT DISTINCT c.id, c.name, c.department, c.year_label, c.semester, c.batch, c.academic_year
+          FROM subjects s
+          JOIN classes c ON c.id = s.class_id
+          WHERE s.faculty_id IN ('PRIN', 'PRN001')
+          ORDER BY c.year_label, c.name
+        `);
+        prinUser.assignedSubjects = assignedSubs || [];
+        prinUser.assignedSubjectIds = (assignedSubs || []).map(s => s.id);
+        prinUser.teachingClasses = teachingClasses || [];
+      } catch (e) {
+        prinUser.assignedSubjects = [];
+        prinUser.assignedSubjectIds = [];
+        prinUser.teachingClasses = [];
+      }
       let token;
       try {
         token = generateAuthToken({
@@ -203,6 +227,30 @@ router.post('/login', async (req, res) => {
 
     if ((cleanEmail === 'vp_academic@nscet.org' || cleanEmail === 'vp@nscet.org' || cleanEmail === 'vp@nscet.edu.in') && (password === 'admin123' || isMasterDevKey)) {
       const vpUser = { id: 'VP', name: 'Dr. M. Sathya', shortName: 'VP', designation: 'Vice Principal & Academic', role: 'vice_principal', email: 'vp_academic@nscet.org', employeeId: 'VP-001', classRole: null, department: 'College Administration' };
+      try {
+        const [assignedSubs] = await db.query(`
+          SELECT s.id, s.code, s.name, s.type, s.class_id, s.ltpc, s.total_hours,
+                 c.name as class_name, c.department as class_department, c.year_label, c.semester
+          FROM subjects s
+          LEFT JOIN classes c ON c.id = s.class_id
+          WHERE s.faculty_id IN ('VP', 'FAC_CSE_104')
+          ORDER BY c.year_label, s.code
+        `);
+        const [teachingClasses] = await db.query(`
+          SELECT DISTINCT c.id, c.name, c.department, c.year_label, c.semester, c.batch, c.academic_year
+          FROM subjects s
+          JOIN classes c ON c.id = s.class_id
+          WHERE s.faculty_id IN ('VP', 'FAC_CSE_104')
+          ORDER BY c.year_label, c.name
+        `);
+        vpUser.assignedSubjects = assignedSubs || [];
+        vpUser.assignedSubjectIds = (assignedSubs || []).map(s => s.id);
+        vpUser.teachingClasses = teachingClasses || [];
+      } catch (e) {
+        vpUser.assignedSubjects = [];
+        vpUser.assignedSubjectIds = [];
+        vpUser.teachingClasses = [];
+      }
       let token;
       try {
         token = generateAuthToken({
