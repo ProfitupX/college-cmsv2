@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator.js';
 import { getHourSplits } from './pdfReportGenerator.js';
+import { isPGClass, isPGSubject, getPGComponentPresets } from '../utils/pgRegulation2025.js';
 
 const triggerDownload = async (workbook, filename) => {
   const safeFilename = String(filename || 'Report.xlsx')
@@ -151,7 +152,10 @@ export const exportSubjectMarksExcel = async ({
     : (parseInt(subject?.int1_hours || int1Hours, 10) || 30);
 
   const modeLabel = assessmentMode === 'internal1' ? 'INTERNAL ASSESSMENT 1' : 'INTERNAL ASSESSMENT 2';
-  const is2021 = classObj?.regulation === '2021' || subject?.regulation === '2021' || (assessmentMode && String(assessmentMode).includes('2021'));
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
+  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
+  const is2021 = !isPG && (classObj?.regulation === '2021' || subject?.regulation === '2021' || (assessmentMode && String(assessmentMode).includes('2021')));
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
@@ -162,7 +166,7 @@ export const exportSubjectMarksExcel = async ({
   await drawExcelCollegeHeader({
     workbook,
     worksheet,
-    title: `${modeLabel} — SUBJECT MARKS LIST (${typeLabel})`,
+    title: `${modeLabel} — ${isPG ? 'PG ' : ''}SUBJECT MARKS LIST (${typeLabel})`,
     formatNo: 'NAC/TLP-07a.20',
     numCols
   });
@@ -296,7 +300,13 @@ export const exportSubjectMarksExcel = async ({
 
   // Table Column Headers (Row 11)
   let headers = [];
-  if (!is2021) {
+  if (isPG) {
+    headers = [
+      'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
+      'Attd Mark (Max: 5)', `CA Mark (Max: ${pgCiaMax})`,
+      'Internal Mark', 'CA Mark Total'
+    ];
+  } else if (!is2021) {
     // 2025 Autonomous Regulation headers
     headers = [
       'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
@@ -356,7 +366,9 @@ export const exportSubjectMarksExcel = async ({
     const examMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
     let totalInternal;
-    if (is2021) {
+    if (isPG) {
+      totalInternal = Math.min(pgCiaMax, convertedTotal);
+    } else if (is2021) {
       const ciaMax = hasLab ? 50 : 40;
       const examConvertedMax = hasLab ? 50 : 60;
       const ciaTotal2021 = Math.min(convertedTotal, ciaMax);
@@ -369,7 +381,18 @@ export const exportSubjectMarksExcel = async ({
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     let rowValues = [];
-    if (!is2021) {
+    if (isPG) {
+      rowValues = [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        rawHours,
+        attendanceMark,
+        convertedTotal,
+        examMarkStr,
+        totalInternal
+      ];
+    } else if (!is2021) {
       rowValues = [
         idx + 1,
         student.roll_no || student.rollNo || '-',
@@ -431,7 +454,9 @@ export const exportSubjectMarksExcel = async ({
   // Criteria Row
   const criteriaRow = worksheet.getRow(currentRow);
   const maxAssignment = is2021 ? (hasLab ? 50 : 40) : 95;
-  if (!is2021) {
+  if (isPG) {
+    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, pgCiaMax, 100, pgCiaMax];
+  } else if (!is2021) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
   } else if (withInternal) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, maxAssignment, 100, 100];
@@ -797,7 +822,8 @@ export const exportOverallMarksExcel = async ({
     { state: 'normal', activeCell: 'A1', showGridLines: true }
   ];
 
-  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isPG = isPGClass(classObj);
+  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
   const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name?.toUpperCase() !== 'LIBRARY');
   const colsPerSub = is2021 ? 2 : 3;
   const totalColumns = 3 + (targetSubjects.length * colsPerSub) + 1;
@@ -1137,7 +1163,8 @@ export const exportSubjectAnalysisExcel = async ({
   ];
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || user?.name || 'Faculty Staff';
-  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
@@ -1649,7 +1676,8 @@ export const exportConsolidatedMarksExcel = async ({
     applyThinBorders(cell);
   });
 
-  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isPG = isPGClass(classObj);
+  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
 
   let curRow = 12;
   students.forEach((st, idx) => {
@@ -1669,7 +1697,23 @@ export const exportConsolidatedMarksExcel = async ({
       }
 
       let score = '-';
-      if (is2021) {
+      if (isPG) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let rawCIA = 0;
+        sessionComps.forEach(comp => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        const subConfig = getPGComponentPresets(sub?.type);
+        const maxCA = subConfig?.ciaMax || 40;
+        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
+        if (studentMarks.length === 0 && sessionComps.length > 0) {
+          score = 'AB';
+        }
+      } else if (is2021) {
         const sessionComps = allComponents.filter(c => c.session_id === sess.id);
         const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         let rawCIA = 0;

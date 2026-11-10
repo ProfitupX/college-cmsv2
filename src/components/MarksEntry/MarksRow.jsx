@@ -1,4 +1,3 @@
-import { computeGrade } from '../../data/assessmentTypes';
 import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/attendanceCalculator';
 import styles from './MarksRow.module.css';
 
@@ -6,7 +5,8 @@ export default function MarksRow({
   student = {}, components = [], marks = {}, attendanceHours = '', savedAttendanceMark, isElevated, int1AttendanceHours = '', internalExamMark = '', displayHours = 30, conductedHours, conductedCumHours, int1Hours = 30, int2Hours = 30, labHours = 0,
   onMarkChange, onAttendanceChange, onInternalExamChange, index = 0,
   assessmentMode = 'internal1', labData = {}, selectedSubject = {}, onLabDataChange, isLocked,
-  isPureLab = false, prescribedLabHours = 40
+  isPureLab = false, prescribedLabHours = 40,
+  isPG = false
 }) {
   // Converted total (sum of raw marks)
   let convertedTotal = 0;

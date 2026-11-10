@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMarks } from '../context/MarksContext';
 import { classesAPI, subjectsAPI, studentsAPI, marksAPI, settingsAPI } from '../services/api';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator';
+import { isPGClass, isPGSubject, getPGComponentPresets } from '../utils/pgRegulation2025';
 import ComponentBuilder from '../components/MarksEntry/ComponentBuilder';
 import MarksTable from '../components/MarksEntry/MarksTable';
 import ClassSubjectSelector from '../components/MarksEntry/ClassSubjectSelector';
@@ -140,7 +141,8 @@ export default function MarksEntryPage() {
             parseInt(c.semester) === 1 ||
             parseInt(c.semester) === 2 ||
             parseInt(c.semester) === 3 ||
-            parseInt(c.semester) === 4
+            parseInt(c.semester) === 4 ||
+            isPGClass(c)
           )
         );
 
@@ -243,7 +245,13 @@ export default function MarksEntryPage() {
 
   const selectedClass   = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
   const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
-  const isPureLab = Boolean(selectedSubject && (
+  const isPG = Boolean(
+    isPGClass(selectedClass) ||
+    isPGSubject(selectedSubject, selectedClass)
+  );
+  const pgConfig = isPG ? getPGComponentPresets(selectedSubject?.type) : null;
+  const dynamicCiaMax = isPG ? (pgConfig?.ciaMax || 40) : 95;
+  const isPureLab = !isPG && Boolean(selectedSubject && (
     selectedSubject.type === 'Practical' ||
     selectedSubject.type === 'Laboratory' ||
     selectedSubject.type === 'Lab' ||
@@ -1010,7 +1018,7 @@ export default function MarksEntryPage() {
               <div className={styles.badgeRow}>
                 <span className={styles.codeBadge}>{selectedSubject?.code}</span>
                 <span className={styles.typeBadge}>{selectedSubject?.type || 'Theory'}</span>
-                <span className={styles.regBadge}>Regulation 2025</span>
+                <span className={styles.regBadge}>{isPG ? 'PG Regulation 2025' : 'Regulation 2025'}</span>
                 {selectedSubject?.ltpc && (
                   <span className={styles.ltpcBadge}>LTPC: {selectedSubject.ltpc}</span>
                 )}
@@ -1107,6 +1115,9 @@ export default function MarksEntryPage() {
               components={assessmentComponents}
               onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); setIsComponentsDirty(true); }}
               isLocked={isLocked}
+              maxAllocation={dynamicCiaMax}
+              isPG={isPG}
+              subjectType={selectedSubject?.type || 'Theory'}
             />
           )}
 
@@ -1157,6 +1168,7 @@ export default function MarksEntryPage() {
             onLabDataChange={setLabData}
             onTotalHoursChange={(val) => { setTotalHours(val); setSaved(false); }}
             isLocked={isLocked}
+            isPG={isPG}
           />
 
           {!isPrincipal && (

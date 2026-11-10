@@ -71,6 +71,10 @@ export default function ManageSubjects() {
       return { int1: Math.ceil((h || 60) / 2) || 30, int2: Math.floor((h || 60) / 2) || 30, lab: 0, total: h || 60 };
     }
 
+    if (type === 'Project') {
+      return { int1: Math.ceil((h || 60) / 2) || 30, int2: Math.floor((h || 60) / 2) || 30, lab: 0, total: h || 60 };
+    }
+
     return { int1: 30, int2: 30, lab: 0, total: h || 60 };
   };
 
@@ -313,6 +317,7 @@ export default function ManageSubjects() {
               <option value="Theory-cum-Lab">Theory-cum-Lab</option>
               <option value="Lab-cum-Theory">Lab-cum-Theory</option>
               <option value="Practical">Practical</option>
+              <option value="Project">Project</option>
               <option value="Skill">Skill</option>
               <option value="Other">Other</option>
             </select>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Trash2, ChevronDown, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, AlertCircle, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 import { ASSESSMENT_TYPES, MAX_STAFF_ALLOCATION } from '../../data/assessmentTypes';
+import { getPGComponentPresets } from '../../utils/pgRegulation2025';
 import styles from './ComponentBuilder.module.css';
 
 // Counter to create unique ids per added component
@@ -19,13 +20,32 @@ function TypeBadge({ typeId, small }) {
   );
 }
 
-export default function ComponentBuilder({ components = [], onChange, isLocked }) {
+export default function ComponentBuilder({
+  components = [],
+  onChange,
+  isLocked,
+  maxAllocation = MAX_STAFF_ALLOCATION,
+  isPG = false,
+  subjectType = 'Theory'
+}) {
   const [selectedType, setSelectedType] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [maxMarks, setMaxMarks] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const effectiveMaxAllocation = isPG ? (maxAllocation || 40) : MAX_STAFF_ALLOCATION;
   const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
+  const pgPreset = isPG ? getPGComponentPresets(subjectType) : null;
+
+  const handleLoadPGR2025Preset = () => {
+    if (!pgPreset || !pgPreset.defaultComponents) return;
+    const comps = pgPreset.defaultComponents.map((c, i) => ({
+      ...c,
+      uid: Date.now() + i,
+    }));
+    onChange(comps);
+    setErrorMsg('');
+  };
 
   const selectedTypeMeta = ASSESSMENT_TYPES.find((t) => t.id === selectedType);
 
@@ -41,8 +61,8 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
   const handleAdd = () => {
     if (!selectedType || !maxMarks || parseFloat(maxMarks) <= 0) return;
     const weight = parseFloat(maxMarks);
-    if (totalMax + weight > MAX_STAFF_ALLOCATION) {
-      setErrorMsg(`Cannot add component. Total weight would exceed ${MAX_STAFF_ALLOCATION}%. (You currently have ${totalMax}% allocated)`);
+    if (totalMax + weight > effectiveMaxAllocation) {
+      setErrorMsg(`Cannot add component. Total weight would exceed ${effectiveMaxAllocation}${isPG ? ' Marks' : '%'}. (You currently have ${totalMax}${isPG ? ' Marks' : '%'} allocated)`);
       return;
     }
     
@@ -82,7 +102,7 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
         <div className={styles.header}>
           <div>
             <h3 className={styles.title}>Assessment Composition</h3>
-            <p className={styles.sub}>Total Weight: <strong>{totalMax}%</strong></p>
+            <p className={styles.sub}>Total Weight: <strong>{totalMax}{isPG ? ' Marks' : '%'}</strong></p>
           </div>
         </div>
         <div className={styles.compList}>
@@ -95,7 +115,7 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
               <div className={styles.compInputs}>
                 <div className={styles.compField}>
                   <span className={styles.fieldLabel}>Weight</span>
-                  <span>{comp.max}%</span>
+                  <span>{comp.max}{isPG ? 'm' : '%'}</span>
                 </div>
               </div>
             </div>
@@ -109,20 +129,76 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
     <div className={styles.wrapper}>
       <div className={styles.header}>
         <div>
-          <h3 className={styles.title}>Build Assessment Sheet</h3>
+          <h3 className={styles.title}>
+            {isPG ? `Build Assessment Sheet (PG R2025 - ${subjectType})` : 'Build Assessment Sheet'}
+          </h3>
           <p className={styles.sub}>
-            Add the marks components for this subject. Total weight allowed is <strong>{MAX_STAFF_ALLOCATION}%</strong> (5% reserved for Attendance).
+            {isPG ? (
+              <>Continuous Assessment (CA) weight limit is <strong>{effectiveMaxAllocation} Marks</strong> for Anna University PG R2025 {subjectType} courses.</>
+            ) : (
+              <>Add the marks components for this subject. Total weight allowed is <strong>{MAX_STAFF_ALLOCATION}%</strong> (5% reserved for Attendance).</>
+            )}
           </p>
         </div>
         {/* Total indicator */}
         <div className={styles.totalIndicator}>
           <div className={styles.totalLabel}>Total Weight</div>
-          <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''} ${totalMax > MAX_STAFF_ALLOCATION ? styles.totalError : ''}`}>
-            {totalMax} / {MAX_STAFF_ALLOCATION}
+          <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''} ${totalMax > effectiveMaxAllocation ? styles.totalError : ''}`}>
+            {totalMax} / {effectiveMaxAllocation}
           </div>
-          <div className={styles.totalSub}>5% reserved for Attendance</div>
+          <div className={styles.totalSub}>
+            {isPG ? `Max CA: ${effectiveMaxAllocation} Marks` : '5% reserved for Attendance'}
+          </div>
         </div>
       </div>
+
+      {/* PG Regulation 2025 Quick Preset Banner */}
+      {isPG && pgPreset && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+          border: '1.5px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.2rem' }}>📜</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#4338ca' }}>
+                Anna University PG Regulation 2025 Assessment Scheme
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#6366f1' }}>
+                {pgPreset.label} · Continuous Assessment: <strong>{effectiveMaxAllocation} Marks</strong> · ESE: <strong>{pgPreset.eseMax} Marks</strong>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLoadPGR2025Preset}
+            style={{
+              background: '#4f46e5',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '7px 14px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title={`Load standard Anna University R2025 preset for ${subjectType}`}
+          >
+            <Sparkles size={14} /> Load Official R2025 Preset ({pgPreset.defaultComponents.map(c => `${c.label.split('(')[0].trim()} ${c.max}m`).join(' + ')} = {effectiveMaxAllocation}m)
+          </button>
+        </div>
+      )}
       
       {errorMsg && (
         <div className={styles.errorBanner}>
@@ -173,9 +249,9 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
             id="component-max-input"
             type="number"
             min="1"
-            max="95"
+            max={String(effectiveMaxAllocation)}
             className={styles.input}
-            placeholder="50"
+            placeholder={String(effectiveMaxAllocation)}
             value={maxMarks}
             onChange={(e) => {
               setMaxMarks(e.target.value);
@@ -264,10 +340,10 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
               <CheckCircle2 size={15} color="var(--success)" />
               <span>{components.length} component{components.length !== 1 ? 's' : ''}</span>
               <span className={styles.summarySep}>·</span>
-              <span>Total Allocated Weight: <strong className={totalMax > MAX_STAFF_ALLOCATION ? styles.textError : ''}>{totalMax}%</strong></span>
+              <span>Total Allocated Weight: <strong className={totalMax > effectiveMaxAllocation ? styles.textError : ''}>{totalMax}{isPG ? ' Marks' : '%'}</strong></span>
               <span className={styles.summarySep}>·</span>
               <span className={styles.normalizeNote}>
-                Remaining {MAX_STAFF_ALLOCATION - totalMax}% available.
+                Remaining {Math.max(0, effectiveMaxAllocation - totalMax)}{isPG ? ' Marks' : '%'} available.
               </span>
             </div>
           </div>
@@ -279,7 +355,11 @@ export default function ComponentBuilder({ components = [], onChange, isLocked }
         <div className={styles.empty}>
           <AlertCircle size={32} color="var(--text-muted)" />
           <p>No assessment components added yet.</p>
-          <p className={styles.emptySub}>Select a type and click <strong>Add</strong> to build your marks sheet.</p>
+          <p className={styles.emptySub}>
+            {isPG
+              ? 'Click "Load Official R2025 Preset" above or select a type to customize components.'
+              : 'Select a type and click Add to build your marks sheet.'}
+          </p>
         </div>
       )}
     </div>

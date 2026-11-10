@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { statsAPI, marksAPI, classesAPI, subjectsAPI, studentsAPI, remarksAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { isPGClass, isPGSubject } from '../utils/pgRegulation2025';
 import { 
   generateSubjectAnalysisPDF, 
   generateSubjectMarksListPDF,
@@ -373,7 +374,8 @@ export default function ReportsPage() {
         detail = await marksAPI.getSessionDetail(currentSession.id);
       }
 
-      const is2021 = cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5;
+      const isPG = isPGClass(cls) || isPGSubject(sub, cls);
+      const is2021 = !isPG && (cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5);
 
       const staffObj = {
         name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff'
@@ -629,7 +631,8 @@ export default function ReportsPage() {
         detail = await marksAPI.getSessionDetail(currentSession.id);
       }
 
-      const is2021 = cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5;
+      const isPG = isPGClass(cls) || isPGSubject(sub, cls);
+      const is2021 = !isPG && (cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5);
       const staffObj = { name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff' };
       const marksObj = {};
       (detail?.marks || []).forEach(m => {
@@ -831,7 +834,8 @@ export default function ReportsPage() {
 
   const handleHistoryRowClick = (session) => {
     // Check if class is 2021 Regulation (3rd & 4th Year)
-    const is2021 = session.year_label === 'III' || session.year_label === 'IV' || session.year_label === '3' || session.year_label === '4' || parseInt(session.semester) >= 5;
+    const isPG = String(session.class_id || '').startsWith('ME_') || session.program_type === 'PG' || session.regulation_code === 'R2025';
+    const is2021 = !isPG && (session.year_label === 'III' || session.year_label === 'IV' || session.year_label === '3' || session.year_label === '4' || parseInt(session.semester) >= 5);
     const path = is2021 ? '/marks-entry-2021' : '/marks-entry';
     navigate(path, { 
       state: { 

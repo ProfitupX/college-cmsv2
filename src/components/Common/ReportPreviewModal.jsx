@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { X, Download, FileSpreadsheet, FileText, CheckCircle2, BarChart2, BookOpen, Users, Award } from 'lucide-react';
 import { resolveAttendanceMark } from '../../utils/attendanceCalculator';
+import { isPGClass, isPGSubject, getPGComponentPresets } from '../../utils/pgRegulation2025';
 import styles from './ReportPreviewModal.module.css';
 
 export default function ReportPreviewModal({
@@ -41,8 +42,11 @@ export default function ReportPreviewModal({
   remedialAction = ''
 }) {
   const isInternal2 = assessmentMode === 'internal2';
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
+  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
-  const isPureLabSubject = Boolean(
+  const isPureLabSubject = !isPG && Boolean(
     isLabOnly ||
     reportType === 'lab_marks_only' ||
     subject?.type === 'Practical' ||
@@ -215,7 +219,7 @@ export default function ReportPreviewModal({
   const subjectAnalysisData = useMemo(() => {
     if (reportType !== 'subject_analysis') return null;
 
-    const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+    const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
     const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
     const ciaMax = isLabType ? 50 : 40;
     const examConvertedMax = isLabType ? 50 : 60;
@@ -375,7 +379,7 @@ export default function ReportPreviewModal({
       targetSubs = targetSubs.filter(s => selectedSubjectIds.includes(s.id));
     }
 
-    const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+    const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
 
     const rows = students.map((st, idx) => {
       const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
@@ -1026,9 +1030,9 @@ export default function ReportPreviewModal({
                           <>
                             <th style={{ width: '130px', textAlign: 'center' }}>Attended Hrs</th>
                             <th style={{ width: '110px', textAlign: 'center' }}>Attd Mark (5)</th>
-                            <th style={{ width: '120px', textAlign: 'center' }}>Activities (95)</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>{isPG ? `CA (${pgCiaMax})` : 'Activities (95)'}</th>
                             <th style={{ width: '130px', textAlign: 'center' }}>Internal Mark</th>
-                            <th style={{ width: '140px', textAlign: 'center' }}>Activities Mark Total</th>
+                            <th style={{ width: '140px', textAlign: 'center' }}>{isPG ? 'CA Total' : 'Activities Mark Total'}</th>
                           </>
                         )}
                       </tr>

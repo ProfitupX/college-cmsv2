@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoImg from '../assets/nscetimg.jpeg';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator';
+import { isPGClass, isPGSubject, getPGComponentPresets } from '../utils/pgRegulation2025';
 
 // Helper to convert image URL/imported asset to base64 DataURL
 const getImageDataUrl = (url) => {
@@ -182,7 +183,8 @@ export const generateSubjectAnalysisPDF = async ({
   let maxMark = 0;
   let minMark = 100;
 
-  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
@@ -414,6 +416,9 @@ export const generateSubjectMarksListPDF = async ({
   
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
+  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
 
   // Total prescribed hours for this internal assessment:
   // Internal 1: strictly int1Hours (default 30 hrs)
@@ -434,27 +439,27 @@ export const generateSubjectMarksListPDF = async ({
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
-  doc.text(`Year / Sem             : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
-  doc.text(`Dept                       : ${subject?.department || 'IT'}`, 120, y);
+  doc.text(`Year / Sem             : ${classObj?.year_label || (isPG ? 'I' : 'II')} / ${classObj?.semester || (isPG ? '1' : '4')}`, 14, y);
+  doc.text(`Dept                       : ${subject?.department || classObj?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staffName}`, 14, y);
-  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
+  doc.text(`Academic Year    : 2026 - 2027${isPG ? ' (PG R2025)' : ''}`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
   doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 8;
 
   // Default 2025 Autonomous Regulation College Format:
-  // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95), Internal Exam (Max: 100), Total Internal Marks (Max: 100)
+  // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95 / PG CA Max), Internal Exam (Max: 100), Total Internal Marks (Max: 100 / PG CA Max)
   const headRow = [
     'S.No',
     'Roll No',
     'Student Name',
     'Attended\nHrs',
     'Attd Mark\n(Max: 5)',
-    'Activities Mark\n(Max: 95)',
+    isPG ? `CA Mark\n(Max: ${pgCiaMax})` : 'Activities Mark\n(Max: 95)',
     'Internal\nMark',
-    'Activities Mark\nTotal'
+    isPG ? 'CA Mark\nTotal' : 'Activities Mark\nTotal'
   ];
 
   // Prepare Table Body
@@ -487,7 +492,7 @@ export const generateSubjectMarksListPDF = async ({
     const isExamAbsent = isNaN(numExam) || internalExamMark === null || internalExamMark === undefined || internalExamMark === '' || internalExamMark === 'AB';
     const internalExamMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
-    const totalInternal = Math.min(100, convertedTotal + attendanceMark);
+    const totalInternal = isPG ? Math.min(pgCiaMax, convertedTotal) : Math.min(100, convertedTotal + attendanceMark);
     const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     return [
@@ -508,9 +513,9 @@ export const generateSubjectMarksListPDF = async ({
     'MAX MARKS',
     `${tHours > 0 ? tHours : '-'} Hrs`,
     '5',
-    '95',
+    isPG ? String(pgCiaMax) : '95',
     '100',
-    '100'
+    isPG ? String(pgCiaMax) : '100'
   ];
 
   const colStyles = {
@@ -891,10 +896,27 @@ export const generateConsolidatedMarksPDF = async ({
         absentCount++;
         return '-';
       }
-      const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+      const isPG = isPGClass(classObj) || isPGSubject(sub, classObj);
+      const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
       
       let score;
-      if (is2021) {
+      if (isPG) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        const subConfig = getPGComponentPresets(sub?.type);
+        const maxCA = subConfig?.ciaMax || 40;
+        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
+        if (studentMarks.length === 0 && sessionComps.length > 0) {
+          score = 'AB';
+        }
+      } else if (is2021) {
         const sessionComps = allComponents.filter(c => c.session_id === sess.id);
         const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         
@@ -976,12 +998,29 @@ export const generateConsolidatedMarksPDF = async ({
         ab++;
         return;
       }
-      const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+      const isPG = isPGClass(classObj) || isPGSubject(sub, classObj);
+      const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
       
       let score;
       let isAbsent = false;
       
-      if (is2021) {
+      if (isPG) {
+        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+        let rawCIA = 0;
+        sessionComps.forEach((comp) => {
+          const markObj = studentMarks.find(m => m.component_id === comp.id);
+          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+          rawCIA += Math.min(val, conducted);
+        });
+        const subConfig = getPGComponentPresets(sub?.type);
+        const maxCA = subConfig?.ciaMax || 40;
+        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
+        if (studentMarks.length === 0 && sessionComps.length > 0) {
+          isAbsent = true;
+        }
+      } else if (is2021) {
         const sessionComps = allComponents.filter(c => c.session_id === sess.id);
         const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         
@@ -1630,7 +1669,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const numSubs = targetSubjects.length;
 
   // Top header row
-  const is2021 = classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5;
+  const isPG = isPGClass(classObj);
+  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
 
   const headRow1 = [
     { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },

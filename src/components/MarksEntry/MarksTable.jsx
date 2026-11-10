@@ -6,7 +6,8 @@ export default function MarksTable({
   students = [], components = [], marksData = {}, onMarkChange,
   attendanceData = {}, attendanceMarks = {}, int1AttendanceData = {}, internalExamData = {}, totalHours = 0, int1Hours = 30, int2Hours = 30, labHours = 0,
   onAttendanceChange, onInternalExamChange, onTotalHoursChange,
-  labData = {}, assessmentMode = 'internal1', selectedSubject = {}, onLabDataChange, isLocked
+  labData = {}, assessmentMode = 'internal1', selectedSubject = {}, onLabDataChange, isLocked,
+  isPG = false
 }) {
   const { user } = useAuth();
   const isElevated = user?.role === 'principal' || user?.role === 'vice_principal' || user?.role === 'hod' || user?.role === 'admin';
@@ -15,7 +16,7 @@ export default function MarksTable({
   // Which hours to show based on mode (default standard 30)
   const displayHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
   const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-  const isPureLab = Boolean(selectedSubject && (
+  const isPureLab = !isPG && Boolean(selectedSubject && (
     selectedSubject.type === 'Practical' ||
     selectedSubject.type === 'Laboratory' ||
     selectedSubject.type === 'Lab' ||
@@ -128,8 +129,8 @@ export default function MarksTable({
 
                 {/* Activities Total - ALWAYS visible */}
                 <th className={`${styles.th} ${styles.computedTh}`}>
-                  Activities Total
-                  <div className={styles.thSub}>/ {totalMax || 95}</div>
+                  {isPG ? 'CA Total' : 'Activities Total'}
+                  <div className={styles.thSub}>/ {totalMax || (isPG ? (totalMax || 40) : 95)}</div>
                 </th>
 
                 {/* Internal Exam - mode specific name */}
@@ -183,6 +184,7 @@ export default function MarksTable({
                 onInternalExamChange={(val) => onInternalExamChange && student?.id && onInternalExamChange(student.id, val)}
                 onLabDataChange={(field, val) => onLabDataChange && student?.id && onLabDataChange(student.id, field, val)}
                 index={i}
+                isPG={isPG}
               />
             ))}
           </tbody>
@@ -194,7 +196,7 @@ export default function MarksTable({
         <span className={styles.footerInfo}>
           {students.length} student{students.length !== 1 ? 's' : ''} ·{' '}
           {components.length} component{components.length !== 1 ? 's' : ''} ·{' '}
-          Total weight allocated: {totalMax}%
+          Total weight allocated: {totalMax}{isPG ? ' Marks' : '%'}
         </span>
         <span className={styles.footerFormula}>
           Formula: Σ (Raw Marks) + Attendance

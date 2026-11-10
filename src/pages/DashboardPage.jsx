@@ -1324,7 +1324,8 @@ export default function DashboardPage() {
 
           <div className={styles.subjectGrid}>
             {(assignedSubjects || []).filter(Boolean).map((sub) => {
-              const is2021 = sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5;
+              const isPGSubject = String(sub?.class_id || '').startsWith('ME_') || sub?.program_type === 'PG' || sub?.regulation_code === 'R2025';
+              const is2021 = !isPGSubject && (sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5);
               const targetRoute = is2021 ? '/marks-entry-2021' : '/marks-entry';
 
               return (
