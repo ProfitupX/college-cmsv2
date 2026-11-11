@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [hodMarksData, setHodMarksData] = useState(null);
   const [hodMarksLoading, setHodMarksLoading] = useState(false);
   const [hodSession, setHodSession] = useState('internal1');
+  const [cycleInfo, setCycleInfo] = useState(null);
 
   const loadData = () => {
     setLoading(true);
@@ -89,7 +90,8 @@ export default function DashboardPage() {
             : {}
       ),
       settingsAPI.getDeadline(),
-      classesAPI.getAll().catch(() => [])
+      classesAPI.getAll().catch(() => []),
+      settingsAPI.getActiveCycle().catch(() => null)
     ];
 
     if (user?.role === 'hod' || user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal') {
@@ -108,7 +110,10 @@ export default function DashboardPage() {
     promises.push(backupPromise);
 
     Promise.all(promises)
-      .then(([stats, sess, dl, loadedClasses, requests, backupData]) => {
+      .then(([stats, sess, dl, loadedClasses, activeCycle, requests, backupData]) => {
+        if (activeCycle) {
+          setCycleInfo(activeCycle);
+        }
         if (Array.isArray(loadedClasses)) {
           setClasses(loadedClasses);
         }
@@ -1071,6 +1076,99 @@ export default function DashboardPage() {
             <span>{now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
           </div>
         </div>
+      </div>
+
+      {/* Academic Period & Assessment Cycle Banner */}
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border-solid)',
+        borderRadius: '12px',
+        padding: '14px 20px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Calendar size={20} color="var(--primary)" />
+          <div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
+              Academic Period
+            </div>
+            {cycleInfo && cycleInfo.configured ? (
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Academic Year: <span style={{ color: 'var(--primary)' }}>{cycleInfo.academicYear}</span>
+                {' · '}
+                Semester: <span style={{ color: 'var(--primary)' }}>{cycleInfo.semester}</span>
+                {cycleInfo.assessmentCycle && (
+                  <>
+                    {' · '}
+                    Assessment Cycle: <span style={{ color: 'var(--primary)' }}>{cycleInfo.assessmentCycle}</span>
+                  </>
+                )}
+              </div>
+            ) : cycleInfo?.code === 'SEMESTER_UNRESOLVED' ? (
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Academic Year: <span style={{ color: 'var(--text-primary)' }}>{cycleInfo.academicYear}</span>
+                {' · '}
+                Semester: <span style={{ color: '#D97706' }}>Unresolved (No Active Cycle)</span>
+              </div>
+            ) : cycleInfo?.code === 'AMBIGUOUS_SEMESTER_STATE' ? (
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#DC2626' }}>
+                Academic Year: <span style={{ color: 'var(--text-primary)' }}>{cycleInfo.academicYear}</span>
+                {' · '}
+                Semester: <span>Ambiguous State (Multiple Active Semesters)</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Configuration Not Active
+              </div>
+            )}
+          </div>
+        </div>
+
+        {cycleInfo && cycleInfo.configured && cycleInfo.modes && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Modes:</span>
+            {cycleInfo.modes.internal1 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                color: '#4F46E5',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                border: '1px solid rgba(99, 102, 241, 0.2)'
+              }}>
+                <CheckCircle2 size={13} />
+                {cycleInfo.modes.internal1.name || 'Internal Assessment 1 (IA1)'}
+              </span>
+            )}
+            {cycleInfo.modes.internal2 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#059669',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                border: '1px solid rgba(16, 185, 129, 0.2)'
+              }}>
+                <CheckCircle2 size={13} />
+                {cycleInfo.modes.internal2.name || 'Internal Assessment 2 (IA2)'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <StatsGrid stats={stats} />

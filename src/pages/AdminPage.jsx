@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAPI, settingsAPI, marksAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Search, Loader, AlertCircle, Save, Settings, BookMarked, Check, X, Filter, Clock, Lock, Unlock, History, RefreshCw } from 'lucide-react';
+import { Shield, Key, Search, Loader, AlertCircle, Save, Settings, BookMarked, Check, X, Filter, Clock, Lock, Unlock, History, RefreshCw, Calendar } from 'lucide-react';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -43,6 +43,11 @@ export default function AdminPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSubjectTitle, setAuditSubjectTitle] = useState('');
 
+  // Academic Assessment Cycles State (Phase 3B.1 Read-Only)
+  const [cycleData, setCycleData] = useState(null);
+  const [cycleLoading, setCycleLoading] = useState(false);
+  const [cycleError, setCycleError] = useState(null);
+
   useEffect(() => {
     if (user?.role === 'admin') {
       adminAPI.getStaffs()
@@ -61,6 +66,20 @@ export default function AdminPage() {
         .then(res => setEnvContent(res.value || ''))
         .catch(err => console.error(err))
         .finally(() => setEnvLoading(false));
+    }
+  }, [activeTab, user]);
+
+  useEffect(() => {
+    if (activeTab === 'cycles' && user?.role === 'admin') {
+      setCycleLoading(true);
+      setCycleError(null);
+      settingsAPI.getActiveCycle()
+        .then(res => setCycleData(res))
+        .catch(err => {
+          console.error('Failed to load active cycle:', err);
+          setCycleError(err?.message || 'Academic cycle configuration is not available. Required database schema has not been installed.');
+        })
+        .finally(() => setCycleLoading(false));
     }
   }, [activeTab, user]);
 
@@ -277,6 +296,17 @@ export default function AdminPage() {
           }}
         >
           <Lock size={16} color="#3B82F6" /> Subject Freeze/Unlock Management
+        </button>
+        <button
+          onClick={() => setActiveTab('cycles')}
+          style={{
+            background: activeTab === 'cycles' ? 'var(--primary)' : 'var(--surface)',
+            color: activeTab === 'cycles' ? '#fff' : 'var(--text-primary)',
+            border: '1px solid var(--border-solid)', borderRadius: '8px', padding: '10px 16px',
+            cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px'
+          }}
+        >
+          <Calendar size={16} color={activeTab === 'cycles' ? '#fff' : '#10B981'} /> Academic Cycles
         </button>
         <button
           onClick={() => setActiveTab('env')}
@@ -930,6 +960,261 @@ export default function AdminPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </>
+        ) : activeTab === 'cycles' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={20} color="var(--primary)" /> Academic Assessment Cycles
+                </h3>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Read-only view of academic year, semester cycle, and internal assessment configurations.
+                </span>
+              </div>
+            </div>
+
+            {cycleLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '40px', justifyContent: 'center' }}>
+                <Loader size={20} className="spinner" /> Loading academic cycles...
+              </div>
+            ) : cycleError ? (
+              <div style={{
+                padding: '18px 20px',
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                borderRadius: '8px',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start'
+              }}>
+                <AlertCircle size={20} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontWeight: 600, color: '#991B1B', fontSize: '0.95rem', marginBottom: '4px' }}>
+                    Academic Cycle Configuration Unavailable
+                  </div>
+                  <div style={{ color: '#7F1D1D', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                    {cycleError}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* Configuration Notice if not fully active */}
+                {!cycleData?.configured && (
+                  <div style={{
+                    padding: '14px 18px',
+                    background: '#FFFBEB',
+                    border: '1px solid #FCD34D',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    gap: '12px',
+                    alignItems: 'flex-start',
+                    marginBottom: '20px'
+                  }}>
+                    <AlertCircle size={18} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#92400E', fontSize: '0.9rem', marginBottom: '2px' }}>
+                        Configuration Notice: {cycleData?.code || 'INACTIVE'}
+                      </div>
+                      <div style={{ color: '#78350F', fontSize: '0.84rem' }}>
+                        {cycleData?.error || 'Academic cycle configuration is incomplete or inactive.'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Academic Period Overview */}
+                {cycleData?.academicYear && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '16px',
+                    marginBottom: '24px'
+                  }}>
+                    <div style={{
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border-solid)',
+                      borderRadius: '8px',
+                      padding: '16px'
+                    }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
+                        Academic Year
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {cycleData.academicYear}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#10B981', marginTop: '4px', fontWeight: 600 }}>
+                        Current Active Academic Year
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border-solid)',
+                      borderRadius: '8px',
+                      padding: '16px'
+                    }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
+                        Active Semester
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: cycleData.configured ? 'var(--text-primary)' : '#D97706' }}>
+                        {cycleData.configured ? cycleData.semester : (cycleData.code === 'SEMESTER_UNRESOLVED' ? 'Unresolved' : cycleData.code === 'AMBIGUOUS_SEMESTER_STATE' ? 'Ambiguous' : 'Not Configured')}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        {cycleData.configured ? 'Active Semester Window' : 'No Active Semester Cycle'}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border-solid)',
+                      borderRadius: '8px',
+                      padding: '16px'
+                    }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
+                        Assessment Cycle
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {cycleData.assessmentCycle || 'Pending Activation'}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        {cycleData.assessmentCycle ? 'Current Assessment Period' : 'No Active Cycle'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Display Configured Cycles for ODD and EVEN Semesters */}
+                {Array.isArray(cycleData?.cycles) && cycleData.cycles.length > 0 ? (
+                  <>
+                    {/* ODD SEMESTER SECTION */}
+                    {cycleData.cycles.some(c => c.cycle_type.startsWith('ODD_')) && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.1)', color: '#4F46E5', fontSize: '0.78rem' }}>ODD SEM</span>
+                          ODD Semester Assessment Cycles
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
+                          {cycleData.cycles.filter(c => c.cycle_type.startsWith('ODD_')).map(cycle => (
+                            <div key={cycle.id} style={{
+                              background: 'var(--bg)',
+                              border: '1px solid var(--border-solid)',
+                              borderRadius: '8px',
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                                  {cycle.name}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  background: cycle.status === 'ACTIVE' ? '#D1FAE5' : cycle.status === 'LOCKED' ? '#F3E8FF' : '#EFF6FF',
+                                  color: cycle.status === 'ACTIVE' ? '#065F46' : cycle.status === 'LOCKED' ? '#6B21A8' : '#1D4ED8',
+                                  border: '1px solid var(--border-solid)'
+                                }}>
+                                  {cycle.status}
+                                </span>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: '0.82rem' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Type:</span>
+                                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{cycle.cycle_type}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>Deadline:</span>
+                                <span style={{ fontWeight: 600 }}>{cycle.marks_entry_deadline ? new Date(cycle.marks_entry_deadline).toLocaleString('en-IN') : 'Not Set'}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>Cycle ID:</span>
+                                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{cycle.id}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* EVEN SEMESTER SECTION */}
+                    {cycleData.cycles.some(c => c.cycle_type.startsWith('EVEN_')) && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', fontSize: '0.78rem' }}>EVEN SEM</span>
+                          EVEN Semester Assessment Cycles
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
+                          {cycleData.cycles.filter(c => c.cycle_type.startsWith('EVEN_')).map(cycle => (
+                            <div key={cycle.id} style={{
+                              background: 'var(--bg)',
+                              border: '1px solid var(--border-solid)',
+                              borderRadius: '8px',
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                                  {cycle.name}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  background: cycle.status === 'ACTIVE' ? '#D1FAE5' : cycle.status === 'LOCKED' ? '#F3E8FF' : '#EFF6FF',
+                                  color: cycle.status === 'ACTIVE' ? '#065F46' : cycle.status === 'LOCKED' ? '#6B21A8' : '#1D4ED8',
+                                  border: '1px solid var(--border-solid)'
+                                }}>
+                                  {cycle.status}
+                                </span>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: '0.82rem' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Type:</span>
+                                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{cycle.cycle_type}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>Deadline:</span>
+                                <span style={{ fontWeight: 600 }}>{cycle.marks_entry_deadline ? new Date(cycle.marks_entry_deadline).toLocaleString('en-IN') : 'Not Set'}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>Cycle ID:</span>
+                                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{cycle.id}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-solid)',
+                    marginBottom: '20px'
+                  }}>
+                    No assessment cycles have been loaded from the database.
+                  </div>
+                )}
+
+                {/* Read-Only Informational Alert */}
+                <div style={{
+                  padding: '14px 16px',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border-solid)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'flex-start'
+                }}>
+                  <AlertCircle size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Read-Only Administration View:</strong> Assessment cycle configurations, statuses, and independent deadlines are dynamically retrieved from the system. Interactive status transitions (activation, freezing) and independent deadline modifications will be enabled after backend enforcement is validated in subsequent phases.
+                  </div>
+                </div>
               </div>
             )}
           </>

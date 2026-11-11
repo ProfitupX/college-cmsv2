@@ -505,6 +505,7 @@ export const notificationsAPI = {
 };
 
 export const settingsAPI = {
+  getActiveCycle: () => get('/settings/active-cycle'),
   getDeadline: () => get('/settings/marks_entry_deadline'),
   setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr }),
   getEnv: () => get('/settings/env'),
