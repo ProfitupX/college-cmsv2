@@ -349,11 +349,15 @@ router.post('/submit', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { subjectId, classId, staffId, sessionLabel, components, marks, totalHours, internal2TotalHours, attendance, actionType, remedialAction } = req.body;
+    const { subjectId, classId, staffId, sessionLabel, components, marks, totalHours, internal2TotalHours, attendance, actionType, remedialAction, examDate } = req.body;
 
     if (!subjectId || !classId || !staffId || !components) {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
+
+    const cleanExamDate = examDate && typeof examDate === 'string' && examDate.trim().length >= 10
+      ? examDate.trim().substring(0, 10)
+      : (examDate ? examDate : null);
 
     // Fetch subject details for accurate hours splits & subject type detection
     const [subRows] = await conn.execute(
@@ -385,7 +389,7 @@ router.post('/submit', async (req, res) => {
 
     // 1.5 Find existing session to perform safe in-place UPDATE (avoids foreign-key CASCADE wipe)
     const [existingSessions] = await conn.execute(
-      `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
+      `SELECT id, status, exam_date FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
       [String(subjectId), String(classId), String(sessionLabel)]
     );
     const existingSession = existingSessions.length > 0 ? existingSessions[0] : null;
@@ -508,12 +512,18 @@ router.post('/submit', async (req, res) => {
     const statusVal = actionType === 'frozen' ? 'locked' : (existingSession?.status === 'locked' ? 'locked' : 'draft');
     let sessionId;
 
+    const finalExamDate = examDate !== undefined
+      ? (cleanExamDate || null)
+      : (existingSession?.exam_date || null);
+
     if (existingSession) {
       sessionId = existingSession.id;
       await conn.execute(
         `UPDATE marks_sessions
          SET staff_id = ?, total_max = ?, total_hours = ?, internal2_total_hours = ?,
-             status = ?, avg_score = ?, student_count = ?, remedial_action = ?, updated_at = NOW()
+             status = ?, avg_score = ?, student_count = ?, remedial_action = ?,
+             exam_date = ?,
+             updated_at = NOW()
          WHERE id = ?`,
         [
           String(staffId),
@@ -524,19 +534,21 @@ router.post('/submit', async (req, res) => {
           avgScore,
           studentCount,
           remedialAction || '',
+          finalExamDate,
           sessionId
         ]
       );
     } else {
       const [sessionResult] = await conn.execute(
         `INSERT INTO marks_sessions
-           (subject_id, class_id, staff_id, session_label, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (subject_id, class_id, staff_id, session_label, exam_date, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           String(subjectId),
           String(classId),
           String(staffId),
           sessionLabel || 'Internal Assessment',
+          cleanExamDate || null,
           totalMax,
           parseInt(sessionTotalHours, 10) || 0,
           parseInt(internal2TotalHours, 10) || 0,
@@ -913,7 +925,7 @@ router.post('/submit', async (req, res) => {
       }
     }
 
-    res.json({ success: true, sessionId, avgScore, studentCount });
+    res.json({ success: true, sessionId, avgScore, studentCount, examDate: finalExamDate });
   } catch (err) {
     await conn.rollback();
     console.error('POST /marks/submit error:', err);
@@ -931,7 +943,7 @@ router.get('/sessions', async (req, res) => {
   try {
     const { classId, staffId, subjectId, sessionLabel, department } = req.query;
     let sql = `
-      SELECT ms.id, ms.session_label, ms.total_max, ms.status,
+      SELECT ms.id, ms.session_label, ms.exam_date, ms.total_max, ms.status,
              ms.avg_score, ms.student_count, ms.created_at, ms.subject_id, ms.class_id,
              sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
              cl.name  AS class_name, cl.department AS class_department, cl.year_label, cl.semester,

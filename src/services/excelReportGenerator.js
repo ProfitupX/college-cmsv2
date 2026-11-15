@@ -39,6 +39,13 @@ const applyThinBorders = (cell) => {
   };
 };
 
+const formatExamDate = (d) => {
+  if (!d) return '—';
+  const parsed = new Date(d);
+  if (isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB'); // DD/MM/YYYY
+};
+
 /**
  * Standard College Header for all Excel workbooks
  * Pure native OpenXML styling — 100% compliant across MS Excel, LibreOffice, and Google Sheets
@@ -175,15 +182,15 @@ export const exportSubjectMarksExcel = async ({
   const metaRows = [
     {
       label1: 'Year / Semester:',
-      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'} (2026-2027)`,
       label2: 'Department:',
       val2: subject?.department || classObj?.department || 'Information Technology'
     },
     {
       label1: 'Faculty Name:',
       val1: staffName,
-      label2: 'Academic Year:',
-      val2: '2026 - 2027'
+      label2: 'Exam Date:',
+      val2: session?.exam_date ? formatExamDate(session.exam_date) : '—'
     },
     {
       label1: 'Subject Code / Name:',
@@ -607,15 +614,15 @@ export const exportLaboratoryMarksExcel = async ({
   const metaData = [
     {
       label1: 'Year / Semester:',
-      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'} (2026-2027)`,
       label2: 'Department:',
       val2: subject?.department || classObj?.department || 'Information Technology'
     },
     {
       label1: 'Staff In-Charge:',
       val1: staffName,
-      label2: 'Academic Year:',
-      val2: '2026 - 2027'
+      label2: 'Exam Date:',
+      val2: session?.exam_date ? formatExamDate(session.exam_date) : '—'
     },
     {
       label1: 'Subject Code / Name:',
@@ -954,15 +961,16 @@ export const exportOverallMarksExcel = async ({
       10
     ) || 0;
     const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
+    const dateStr = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
     if (is2021) {
       worksheet.mergeCells(11, startCol, 11, startCol + 1);
-      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed}${labStr})`;
+      worksheet.getCell(11, startCol).value = `${sub.code} (${dateStr})\n(TH = ${subPrescribed}${labStr})`;
       worksheet.getCell(12, startCol).value = 'Attd Hrs';
       worksheet.getCell(12, startCol + 1).value = 'Int Marks';
       colIdx += 2;
     } else {
       worksheet.mergeCells(11, startCol, 11, startCol + 2);
-      worksheet.getCell(11, startCol).value = `${sub.code}\n(TH = ${subPrescribed}${labStr})`;
+      worksheet.getCell(11, startCol).value = `${sub.code} (${dateStr})\n(TH = ${subPrescribed}${labStr})`;
       worksheet.getCell(12, startCol).value = 'Attd Hrs';
       worksheet.getCell(12, startCol + 1).value = 'Int Marks';
       worksheet.getCell(12, startCol + 2).value = 'Activity Marks';
@@ -1290,15 +1298,15 @@ export const exportSubjectAnalysisExcel = async ({
   const metaRows = [
     {
       label1: 'Year / Semester:',
-      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`,
+      val1: `${classObj?.year_label || 'II'} / ${classObj?.semester || '4'} (2026-2027)`,
       label2: 'Department:',
       val2: subject?.department || classObj?.department || 'Information Technology'
     },
     {
       label1: 'Staff In-Charge:',
       val1: staffName,
-      label2: 'Academic Year:',
-      val2: '2026 - 2027'
+      label2: 'Exam Date:',
+      val2: session?.exam_date ? formatExamDate(session.exam_date) : '—'
     },
     {
       label1: 'Subject Code / Name:',
@@ -1665,7 +1673,11 @@ export const exportConsolidatedMarksExcel = async ({
   worksheet.getRow(10).height = 8; // spacer
 
   // Table Header (Row 11)
-  const headCols = ['S.No', 'Roll No', 'Student Name', ...filteredSubjects.map(s => s.code), 'Failed', 'Passed', 'Absent'];
+  const headCols = ['S.No', 'Roll No', 'Student Name', ...filteredSubjects.map(s => {
+    const sess = allSessions.find(sessObj => (sessObj.subject_id === s.id || sessObj.subject_id === s.code) && (sessObj.session_label === sessionLabel || !sessObj.session_label));
+    const dateText = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
+    return `${s.code}\n(${dateText})`;
+  }), 'Failed', 'Passed', 'Absent'];
   const hRow = worksheet.getRow(11);
   hRow.values = headCols;
   hRow.height = 26;
@@ -1859,7 +1871,7 @@ export const exportClassAnalysisExcel = async ({
     worksheet,
     title: `TEST ANALYSIS REPORT (CLASS WISE / PERFORMANCE ANALYSIS) — ${sessionLabel === 'internal1' ? 'INTERNAL TEST 1' : 'INTERNAL TEST 2'}`,
     formatNo: 'NAC/TLP-20',
-    numCols: 9
+    numCols: 10
   });
 
   // Metadata Block (Rows 7-9) with merged cells
@@ -1916,7 +1928,7 @@ export const exportClassAnalysisExcel = async ({
     v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
     v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    for (let c = 1; c <= 9; c++) {
+    for (let c = 1; c <= 10; c++) {
       applyThinBorders(worksheet.getCell(rowNum, c));
     }
   });
@@ -1925,7 +1937,7 @@ export const exportClassAnalysisExcel = async ({
 
   // Table Header (Row 11)
   const hRow = worksheet.getRow(11);
-  hRow.values = ['S.No', 'Subject Code', 'Subject Name', 'Staff In-Charge', 'Total Strength', 'Appeared', 'Passed', 'Failed', 'Pass %'];
+  hRow.values = ['S.No', 'Subject Code', 'Subject Name', 'Staff In-Charge', 'Exam Date', 'Total Strength', 'Appeared', 'Passed', 'Failed', 'Pass %'];
   hRow.height = 24;
   hRow.eachCell(cell => {
     cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFF' } };
@@ -1967,6 +1979,7 @@ export const exportClassAnalysisExcel = async ({
       sub.code,
       sub.name,
       faculty,
+      sess?.exam_date ? formatExamDate(sess.exam_date) : '—',
       students.length,
       appeared,
       passed,
@@ -1979,7 +1992,7 @@ export const exportClassAnalysisExcel = async ({
     dRow.height = 20;
 
     const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
-    for (let c = 1; c <= 9; c++) {
+    for (let c = 1; c <= 10; c++) {
       const cell = dRow.getCell(c);
       cell.font = { name: 'Arial', size: 9 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
@@ -1991,7 +2004,7 @@ export const exportClassAnalysisExcel = async ({
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
 
-      if (c === 9) {
+      if (c === 10) {
         cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
       }
     }
@@ -2029,6 +2042,7 @@ export const exportClassAnalysisExcel = async ({
     { width: 14 },
     { width: 32 },
     { width: 24 },
+    { width: 14 },
     { width: 14 },
     { width: 12 },
     { width: 12 },

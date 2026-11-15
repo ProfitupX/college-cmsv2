@@ -1003,6 +1003,7 @@ export default function DashboardPage() {
       subject:     s.subject || s.subject_name || s.subject_code || 'Subject',
       class:       s.class_name || matchedClass?.name || 'Class',
       submittedAt: s.created_at || s.updated_at || new Date().toISOString(),
+      examDate:    s.exam_date || null,
       status:      s.status,
       count:       parseInt(s.student_count, 10) || 0,
       avgScore:    s.avg_score,

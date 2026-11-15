@@ -372,6 +372,7 @@ export default function ReportsPage() {
       if (sessDetail.length > 0) {
         currentSession = sessDetail[0];
         detail = await marksAPI.getSessionDetail(currentSession.id);
+        if (detail?.session) currentSession = detail.session;
       }
 
       const isPG = isPGClass(cls) || isPGSubject(sub, cls);
@@ -629,6 +630,7 @@ export default function ReportsPage() {
       if (sessDetail.length > 0) {
         currentSession = sessDetail[0];
         detail = await marksAPI.getSessionDetail(currentSession.id);
+        if (detail?.session) currentSession = detail.session;
       }
 
       const isPG = isPGClass(cls) || isPGSubject(sub, cls);
@@ -1457,7 +1459,8 @@ export default function ReportsPage() {
                 <th>Code</th>
                 <th>Class</th>
                 <th>Staff</th>
-                <th>Date</th>
+                <th>Exam Date</th>
+                <th>Entry Date</th>
                 <th>Students</th>
                 <th>Avg /40</th>
                 <th>Status</th>
@@ -1475,8 +1478,12 @@ export default function ReportsPage() {
                   <td><code style={{ fontSize:'0.75rem', color:'var(--primary)' }}>{e.subject_code}</code></td>
                   <td>{e.class_name}</td>
                   <td>{e.staff_name}</td>
-                  <td>{new Date(e.created_at).toLocaleDateString('en-IN',
-                    { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {e.exam_date ? new Date(e.exam_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    {e.created_at ? new Date(e.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
                   <td>{e.student_count}</td>
                   <td>
                     <span className={styles.score} style={{

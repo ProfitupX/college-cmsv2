@@ -85,6 +85,7 @@ export default function MarksEntryPage2021() {
   const [isComponentsDirty, setIsComponentsDirty] = useState(false);
   const [reportType, setReportType] = useState('theory_marks');
   const [remedialAction, setRemedialAction] = useState('');
+  const [examDate, setExamDate] = useState('');
 
   // Lock / Unlock
   const [currentSession, setCurrentSession]     = useState(null);
@@ -339,6 +340,8 @@ export default function MarksEntryPage2021() {
           if (detail.session.session_label && detail.session.session_label !== assessmentMode) {
             setAssessmentMode(detail.session.session_label);
           }
+          const rawDate = detail.session.exam_date;
+          setExamDate(rawDate ? String(rawDate).substring(0, 10) : '');
 
           const loadedComps = (detail.components || []).map((c) => ({
             uid: c.id,
@@ -391,6 +394,7 @@ export default function MarksEntryPage2021() {
           setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: defaultSessionHours });
           setTotalHours(defaultSessionHours);
           setRemedialAction('');
+          setExamDate('');
           setSaved(false);
           setIsComponentsDirty(false);
         }
@@ -512,6 +516,7 @@ export default function MarksEntryPage2021() {
         classId:      effectiveClassId,
         staffId:      user?.id,
         sessionLabel: assessmentMode,
+        examDate:     examDate || null,
         totalHours:   parseInt(currentAssessmentHours, 10),
         int1Hours:    parseInt(int1Hours || 0, 10),
         int2Hours:    parseInt(int2Hours || 0, 10),
@@ -532,10 +537,13 @@ export default function MarksEntryPage2021() {
 
       const res = await marksAPI.submit(payload);
       if (res.sessionId) {
-        setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId }));
+        setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId, exam_date: examDate || null }));
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
           if (freshDetail && freshDetail.components) {
+            if (freshDetail.session?.exam_date) {
+              setExamDate(String(freshDetail.session.exam_date).substring(0, 10));
+            }
             const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
               uid: c.id,
               typeId: c.type_id,
@@ -598,6 +606,7 @@ export default function MarksEntryPage2021() {
       clearMarks();
       setCurrentSession(null);
       setAssessmentComponents([]);
+      setExamDate('');
       setSessionStatus('draft');
       setSaved(false);
       setSaveErr('');
@@ -661,6 +670,7 @@ export default function MarksEntryPage2021() {
 
   const executeSubjectPDF = async (options = {}) => {
     try {
+      const activeSession = { ...(currentSession || {}), exam_date: examDate || currentSession?.exam_date };
       if (reportType === 'lab_marks_only') {
         const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
         const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
@@ -672,7 +682,7 @@ export default function MarksEntryPage2021() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           students,
           attendanceData,
           labData,
@@ -692,7 +702,7 @@ export default function MarksEntryPage2021() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           remedialAction,
           students,
           allMarks: marksData,
@@ -718,7 +728,7 @@ export default function MarksEntryPage2021() {
         subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-        session: currentSession,
+        session: activeSession,
         students,
         marksData,
         attendanceData,
@@ -740,6 +750,7 @@ export default function MarksEntryPage2021() {
 
   const executeSubjectExcel = async (options = {}) => {
     try {
+      const activeSession = { ...(currentSession || {}), exam_date: examDate || currentSession?.exam_date };
       if (reportType === 'lab_marks_only') {
         const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
         const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
@@ -750,7 +761,7 @@ export default function MarksEntryPage2021() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           students,
           attendanceData,
           labData,
@@ -768,7 +779,7 @@ export default function MarksEntryPage2021() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           remedialAction,
           students,
           marksData,
@@ -792,7 +803,7 @@ export default function MarksEntryPage2021() {
         subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-        session: currentSession,
+        session: activeSession,
         students,
         marksData,
         attendanceData,
@@ -818,11 +829,12 @@ export default function MarksEntryPage2021() {
 
   const handleDownloadSubjectAnalysisPDF = async () => {
     if (!selectedClass || !selectedSubject) return;
+    const activeSession = { ...(currentSession || {}), exam_date: examDate || currentSession?.exam_date };
     setPdfPayload({
       subject: selectedSubject,
       classObj: selectedClass,
       staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-      session: currentSession,
+      session: activeSession,
       students,
       allMarks: marksData,
       components: assessmentComponents,
@@ -1079,6 +1091,18 @@ export default function MarksEntryPage2021() {
                   <option value="internal1">Internal Assessment 1</option>
                   <option value="internal2">Internal Assessment 2</option>
                 </select>
+              </div>
+
+              <div className={styles.examDateSelector}>
+                <label>Exam Date:</label>
+                <input
+                  type="date"
+                  value={examDate}
+                  onChange={(e) => { setExamDate(e.target.value); setSaved(false); }}
+                  disabled={isLocked}
+                  className={styles.examDateInput}
+                  title={isLocked ? "Exam date is locked after submission" : "Select Subject Assessment Exam Date"}
+                />
               </div>
 
               {sessionStatus === 'locked' ? (

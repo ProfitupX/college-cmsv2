@@ -86,6 +86,7 @@ export default function MarksEntryPage() {
   const [previewDeclarationData, setPreviewDeclarationData] = useState(null);
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
   const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
+  const [examDate, setExamDate] = useState('');
   const autoSaveTimerRef = useRef(null);
 
   useEffect(() => {
@@ -309,6 +310,7 @@ export default function MarksEntryPage() {
       setSessionStatus('draft');
       setAssessmentComponents([]);
       setRemedialAction('');
+      setExamDate('');
       setSaved(false);
       setIsComponentsDirty(false);
       return;
@@ -353,6 +355,8 @@ export default function MarksEntryPage() {
               if (detail.session.session_label && detail.session.session_label !== assessmentMode) {
                 setAssessmentMode(detail.session.session_label);
               }
+              const rawDate = detail.session.exam_date;
+              setExamDate(rawDate ? String(rawDate).substring(0, 10) : '');
 
               const loadedComps = (detail.components || []).map((c) => ({
                 uid: c.id,
@@ -409,6 +413,7 @@ export default function MarksEntryPage() {
               setSessionBulk({ marks: {}, attendance: {}, internalExam: {}, labData: {}, totalHours: prescribed });
               setTotalHours(prescribed);
               setRemedialAction('');
+              setExamDate('');
               setSaved(false);
               setIsComponentsDirty(false);
             }
@@ -553,6 +558,7 @@ export default function MarksEntryPage() {
         classId:       effectiveClassId,
         staffId:       user.id,
         sessionLabel:  assessmentMode,
+        examDate:      examDate || null,
         totalHours:    parseInt(currentAssessmentHours, 10),
         int1Hours:     parseInt(int1Hours || 0, 10),
         int2Hours:     parseInt(int2Hours || 0, 10),
@@ -574,7 +580,10 @@ export default function MarksEntryPage() {
       const res = await marksAPI.submit(payload);
 
       if (res.sessionId) {
-        setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId }));
+        setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId, exam_date: examDate || null }));
+        if (res.examDate !== undefined) {
+          setExamDate(res.examDate ? String(res.examDate).substring(0, 10) : '');
+        }
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
           if (freshDetail && freshDetail.components) {
@@ -641,6 +650,7 @@ export default function MarksEntryPage() {
       clearMarks();
       setCurrentSession(null);
       setAssessmentComponents([]);
+      setExamDate('');
       setSessionStatus('draft');
       setSaved(false);
       setSaveErr('');
@@ -710,6 +720,7 @@ export default function MarksEntryPage() {
 
   const executeSubjectPDF = async (options = {}) => {
     try {
+      const activeSession = { ...(currentSession || {}), exam_date: examDate || currentSession?.exam_date };
       if (reportType === 'lab_marks_only') {
         const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
         const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
@@ -721,7 +732,7 @@ export default function MarksEntryPage() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           students,
           attendanceData,
           labData,
@@ -741,7 +752,7 @@ export default function MarksEntryPage() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           remedialAction,
           students,
           allMarks: marksData,
@@ -767,7 +778,7 @@ export default function MarksEntryPage() {
         subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-        session: currentSession,
+        session: activeSession,
         students,
         marksData,
         attendanceData,
@@ -792,6 +803,7 @@ export default function MarksEntryPage() {
 
   const executeSubjectExcel = async (options = {}) => {
     try {
+      const activeSession = { ...(currentSession || {}), exam_date: examDate || currentSession?.exam_date };
       if (reportType === 'lab_marks_only') {
         const isCombined = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(selectedSubject?.type);
         const splits = getHourSplits(selectedSubject?.ltpc, selectedSubject?.type, selectedSubject?.total_hours || totalHours);
@@ -802,7 +814,7 @@ export default function MarksEntryPage() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           students,
           attendanceData,
           labData,
@@ -820,7 +832,7 @@ export default function MarksEntryPage() {
           subject: selectedSubject,
           classObj: selectedClass,
           staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-          session: currentSession,
+          session: activeSession,
           remedialAction,
           students,
           marksData,
@@ -844,7 +856,7 @@ export default function MarksEntryPage() {
         subject: subjectToUse,
         classObj: selectedClass,
         staff: { name: currentSession?.staff_name || selectedSubject?.faculty_name || selectedSubject?.staff_name || user?.name || 'Faculty Staff' },
-        session: currentSession,
+        session: activeSession,
         students,
         marksData,
         attendanceData,
@@ -1093,6 +1105,18 @@ export default function MarksEntryPage() {
                   <option value="internal1">Internal Assessment 1</option>
                   <option value="internal2">Internal Assessment 2</option>
                 </select>
+              </div>
+
+              <div className={styles.examDateSelector}>
+                <label>Exam Date:</label>
+                <input
+                  type="date"
+                  value={examDate}
+                  onChange={(e) => { setExamDate(e.target.value); setSaved(false); }}
+                  disabled={isLocked}
+                  className={styles.examDateInput}
+                  title={isLocked ? "Exam date is locked after submission" : "Select Subject Assessment Exam Date"}
+                />
               </div>
 
               {sessionStatus === 'locked' ? (

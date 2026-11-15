@@ -131,7 +131,7 @@ export default function RecentEntries({ entries, classes = [] }) {
         <div className={`${styles.row} ${styles.head}`}>
           <span>Subject</span>
           <span>Class</span>
-          <span>Date</span>
+          <span>Exam Date</span>
           <span>Students</span>
           <span>Avg Score</span>
           <span>Status</span>
@@ -158,7 +158,16 @@ export default function RecentEntries({ entries, classes = [] }) {
               )}
             </div>
             <span className={styles.class}>{e?.class || 'Class'}</span>
-            <span className={styles.date}>{formatDate(e?.submittedAt)}</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className={styles.date} style={{ fontWeight: 600 }}>
+                {e?.examDate ? formatDate(e.examDate) : '—'}
+              </span>
+              {e?.submittedAt && (
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }} title="Entry Date">
+                  {formatDate(e.submittedAt)}
+                </span>
+              )}
+            </div>
             <span className={styles.count}>{e?.count ?? 0}</span>
             <ScorePill avg={e?.avgScore} />
             <StatusBadge status={e?.status} />

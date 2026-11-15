@@ -343,6 +343,44 @@
   box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
 }
 
+.examDateSelector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.examDateSelector label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.examDateInput {
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  outline: none;
+  color-scheme: dark;
+}
+
+.examDateInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.examDateInput:focus {
+  border-color: #14B8A6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
+}
+
 /* Lock Status Banner */
 .lockBanner {
   display: flex;

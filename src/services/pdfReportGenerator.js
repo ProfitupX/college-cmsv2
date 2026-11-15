@@ -22,6 +22,13 @@ const getImageDataUrl = (url) => {
   });
 };
 
+const formatExamDate = (d) => {
+  if (!d) return '—';
+  const parsed = new Date(d);
+  if (isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB'); // DD/MM/YYYY
+};
+
 const addFooterToAllPages = (doc, dateStr, timeStr, user) => {
   const pageCount = doc.internal.getNumberOfPages();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -168,7 +175,7 @@ export const generateSubjectAnalysisPDF = async ({
     10
   );
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${analysisPrescribedHrs}`, 14, y);
-  doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  doc.text(`Exam Date            : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 5;
   doc.text(`Internal / Model Test : ${assessmentMode === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
   doc.text(`Student Strength   : ${students.length}`, 120, y);
@@ -446,7 +453,7 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Academic Year    : 2026 - 2027${isPG ? ' (PG R2025)' : ''}`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
-  doc.text(`Date                      : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  doc.text(`Exam Date            : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 8;
 
   // Default 2025 Autonomous Regulation College Format:
@@ -661,6 +668,7 @@ export const generateClassAnalysisPDF = async ({
       sub.name,
       sub.code,
       sub.staff_name || 'Staff',
+      sess?.exam_date ? formatExamDate(sess.exam_date) : '—',
       passed,
       failed,
       `${passPct}%`
@@ -669,7 +677,7 @@ export const generateClassAnalysisPDF = async ({
 
   autoTable(doc, {
     startY: y,
-    head: [['Sl.No', 'Subject Name', 'Subject Code', 'Staff Name', 'No. of Students Passed', 'No. of Students Failed', 'Pass Percentage']],
+    head: [['Sl.No', 'Subject Name', 'Subject Code', 'Staff Name', 'Exam Date', 'No. of Students Passed', 'No. of Students Failed', 'Pass Percentage']],
     body: subjectRows,
     theme: 'grid',
     styles: { fontSize: 8, halign: 'center' },
@@ -881,7 +889,11 @@ export const generateConsolidatedMarksPDF = async ({
   // Subject Columns (all selected subjects)
   const targetSubjects = filteredSubjects;
   const numSubs = targetSubjects.length;
-  const subCols = targetSubjects.map(s => s.code);
+  const subCols = targetSubjects.map(s => {
+    const sess = (allSessions || []).find(sessObj => (sessObj.subject_id === s.id || sessObj.subject_id === s.code) && (sessObj.session_label === sessionLabel || !sessObj.session_label));
+    const dateText = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
+    return `${s.code}\n(${dateText})`;
+  });
   const headRow = ['Reg.No', 'Name', ...subCols, 'No. of Sub\nFailed', 'No. of Sub\nPassed', 'No. of Sub\nAbsent'];
 
   // Map student rows
@@ -1247,6 +1259,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   doc.text(`Date                  : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
   y += 5;
   doc.text(`Calendar           : From Date: _________________    To Date: _________________`, 14, y);
+  doc.text(`Exam Date        : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 5;
   doc.text(`Regulation         : Anna University 2021   |   Subject Type: ${subject?.type || 'Theory'}   |   Internal Marks Max: ${ciaMax}${displayTotalHrs > 0 ? `   |   Total Classes: ${displayTotalHrs}` : ''}`, 14, y);
   y += 6;
@@ -1700,7 +1713,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
     ) || 0;
     const wHrs = configuredHrs;
     const labStr = labHrs > 0 ? ` | Lab = ${labHrs}` : '';
-    headRow1.push({ content: `${sub.code}\n(TH = ${wHrs}${labStr})`, colSpan: colsPerSub, styles: { halign: 'center' } });
+    const examDateStr = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
+    headRow1.push({ content: `${sub.code} (${examDateStr})\n(TH = ${wHrs}${labStr})`, colSpan: colsPerSub, styles: { halign: 'center' } });
   });
   headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
 
@@ -2179,7 +2193,7 @@ export const generateLaboratoryMarksOnlyPDF = async ({
   doc.text(`Total Lab Hrs  : ${prescribedLabHours} Hours`, 120, y);
   y += 5;
   doc.text(`Assessment     : ${assessmentMode === 'internal2' ? 'Internal Assessment 2' : 'Internal Assessment 1'}`, 14, y);
-  doc.text(`Date                 : ${new Date().toLocaleDateString('en-GB')}`, 120, y);
+  doc.text(`Exam Date       : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 7;
 
   // Table Headers:
