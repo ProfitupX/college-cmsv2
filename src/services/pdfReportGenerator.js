@@ -1487,12 +1487,29 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
 
   caData.departments.forEach((dept) => {
     const isSH = dept.department.toLowerCase().includes('science');
-    dept.years.forEach((yr, idx) => {
+    let visibleYears = dept.years || [];
+    if (isSH) {
+      const hasCseSectioned = visibleYears.some(yr => {
+        const y = String(yr.year || '').toUpperCase();
+        return y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+               y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+      });
+      if (hasCseSectioned) {
+        visibleYears = visibleYears.filter(yr => {
+          const y = String(yr.year || '').trim().toUpperCase();
+          const isCse = y.includes('CSE');
+          const isSectioned = y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+                              y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+          return !(isCse && !isSectioned);
+        });
+      }
+    }
+    visibleYears.forEach((yr, idx) => {
       if (idx === 0) {
         bodyRows.push([
           { 
             content: dept.department, 
-            rowSpan: dept.years.length, 
+            rowSpan: visibleYears.length, 
             styles: { 
               valign: 'middle', 
               fontStyle: 'bold', 
@@ -1503,7 +1520,7 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
           yr.strength,
           yr.passed,
           `${yr.percentage}%`,
-          { content: `${dept.deptOverallPct}%`, rowSpan: dept.years.length, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } }
+          { content: `${dept.deptOverallPct}%`, rowSpan: visibleYears.length, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } }
         ]);
       } else {
         bodyRows.push([
@@ -2073,7 +2090,9 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
   doc.text('2026 - 2027', 146, boxY + 16);
 
   const tableBody = (data?.years || []).map(yData => [
-    `${yData.year} Year (Sem ${yData.semester})`,
+    String(yData.year).includes(' - ') || String(yData.year).includes('(')
+      ? `${yData.year}${yData.semester ? ` (Sem ${yData.semester})` : ''}`
+      : `${yData.year} Year (Sem ${yData.semester})`,
     yData.strength,
     yData.passed,
     yData.failed !== undefined ? yData.failed : Math.max(0, yData.strength - yData.passed),

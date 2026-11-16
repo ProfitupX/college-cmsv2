@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Users, Building, UserCheck, Activity,
   TrendingUp, Award, FileText, Download, FileSpreadsheet
@@ -69,11 +69,92 @@ export default function PrincipalDashboard() {
     }
   };
 
+  // Deduplicate and sanitize CA departments: under Science & Humanities, remove unwanted general I CSE entry
+  const sanitizedCaDepartments = useMemo(() => {
+    if (!caData?.departments) return [];
+    return caData.departments.map(dept => {
+      const full = (dept.departmentFullName || '').toLowerCase();
+      const short = (dept.department || '').toLowerCase();
+      const isComputer = full.includes('computer') || short.includes('cse');
+      const isSH = !isComputer && (full.includes('science') || full.includes('humanities') || short.includes('science') || short.includes('s&h'));
+      if (!isSH || !Array.isArray(dept.years)) return dept;
+
+      const hasCseSectioned = dept.years.some(yr => {
+        const y = String(yr.year || '').toUpperCase();
+        return y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+               y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+      });
+
+      if (!hasCseSectioned) return dept;
+
+      const filteredYears = dept.years.filter(yr => {
+        const y = String(yr.year || '').trim().toUpperCase();
+        const isCse = y.includes('CSE');
+        const isSectioned = y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+                            y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+        return !(isCse && !isSectioned);
+      });
+
+      const deptStrength = filteredYears.reduce((acc, y) => acc + (parseInt(y.strength) || 0), 0);
+      const deptPassed = filteredYears.reduce((acc, y) => acc + (parseInt(y.passed) || 0), 0);
+      const deptOverallPct = deptStrength > 0 ? ((deptPassed / deptStrength) * 100).toFixed(2) : '0.00';
+
+      return {
+        ...dept,
+        years: filteredYears,
+        deptStrength,
+        deptPassed,
+        deptOverallPct
+      };
+    });
+  }, [caData]);
+
+  const sanitizedSummary = useMemo(() => {
+    if (!caData?.summary) return null;
+    const shDept = (sanitizedCaDepartments || []).find(d => 
+      (d.department || '').toLowerCase().includes('science') ||
+      (d.departmentFullName || '').toLowerCase().includes('science')
+    );
+    const shStrength = shDept?.deptStrength ?? (caData.summary.firstYear?.strength || 0);
+    const shPassed = shDept?.deptPassed ?? (caData.summary.firstYear?.passed || 0);
+    const shPct = shStrength > 0 ? ((shPassed / shStrength) * 100).toFixed(2) : '0.00';
+
+    const ugStrength = caData.summary.withoutFirstYear?.strength || 0;
+    const ugPassed = caData.summary.withoutFirstYear?.passed || 0;
+    const ugPct = caData.summary.withoutFirstYear?.percentage || '0.00';
+
+    const collegeStrength = ugStrength + shStrength;
+    const collegePassed = ugPassed + shPassed;
+    const collegePct = collegeStrength > 0 ? ((collegePassed / collegeStrength) * 100).toFixed(2) : '0.00';
+
+    return {
+      withoutFirstYear: {
+        strength: ugStrength,
+        passed: ugPassed,
+        percentage: ugPct
+      },
+      firstYear: {
+        strength: shStrength,
+        passed: shPassed,
+        percentage: shPct
+      },
+      collegeOverall: {
+        strength: collegeStrength,
+        passed: collegePassed,
+        percentage: collegePct
+      }
+    };
+  }, [caData, sanitizedCaDepartments]);
+
   const handleDownloadCAPDF = async () => {
     if (!caData) return;
     try {
       await generateContinuousAssessmentAnalysisPDF({
-        caData,
+        caData: {
+          ...caData,
+          departments: sanitizedCaDepartments,
+          summary: sanitizedSummary || caData.summary
+        },
         sessionLabel: caMode,
         user
       });
@@ -90,7 +171,9 @@ export default function PrincipalDashboard() {
     csv += `CONTINUOUS ASSESSMENT - ${isCA2 ? '2' : '1'} ANALYSIS\n\n`;
     csv += `Department,Year,Strength,Passed,Percentage,Percentage (Over all)\n`;
 
-    caData.departments.forEach((dept) => {
+    const summary = sanitizedSummary || caData.summary;
+
+    sanitizedCaDepartments.forEach((dept) => {
       dept.years.forEach((yr, idx) => {
         const deptLabel = idx === 0 ? `"${dept.department}"` : '""';
         const deptOverall = idx === 0 ? `"${dept.deptOverallPct}%"` : '""';
@@ -98,9 +181,9 @@ export default function PrincipalDashboard() {
       });
     });
 
-    csv += `"Pass Percentage Without First Year (Years II, III, IV)",,${caData.summary.withoutFirstYear.strength},${caData.summary.withoutFirstYear.passed},"${caData.summary.withoutFirstYear.percentage}%",\n`;
+    csv += `"Pass Percentage Without First Year (Years II, III, IV)",,${summary.withoutFirstYear.strength},${summary.withoutFirstYear.passed},"${summary.withoutFirstYear.percentage}%",\n`;
 
-    csv += `"College Overall Pass Percentage (Total including First Year)",,${caData.summary.collegeOverall.strength},${caData.summary.collegeOverall.passed},"${caData.summary.collegeOverall.percentage}%",\n`;
+    csv += `"College Overall Pass Percentage (Total including First Year)",,${summary.collegeOverall.strength},${summary.collegeOverall.passed},"${summary.collegeOverall.percentage}%",\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -299,7 +382,7 @@ export default function PrincipalDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {caData.departments.map((dept, dIdx) => (
+                {sanitizedCaDepartments.map((dept, dIdx) => (
                   dept.years.map((yr, yIdx) => (
                     <tr key={`${dIdx}-${yIdx}`}>
                       {yIdx === 0 && (
@@ -338,24 +421,22 @@ export default function PrincipalDashboard() {
                   <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px' }}>
                     Pass Percentage Without First Year (Years II, III, IV)
                   </td>
-                  <td>{caData.summary.withoutFirstYear.strength}</td>
-                  <td>{caData.summary.withoutFirstYear.passed}</td>
+                  <td>{(sanitizedSummary || caData.summary).withoutFirstYear.strength}</td>
+                  <td>{(sanitizedSummary || caData.summary).withoutFirstYear.passed}</td>
                   <td colSpan={2} style={{ color: '#800000', fontSize: '0.9rem' }}>
-                    {caData.summary.withoutFirstYear.percentage}%
+                    {(sanitizedSummary || caData.summary).withoutFirstYear.percentage}%
                   </td>
                 </tr>
-
-
 
                 {/* Summary Row: College Overall */}
                 <tr className={styles.caOverallRow}>
                   <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px' }}>
                     College Overall Pass Percentage (Total including First Year)
                   </td>
-                  <td>{caData.summary.collegeOverall.strength}</td>
-                  <td>{caData.summary.collegeOverall.passed}</td>
+                  <td>{(sanitizedSummary || caData.summary).collegeOverall.strength}</td>
+                  <td>{(sanitizedSummary || caData.summary).collegeOverall.passed}</td>
                   <td colSpan={2} style={{ fontSize: '1rem' }}>
-                    {caData.summary.collegeOverall.percentage}%
+                    {(sanitizedSummary || caData.summary).collegeOverall.percentage}%
                   </td>
                 </tr>
               </tbody>

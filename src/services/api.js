@@ -6,9 +6,11 @@
 
 import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 
-const BASE = window.location.protocol === 'https:'
-  ? '/api'
-  : `http://${window.location.hostname}:5000/api`;
+const BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : (window.location.protocol === 'https:'
+      ? '/api'
+      : `http://${window.location.hostname}:5000/api`);
 
 // Generic fetch helper
 async function request(method, path, body = null) {
@@ -33,7 +35,9 @@ async function request(method, path, body = null) {
   if (contentType.includes('application/json')) {
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data?.error || `Request failed: ${res.status}`);
+      const err = new Error(data?.error || `Request failed: ${res.status}`);
+      Object.assign(err, data);
+      throw err;
     }
     return data;
   } else {
@@ -334,14 +338,17 @@ export const statsAPI = {
     const res = await get(`/stats/continuous-assessment?sessionLabel=${sessionLabel}`);
     if (!res || !res.departments) return res;
 
-    // Check if Science and Humanities is already present
-    const hasSH = res.departments.some(d =>
-      (d.departmentFullName && d.departmentFullName.toLowerCase().includes('science')) ||
-      (d.department && d.department.toLowerCase().includes('science'))
-    );
+    // Check if Science and Humanities is already present with valid rows
+    const hasSH = res.departments.some(d => {
+      const full = (d.departmentFullName || '').toLowerCase();
+      const short = (d.department || '').toLowerCase();
+      const isComputer = full.includes('computer') || short.includes('cse');
+      return !isComputer && (full.includes('science') || full.includes('humanities') || short.includes('science') || short.includes('s&h')) &&
+        Array.isArray(d.years) && d.years.length > 0;
+    });
 
     if (!hasSH) {
-      // S&H branches and real student counts from nominal rolls (section-wise)
+      // S&H branches and real student counts from nominal rolls (section-wise, no generic duplicate CSE)
       const shBranches = [
         { branch: 'B.E., (Civil)', year: 'I - B.E., (Civil)', strength: 36, passed: 0, percentage: '0.00' },
         { branch: 'B.E., (CSE-A)', year: 'I - B.E., (CSE-A)', strength: 60, passed: 0, percentage: '0.00' },
@@ -366,7 +373,16 @@ export const statsAPI = {
         deptOverallPct: shDeptOverallPct
       };
 
-      res.departments.push(shDept);
+      // Replace empty S&H placeholder if exists, otherwise push
+      const existingShIdx = res.departments.findIndex(d =>
+        (d.departmentFullName && d.departmentFullName.toLowerCase().includes('science')) ||
+        (d.department && d.department.toLowerCase().includes('science'))
+      );
+      if (existingShIdx >= 0) {
+        res.departments[existingShIdx] = shDept;
+      } else {
+        res.departments.push(shDept);
+      }
 
       const ugStrength = res.summary?.withoutFirstYear?.strength || 865;
       const ugPassed = res.summary?.withoutFirstYear?.passed || 435;
@@ -394,6 +410,34 @@ export const statsAPI = {
         }
       };
     }
+
+    // Ensure under Science & Humanities, any unwanted general/duplicate I CSE entry is removed if sectioned CSE entries exist
+    res.departments.forEach(dept => {
+      const full = (dept.departmentFullName || '').toLowerCase();
+      const short = (dept.department || '').toLowerCase();
+      const isComputer = full.includes('computer') || short.includes('cse');
+      const isSH = !isComputer && (full.includes('science') || full.includes('humanities') || short.includes('science') || short.includes('s&h'));
+      if (!isSH || !Array.isArray(dept.years)) return;
+
+      const hasCseSectioned = dept.years.some(yr => {
+        const y = String(yr.year || '').toUpperCase();
+        return y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+               y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+      });
+
+      if (hasCseSectioned) {
+        dept.years = dept.years.filter(yr => {
+          const y = String(yr.year || '').trim().toUpperCase();
+          const isCse = y.includes('CSE');
+          const isSectioned = y.includes('CSE-A') || y.includes('CSE A') || y.includes('CSE_A') ||
+                              y.includes('CSE-B') || y.includes('CSE B') || y.includes('CSE_B');
+          return !(isCse && !isSectioned);
+        });
+        dept.deptStrength = dept.years.reduce((acc, y) => acc + (parseInt(y.strength) || 0), 0);
+        dept.deptPassed = dept.years.reduce((acc, y) => acc + (parseInt(y.passed) || 0), 0);
+        dept.deptOverallPct = dept.deptStrength > 0 ? ((dept.deptPassed / dept.deptStrength) * 100).toFixed(2) : '0.00';
+      }
+    });
 
     return res;
   },
@@ -444,8 +488,12 @@ export const statsAPI = {
         });
 
         if (deptMatch) {
-          const years = (deptMatch.years || []).map(y => {
-            const sem = y.semester || (y.year === 'I' ? 1 : y.year === 'II' ? 3 : y.year === 'III' ? 5 : 7);
+          const isTargetSH = target.includes('science') || target.includes('humanities') || target.includes('s&h') || target.includes('first year');
+          const rawYears = deptMatch.years || [];
+          const filteredYears = isTargetSH ? rawYears : rawYears.filter(y => y.year !== 'I' && y.year !== '1');
+
+          const years = filteredYears.map(y => {
+            const sem = y.semester || (y.year === 'II' ? 3 : y.year === 'III' ? 5 : y.year === 'IV' ? 7 : 1);
             const strength = parseInt(y.strength) || 0;
             const passed = parseInt(y.passed) || 0;
             const failed = Math.max(0, strength - passed);
@@ -460,15 +508,19 @@ export const statsAPI = {
             };
           });
 
+          const totalStr = years.reduce((sum, y) => sum + y.strength, 0);
+          const totalPass = years.reduce((sum, y) => sum + y.passed, 0);
+          const totalPct = totalStr > 0 ? ((totalPass / totalStr) * 100).toFixed(2) : '0.00';
+
           return {
             success: true,
             department: deptMatch.departmentFullName || department,
             years,
             overall: {
-              strength: deptMatch.deptStrength || 0,
-              passed: deptMatch.deptPassed || 0,
-              failed: Math.max(0, (deptMatch.deptStrength || 0) - (deptMatch.deptPassed || 0)),
-              passPct: deptMatch.deptOverallPct || '0.00'
+              strength: totalStr,
+              passed: totalPass,
+              failed: Math.max(0, totalStr - totalPass),
+              passPct: totalPct
             }
           };
         }
