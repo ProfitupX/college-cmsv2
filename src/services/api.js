@@ -529,6 +529,13 @@ export const statsAPI = {
       console.error('Failed to load CA stats fallback:', caErr);
     }
     return null;
+  },
+  getAssessmentStatus: (params = {}) => {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const query = new URLSearchParams(cleanParams).toString();
+    return get(`/stats/assessment-status${query ? `?${query}` : ''}`);
   }
 };
 

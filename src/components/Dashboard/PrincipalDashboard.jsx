@@ -10,6 +10,7 @@ import {
 import { statsAPI } from '../../services/api';
 import { generateCollegeOverviewPDF, generateContinuousAssessmentAnalysisPDF } from '../../services/pdfReportGenerator';
 import { useAuth } from '../../context/AuthContext';
+import AssessmentStatusCard from './AssessmentStatusCard';
 import styles from './PrincipalDashboard.module.css';
 
 const DemographicsTooltip = ({ active, payload }) => {
@@ -444,6 +445,9 @@ export default function PrincipalDashboard() {
           </div>
         ) : null}
       </div>
+
+      {/* Principal College-Wide IA1 & IA2 Mark Entry Monitoring */}
+      <AssessmentStatusCard role="principal" />
 
       {/* Charts Section */}
       <div className={styles.chartsWrapper}>

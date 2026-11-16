@@ -9,6 +9,7 @@ import StatsGrid from '../components/Dashboard/StatsGrid';
 import YearPerformanceChart from '../components/Dashboard/YearPerformanceChart';
 import RecentEntries from '../components/Dashboard/RecentEntries';
 import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard';
+import AssessmentStatusCard from '../components/Dashboard/AssessmentStatusCard';
 import { statsAPI, marksAPI, settingsAPI, subjectsAPI, studentsAPI, classesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -1188,6 +1189,11 @@ export default function DashboardPage() {
 
       <StatsGrid stats={stats} />
 
+      {/* Admin College-Wide IA1 & IA2 Mark Entry Monitoring */}
+      {user?.role === 'admin' && (
+        <AssessmentStatusCard role="admin" />
+      )}
+
       {/* HOD Continuous Assessment & Year-wise Pass/Fail Command Center */}
       {user?.role === 'hod' && (
         <div style={{
@@ -1328,6 +1334,14 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* HOD Department-Specific IA1 & IA2 Mark Entry Monitoring */}
+      {user?.role === 'hod' && (
+        <AssessmentStatusCard 
+          role="hod"
+          department={user?.department}
+        />
+      )}
+
       {/* Class In-charge Dedicated Command Center */}
       {user?.isClassCoordinator && coordinatedClass && (
         <div className={styles.inchargeCard}>
@@ -1436,6 +1450,14 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Class In-charge Class-Restricted IA1 & IA2 Mark Entry Monitoring */}
+      {user?.isClassCoordinator && (
+        <AssessmentStatusCard 
+          role="class_coordinator"
+          classId={coordinatedClass?.id}
+        />
       )}
 
       {/* Teaching Workload & Schedule Section */}

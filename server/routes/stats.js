@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../db.js';
+import { verifyAuthToken } from './auth.js';
 
 const router = express.Router();
 
@@ -1032,6 +1033,341 @@ router.get('/hod-marks', async (req, res) => {
   } catch (err) {
     console.error('GET /stats/hod-marks error:', err);
     res.status(500).json({ error: 'Failed to fetch HOD marks: ' + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/stats/assessment-status
+// Read-only monitoring of IA1 and IA2 faculty mark entry completion
+// Supports: Admin, Principal, HOD, and Class Incharge
+// ─────────────────────────────────────────────────────────────
+router.get('/assessment-status', async (req, res) => {
+  try {
+    let authUser = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const verified = verifyAuthToken(token);
+      if (verified && verified.id) {
+        authUser = verified;
+      }
+    }
+
+    const queryRole = req.query.role || authUser?.role || 'admin';
+    const queryDept = req.query.department;
+    const queryClassId = req.query.classId;
+    const staffId = req.query.staffId || authUser?.id;
+
+    let effectiveRole = (queryRole || '').toLowerCase();
+    if (effectiveRole === 'vice_principal') effectiveRole = 'principal';
+
+    let whereClauses = [];
+    let params = [];
+
+    // Class Incharge scope check
+    if (effectiveRole === 'class_coordinator' || effectiveRole === 'incharge' || req.query.isClassCoordinator === 'true') {
+      let allowedClassIds = [];
+      if (staffId) {
+        // Query classes where this staff is coordinator or assistant coordinator
+        const [staffRows] = await db.execute('SELECT name, short_name FROM staffs WHERE id = ?', [staffId]);
+        const sName = staffRows[0]?.name || '';
+        const sShort = staffRows[0]?.short_name || '';
+        const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const sNorm = norm(sName);
+        const sShortNorm = norm(sShort);
+
+        const [allClasses] = await db.execute('SELECT id, class_coordinator, asst_coordinator FROM classes');
+        allowedClassIds = allClasses.filter(c => {
+          const cNorm = norm(c.class_coordinator);
+          const aNorm = norm(c.asst_coordinator);
+          return (cNorm && (sNorm.includes(cNorm) || cNorm.includes(sNorm) || (sShortNorm && cNorm.includes(sShortNorm)))) ||
+                 (aNorm && (sNorm.includes(aNorm) || aNorm.includes(sNorm) || (sShortNorm && aNorm.includes(sShortNorm))));
+        }).map(c => c.id);
+      }
+
+      if (queryClassId && allowedClassIds.length > 0) {
+        if (allowedClassIds.includes(queryClassId)) {
+          whereClauses.push('c.id = ?');
+          params.push(queryClassId);
+        } else {
+          whereClauses.push('c.id IN (' + allowedClassIds.map(() => '?').join(',') + ')');
+          params.push(...allowedClassIds);
+        }
+      } else if (allowedClassIds.length > 0) {
+        whereClauses.push('c.id IN (' + allowedClassIds.map(() => '?').join(',') + ')');
+        params.push(...allowedClassIds);
+      } else if (queryClassId) {
+        whereClauses.push('c.id = ?');
+        params.push(queryClassId);
+      }
+    } else if (effectiveRole === 'hod') {
+      // HOD scope: strictly department
+      const targetDept = queryDept || authUser?.department || '';
+      const dLower = targetDept.toLowerCase();
+      const isSH = !dLower.includes('computer') && !dLower.includes('data') && !dLower.includes('cse') && (
+        dLower.includes('science') || dLower.includes('humanities') || dLower.includes('first year') || dLower.includes('s&h')
+      );
+
+      if (isSH) {
+        whereClauses.push(`(c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I')`);
+      } else {
+        whereClauses.push(`(c.department LIKE ? OR s.department LIKE ?) AND (c.year_label != 'I' OR c.year_label IS NULL)`);
+        params.push(`%${targetDept}%`, `%${targetDept}%`);
+      }
+
+      if (queryClassId) {
+        whereClauses.push('c.id = ?');
+        params.push(queryClassId);
+      }
+    } else {
+      // Admin / Principal / Vice Principal: College-wide with optional filters
+      if (queryDept && queryDept !== 'all') {
+        const dLower = queryDept.toLowerCase();
+        const isSH = !dLower.includes('computer') && !dLower.includes('data') && !dLower.includes('cse') && (
+          dLower.includes('science') || dLower.includes('humanities') || dLower.includes('first year') || dLower.includes('s&h')
+        );
+
+        if (isSH) {
+          whereClauses.push(`(c.department = 'Science and Humanities' OR c.department = 'First Year' OR c.year_label = 'I')`);
+        } else {
+          whereClauses.push(`(c.department LIKE ? OR s.department LIKE ?) AND (c.year_label != 'I' OR c.year_label IS NULL)`);
+          params.push(`%${queryDept}%`, `%${queryDept}%`);
+        }
+      }
+
+      if (queryClassId && queryClassId !== 'all') {
+        whereClauses.push('c.id = ?');
+        params.push(queryClassId);
+      }
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT 
+        s.id AS subject_id,
+        s.code AS subject_code,
+        s.name AS subject_name,
+        s.type AS subject_type,
+        c.id AS class_id,
+        c.name AS class_name,
+        c.year_label,
+        c.section,
+        c.semester,
+        c.department AS class_department,
+        s.department AS subject_department,
+        s.faculty_id,
+        COALESCE(st.name, 'Not Assigned') AS faculty_name,
+        COALESCE(st.designation, '') AS faculty_designation,
+        c.class_coordinator,
+        COALESCE(stu.student_count, 0) AS expected_students,
+        
+        -- IA1
+        ms1.id AS ia1_session_id,
+        ms1.status AS ia1_status,
+        ms1.student_count AS ia1_ms_student_count,
+        ms1.created_at AS ia1_created_at,
+        ms1.updated_at AS ia1_updated_at,
+        COALESCE(m1.marks_count, 0) AS ia1_marks_count,
+        COALESCE(att1.att_count, 0) AS ia1_att_count,
+        
+        -- IA2
+        ms2.id AS ia2_session_id,
+        ms2.status AS ia2_status,
+        ms2.student_count AS ia2_ms_student_count,
+        ms2.created_at AS ia2_created_at,
+        ms2.updated_at AS ia2_updated_at,
+        COALESCE(m2.marks_count, 0) AS ia2_marks_count,
+        COALESCE(att2.att_count, 0) AS ia2_att_count
+        
+      FROM subjects s
+      JOIN classes c ON c.id = s.class_id
+      LEFT JOIN staffs st ON st.id = s.faculty_id
+      LEFT JOIN (
+        SELECT class_id, COUNT(*) AS student_count
+        FROM students
+        GROUP BY class_id
+      ) stu ON stu.class_id = c.id
+      LEFT JOIN marks_sessions ms1 ON ms1.id = (
+        SELECT id FROM marks_sessions 
+        WHERE subject_id = s.id AND class_id = c.id AND session_label = 'internal1' 
+        ORDER BY id DESC LIMIT 1
+      )
+      LEFT JOIN marks_sessions ms2 ON ms2.id = (
+        SELECT id FROM marks_sessions 
+        WHERE subject_id = s.id AND class_id = c.id AND session_label = 'internal2' 
+        ORDER BY id DESC LIMIT 1
+      )
+      LEFT JOIN (
+        SELECT session_id, COUNT(DISTINCT student_id) AS marks_count
+        FROM marks
+        GROUP BY session_id
+      ) m1 ON m1.session_id = ms1.id
+      LEFT JOIN (
+        SELECT session_id, COUNT(DISTINCT student_id) AS att_count
+        FROM session_attendance
+        GROUP BY session_id
+      ) att1 ON att1.session_id = ms1.id
+      LEFT JOIN (
+        SELECT session_id, COUNT(DISTINCT student_id) AS marks_count
+        FROM marks
+        GROUP BY session_id
+      ) m2 ON m2.session_id = ms2.id
+      LEFT JOIN (
+        SELECT session_id, COUNT(DISTINCT student_id) AS att_count
+        FROM session_attendance
+        GROUP BY session_id
+      ) att2 ON att2.session_id = ms2.id
+      ${whereSql}
+      ORDER BY c.department, c.year_label, c.name, s.code
+    `;
+
+    const [rows] = await db.query(sql, params);
+
+    const summary = {
+      totalSubjects: rows.length,
+      totalExpected: 0,
+      ia1: {
+        completed: 0,
+        partiallyCompleted: 0,
+        notEntered: 0,
+        notCreated: 0,
+        pendingTotal: 0,
+        enteredStudents: 0,
+        pendingStudents: 0,
+        completionPct: '0.0'
+      },
+      ia2: {
+        completed: 0,
+        partiallyCompleted: 0,
+        notEntered: 0,
+        notCreated: 0,
+        pendingTotal: 0,
+        enteredStudents: 0,
+        pendingStudents: 0,
+        completionPct: '0.0'
+      }
+    };
+
+    const deptSet = new Set();
+    const classMap = new Map();
+
+    const processedSubjects = rows.map(r => {
+      const exp = parseInt(r.expected_students, 10) || 0;
+      summary.totalExpected += exp;
+
+      const deptName = r.class_department || r.subject_department || 'General';
+      deptSet.add(deptName);
+      if (!classMap.has(r.class_id)) {
+        classMap.set(r.class_id, {
+          id: r.class_id,
+          name: r.class_name,
+          year: r.year_label,
+          section: r.section,
+          department: deptName
+        });
+      }
+
+      // Helper for evaluating IA session strictly into the 4 requested statuses:
+      // Completed, Partially Completed, Not Entered, Session Not Created
+      const evalIA = (sessId, sessStatus, msCount, marksCount, attCount, createdAt, updatedAt) => {
+        const entered = Math.max(parseInt(msCount, 10) || 0, parseInt(marksCount, 10) || 0, parseInt(attCount, 10) || 0);
+        const pending = Math.max(0, exp - entered);
+        const lastUpdated = updatedAt || createdAt || null;
+        
+        let status = 'Session Not Created';
+        let statusCode = 'not_created';
+
+        if (!sessId) {
+          status = 'Session Not Created';
+          statusCode = 'not_created';
+        } else if (entered === 0) {
+          status = 'Not Entered';
+          statusCode = 'not_entered';
+        } else if (entered >= exp && exp > 0) {
+          status = 'Completed';
+          statusCode = 'completed';
+        } else {
+          // If entered < exp (even if status is 'locked' or 'frozen'), it is strictly Partially Completed, NEVER Completed!
+          status = 'Partially Completed';
+          statusCode = 'partially_completed';
+        }
+
+        return {
+          sessionId: sessId,
+          status,
+          statusCode,
+          entered,
+          pending,
+          lastUpdated
+        };
+      };
+
+      const ia1 = evalIA(
+        r.ia1_session_id, r.ia1_status, r.ia1_ms_student_count, r.ia1_marks_count, r.ia1_att_count,
+        r.ia1_created_at, r.ia1_updated_at
+      );
+      const ia2 = evalIA(
+        r.ia2_session_id, r.ia2_status, r.ia2_ms_student_count, r.ia2_marks_count, r.ia2_att_count,
+        r.ia2_created_at, r.ia2_updated_at
+      );
+
+      // Accumulate IA1
+      if (ia1.statusCode === 'completed') summary.ia1.completed++;
+      else if (ia1.statusCode === 'partially_completed') summary.ia1.partiallyCompleted++;
+      else if (ia1.statusCode === 'not_entered') summary.ia1.notEntered++;
+      else summary.ia1.notCreated++;
+      summary.ia1.enteredStudents += ia1.entered;
+      summary.ia1.pendingStudents += ia1.pending;
+
+      // Accumulate IA2
+      if (ia2.statusCode === 'completed') summary.ia2.completed++;
+      else if (ia2.statusCode === 'partially_completed') summary.ia2.partiallyCompleted++;
+      else if (ia2.statusCode === 'not_entered') summary.ia2.notEntered++;
+      else summary.ia2.notCreated++;
+      summary.ia2.enteredStudents += ia2.entered;
+      summary.ia2.pendingStudents += ia2.pending;
+
+      return {
+        subjectId: r.subject_id,
+        subjectCode: r.subject_code,
+        subjectName: r.subject_name,
+        subjectType: r.subject_type || 'Theory',
+        classId: r.class_id,
+        className: r.class_name,
+        year: r.year_label || '—',
+        section: r.section || (r.class_name && (r.class_name.includes('Sec B') || r.class_name.includes('CSE B') || r.class_name.includes('CSE-B')) ? 'B' : 'A'),
+        semester: r.semester,
+        department: deptName,
+        facultyId: r.faculty_id,
+        facultyName: r.faculty_name,
+        facultyDesignation: r.faculty_designation,
+        classCoordinator: r.class_coordinator,
+        expectedStudents: exp,
+        ia1,
+        ia2
+      };
+    });
+
+    summary.ia1.pendingTotal = summary.ia1.partiallyCompleted + summary.ia1.notEntered + summary.ia1.notCreated;
+    summary.ia2.pendingTotal = summary.ia2.partiallyCompleted + summary.ia2.notEntered + summary.ia2.notCreated;
+
+    if (summary.totalSubjects > 0) {
+      summary.ia1.completionPct = ((summary.ia1.completed / summary.totalSubjects) * 100).toFixed(1);
+      summary.ia2.completionPct = ((summary.ia2.completed / summary.totalSubjects) * 100).toFixed(1);
+    }
+
+    res.json({
+      success: true,
+      summary,
+      departments: Array.from(deptSet).sort(),
+      classes: Array.from(classMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      subjects: processedSubjects
+    });
+
+  } catch (err) {
+    console.error('GET /stats/assessment-status error:', err);
+    res.status(500).json({ error: 'Failed to fetch assessment status: ' + err.message });
   }
 });
 
