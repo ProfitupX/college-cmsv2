@@ -88,7 +88,10 @@ export default function DashboardPage() {
           : (user?.role === 'staff' || user?.role === 'faculty')
             ? { staffId: user?.id }
             : {}
-      ),
+      ).catch((err) => {
+        console.warn('Dashboard: marksAPI.getSessions optional fetch failure (continuing with empty sessions):', err?.message || err);
+        return [];
+      }),
       settingsAPI.getDeadline(),
       classesAPI.getAll().catch(() => []),
       settingsAPI.getActiveCycle().catch(() => null)
@@ -200,7 +203,7 @@ export default function DashboardPage() {
         finalStats.yearPerformance = yearPerf;
 
         setData(finalStats);
-        setSessions(sess.slice(0, 5));
+        setSessions(Array.isArray(sess) ? sess.slice(0, 5) : []);
         if (dl && dl.value) {
           setDeadline(dl.value);
           setNewDeadline(dl.value);

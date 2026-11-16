@@ -943,7 +943,7 @@ router.get('/sessions', async (req, res) => {
   try {
     const { classId, staffId, subjectId, sessionLabel, department } = req.query;
     let sql = `
-      SELECT ms.id, ms.session_label, ms.exam_date, ms.total_max, ms.status,
+      SELECT ms.id, ms.session_label, NULL AS exam_date, ms.total_max, ms.status,
              ms.avg_score, ms.student_count, ms.created_at, ms.subject_id, ms.class_id,
              sub.name AS subject, sub.code AS subject_code, sub.acronym, sub.department AS subject_department,
              cl.name  AS class_name, cl.department AS class_department, cl.year_label, cl.semester,
