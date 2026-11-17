@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   CheckCircle2, Clock, AlertTriangle, FileX2, Filter, 
-  Search, RefreshCw, ChevronDown, ChevronUp, Layers, Users, BookOpen
+  Search, RefreshCw, ChevronDown, ChevronUp, Layers, Users, BookOpen, PlusCircle
 } from 'lucide-react';
-import { statsAPI } from '../../services/api';
+import { statsAPI, marksAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import styles from './AssessmentStatusCard.module.css';
 
@@ -24,8 +24,9 @@ export default function AssessmentStatusCard({
   // 2. Status Filters within Selected Assessment
   const [statusFilter, setStatusFilter] = useState('pending'); // 'all' | 'pending' | 'completed'
 
-  // 3. Department & Class Filters
+  // 3. Department, Semester & Class Filters
   const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedSemester, setSelectedSemester] = useState('all');
   const [selectedClass, setSelectedClass] = useState(propClassId || 'all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -35,6 +36,8 @@ export default function AssessmentStatusCard({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [initiatingKey, setInitiatingKey] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null);
 
   // Fetch status data from backend
   const fetchData = async (isManualRefresh = false) => {
@@ -88,7 +91,45 @@ export default function AssessmentStatusCard({
     fetchData();
   }, [effectiveRole, selectedDept, selectedClass]);
 
-  // Filter subjects based on selected IA assessment and status filter
+  // Available semesters according to user role, department, and loaded subject scope
+  // Evaluated statically from the department pool so selecting a semester never collapses options or hides the dropdown
+  const availableSemesters = useMemo(() => {
+    if (!data?.subjects) return [];
+
+    const scopedSubjects = (isPrivileged && selectedDept !== 'all')
+      ? data.subjects.filter(s => s.department === selectedDept)
+      : data.subjects;
+
+    const semSet = new Set();
+    scopedSubjects.forEach(s => {
+      if (s.semester != null && s.semester !== '') {
+        const val = parseInt(s.semester, 10);
+        if (!isNaN(val)) semSet.add(val);
+      }
+    });
+
+    if (semSet.size === 0) {
+      const targetDept = (isPrivileged && selectedDept !== 'all' ? selectedDept : propDepartment || user?.department || '').toLowerCase();
+      if (targetDept.includes('science') || targetDept.includes('humanities') || targetDept.includes('first year')) {
+        return [1, 2];
+      }
+      return [1, 2, 3, 4, 5, 6, 7, 8];
+    }
+
+    return Array.from(semSet).sort((a, b) => a - b);
+  }, [data?.subjects, isPrivileged, selectedDept, propDepartment, user?.department]);
+
+  // Cooperative Class filter: available classes filtered by active department and semester
+  const availableClasses = useMemo(() => {
+    if (!Array.isArray(data?.classes)) return [];
+    return data.classes.filter(c => {
+      if (isPrivileged && selectedDept !== 'all' && c.department !== selectedDept) return false;
+      if (selectedSemester !== 'all' && String(c.semester) !== String(selectedSemester)) return false;
+      return true;
+    });
+  }, [data?.classes, isPrivileged, selectedDept, selectedSemester]);
+
+  // Filter subjects based on selected IA assessment, status filter, department, semester, class, and search
   const displayedSubjects = useMemo(() => {
     if (!data?.subjects) return [];
 
@@ -104,17 +145,22 @@ export default function AssessmentStatusCard({
         if (statusCode !== 'completed') return false;
       }
 
-      // 2. Class Filter (if local selection applies)
-      if (selectedClass !== 'all' && sub.classId !== selectedClass) {
-        return false;
-      }
-
-      // 3. Department Filter (for Admin/Principal)
+      // 2. Department Filter (for Admin/Principal)
       if (isPrivileged && selectedDept !== 'all' && sub.department !== selectedDept) {
         return false;
       }
 
-      // 4. Search Query Filter (Subject Code, Subject Name, Faculty Name)
+      // 3. Semester Filter
+      if (selectedSemester !== 'all' && String(sub.semester) !== String(selectedSemester)) {
+        return false;
+      }
+
+      // 4. Class Filter (if local selection applies)
+      if (selectedClass !== 'all' && sub.classId !== selectedClass) {
+        return false;
+      }
+
+      // 5. Search Query Filter (Subject Code, Subject Name, Faculty Name, Class Name)
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const codeMatch = (sub.subjectCode || '').toLowerCase().includes(q);
@@ -126,7 +172,7 @@ export default function AssessmentStatusCard({
 
       return true;
     });
-  }, [data, assessmentMode, statusFilter, selectedClass, selectedDept, searchTerm, isPrivileged]);
+  }, [data, assessmentMode, statusFilter, selectedDept, selectedSemester, selectedClass, searchTerm, isPrivileged]);
 
   // Compute live filter tab counts for selected assessment
   const filterCounts = useMemo(() => {
@@ -136,8 +182,9 @@ export default function AssessmentStatusCard({
     let completed = 0;
 
     data.subjects.forEach(sub => {
-      // Check department and class scopes first
+      // Check department, semester, and class scopes first
       if (isPrivileged && selectedDept !== 'all' && sub.department !== selectedDept) return;
+      if (selectedSemester !== 'all' && String(sub.semester) !== String(selectedSemester)) return;
       if (selectedClass !== 'all' && sub.classId !== selectedClass) return;
 
       all++;
@@ -150,7 +197,73 @@ export default function AssessmentStatusCard({
     });
 
     return { all, pending, completed };
-  }, [data, assessmentMode, isPrivileged, selectedDept, selectedClass]);
+  }, [data, assessmentMode, isPrivileged, selectedDept, selectedSemester, selectedClass]);
+
+  // Session Initiation Handler
+  const handleInitiateSession = async (sub) => {
+    const assessmentName = assessmentMode === 'internal1' ? 'IA1' : 'IA2';
+    const confirmMsg = `Initiate ${assessmentName} Assessment Session for:\n\n` +
+      `Subject: [${sub.subjectCode}] ${sub.subjectName}\n` +
+      `Class: ${sub.className} (${sub.year} Year${sub.section ? `, Sec ${sub.section}` : ''})\n` +
+      `Allocated Faculty: ${sub.facultyName}\n\n` +
+      `Proceed with session initiation?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const key = `${sub.subjectId}-${sub.classId}`;
+    setInitiatingKey(key);
+    setActionFeedback(null);
+
+    try {
+      const res = await marksAPI.initiateSession({
+        subjectId: sub.subjectId,
+        classId: sub.classId,
+        sessionLabel: assessmentMode
+      });
+
+      if (res && res.success) {
+        setActionFeedback({
+          type: 'success',
+          message: res.message || `${assessmentName} assessment session initiated successfully.`
+        });
+
+        // Update local state immediately so row updates to 'Not Entered' without delay
+        setData(prev => {
+          if (!prev || !prev.subjects) return prev;
+          const updatedSubjects = prev.subjects.map(s => {
+            if (s.subjectId === sub.subjectId && s.classId === sub.classId) {
+              return {
+                ...s,
+                [assessmentMode === 'internal1' ? 'ia1' : 'ia2']: {
+                  sessionId: res.sessionId,
+                  status: 'Not Entered',
+                  statusCode: 'not_entered',
+                  entered: 0,
+                  pending: s.expectedStudents || 0,
+                  lastUpdated: new Date().toISOString()
+                }
+              };
+            }
+            return s;
+          });
+          return { ...prev, subjects: updatedSubjects };
+        });
+      } else {
+        setActionFeedback({
+          type: 'error',
+          message: res?.error || 'Failed to initiate assessment session.'
+        });
+      }
+    } catch (err) {
+      console.error('Error initiating session:', err);
+      setActionFeedback({
+        type: 'error',
+        message: err?.response?.data?.error || err?.message || 'Error communicating with server to initiate session.'
+      });
+    } finally {
+      setInitiatingKey(null);
+    }
+  };
 
   // Format timestamp helper
   const formatTime = (ts) => {
@@ -281,6 +394,21 @@ export default function AssessmentStatusCard({
         </div>
       ) : (
         <>
+          {/* Feedback Banner */}
+          {actionFeedback && (
+            <div className={actionFeedback.type === 'success' ? styles.feedbackSuccess : styles.feedbackError}>
+              <span>{actionFeedback.message}</span>
+              <button 
+                type="button" 
+                onClick={() => setActionFeedback(null)} 
+                className={styles.feedbackClose}
+                aria-label="Dismiss notification"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {/* 2. Toolbar & Status Filter Controls */}
           {!isCollapsed && (
             <>
@@ -320,8 +448,10 @@ export default function AssessmentStatusCard({
                       value={selectedDept}
                       onChange={e => {
                         setSelectedDept(e.target.value);
+                        setSelectedSemester('all');
                         setSelectedClass('all');
                       }}
+                      aria-label="Filter by department"
                     >
                       <option value="all">All Departments</option>
                       {data.departments.map(d => (
@@ -330,17 +460,40 @@ export default function AssessmentStatusCard({
                     </select>
                   )}
 
-                  {/* Class / Section Filter (HOD, Incharge, or Admin) */}
-                  {Array.isArray(data?.classes) && data.classes.length > 1 && (
+                  {/* Semester Filter: PERMANENTLY VISIBLE across Admin, Principal, VP, HOD */}
+                  <select
+                    className={styles.selectInput}
+                    value={selectedSemester}
+                    onChange={e => {
+                      const newSem = e.target.value;
+                      setSelectedSemester(newSem);
+                      if (selectedClass !== 'all' && data?.classes) {
+                        const currentCls = data.classes.find(c => String(c.id) === String(selectedClass));
+                        if (currentCls && newSem !== 'all' && String(currentCls.semester) !== String(newSem)) {
+                          setSelectedClass('all');
+                        }
+                      }
+                    }}
+                    aria-label="Filter subjects by semester"
+                  >
+                    <option value="all">All Semesters</option>
+                    {availableSemesters.map(s => (
+                      <option key={s} value={String(s)}>Semester {s}</option>
+                    ))}
+                  </select>
+
+                  {/* Class / Section Filter (cooperative with Department and Semester) */}
+                  {availableClasses.length > 0 && (
                     <select
                       className={styles.selectInput}
                       value={selectedClass}
                       onChange={e => setSelectedClass(e.target.value)}
+                      aria-label="Filter subjects by class or section"
                     >
                       <option value="all">
                         {isClassCoord ? 'All My Assigned Classes' : 'All Classes / Sections'}
                       </option>
-                      {data.classes.map(c => (
+                      {availableClasses.map(c => (
                         <option key={c.id} value={c.id}>
                           {c.name} {c.section ? `(Sec ${c.section})` : ''}
                         </option>
@@ -380,6 +533,9 @@ export default function AssessmentStatusCard({
                       displayedSubjects.map((sub) => {
                         const iaData = assessmentMode === 'internal1' ? sub.ia1 : sub.ia2;
                         const isPending = iaData?.statusCode !== 'completed';
+                        const canInitiate = isPrivileged || 
+                          (isHod && (sub.department === user?.department || propDepartment === sub.department)) || 
+                          (sub.facultyId && String(sub.facultyId) === String(user?.id));
 
                         return (
                           <tr 
@@ -392,7 +548,7 @@ export default function AssessmentStatusCard({
                                 {sub.subjectName}
                               </div>
                               <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                {sub.className} &bull; {sub.subjectType}
+                                {sub.className} &bull; {sub.subjectType} &bull; Sem {sub.semester || '—'}
                               </div>
                             </td>
                             <td>
@@ -414,7 +570,24 @@ export default function AssessmentStatusCard({
                               )}
                             </td>
                             <td>
-                              {renderBadge(iaData)}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
+                                {renderBadge(iaData)}
+                                {canInitiate && iaData?.statusCode === 'not_created' && (
+                                  <button
+                                    type="button"
+                                    className={styles.initiateBtn}
+                                    onClick={() => handleInitiateSession(sub)}
+                                    disabled={initiatingKey === `${sub.subjectId}-${sub.classId}`}
+                                    title={`Initiate ${assessmentMode === 'internal1' ? 'IA1' : 'IA2'} session for ${sub.subjectName}`}
+                                  >
+                                    {initiatingKey === `${sub.subjectId}-${sub.classId}` ? (
+                                      <><RefreshCw size={11} className="spin" /> Initiating...</>
+                                    ) : (
+                                      <><PlusCircle size={11} /> Initiate Session</>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                             </td>
                             <td>
                               <span className={styles.timestamp}>

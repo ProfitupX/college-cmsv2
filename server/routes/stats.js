@@ -1264,6 +1264,7 @@ router.get('/assessment-status', async (req, res) => {
           name: r.class_name,
           year: r.year_label,
           section: r.section,
+          semester: r.semester,
           department: deptName
         });
       }

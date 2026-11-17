@@ -263,6 +263,8 @@ export const marksAPI = {
 
   requestUnlock: (payload) => post('/marks/request-unlock', payload),
 
+  initiateSession: (payload) => post('/marks/initiate-session', payload),
+
   unlockSession: (sessionId) => post('/marks/unlock-session', { sessionId }),
 
   getUnlockRequests: (department) => {

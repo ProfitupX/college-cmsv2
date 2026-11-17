@@ -2059,4 +2059,183 @@ router.post('/admin/toggle-freeze', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// POST /api/marks/initiate-session
+// Direct Admin (or authorized Faculty/HOD) assessment session initiation
+// Creates an initial draft session so status immediately becomes 'Not Entered'
+// ─────────────────────────────────────────────────────────────
+router.post('/initiate-session', async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser || !authUser.id) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    let staff;
+    try {
+      staff = await resolveActingStaff(db, authUser.id, authUser.pwf);
+    } catch (authErr) {
+      return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
+    }
+    if (!staff) {
+      return res.status(403).json({ error: 'Unauthorized: User not found in staff registry.' });
+    }
+
+    const staffRole = (staff.role || '').toLowerCase();
+    const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
+    const isHod = staffRole === 'hod';
+
+    const { subjectId, classId, sessionLabel = 'internal1' } = req.body;
+    if (!subjectId || !classId) {
+      return res.status(400).json({ error: 'Missing subjectId or classId.' });
+    }
+    const validLabels = ['internal1', 'internal2'];
+    if (!validLabels.includes(sessionLabel)) {
+      return res.status(400).json({ error: "Invalid session label. Must be 'internal1' or 'internal2'." });
+    }
+
+    await conn.beginTransaction();
+
+    // 1. Fetch Subject & Class mapping
+    const [subRows] = await conn.execute(
+      `SELECT s.id AS subject_id, s.code AS subject_code, s.name AS subject_name,
+              s.department AS subject_department, s.semester AS subject_semester,
+              s.faculty_id, s.total_hours, s.int1_hours, s.int2_hours, s.type AS subject_type,
+              c.id AS class_id, c.name AS class_name, c.department AS class_department,
+              c.semester AS class_semester, c.year_label, c.section, c.academic_year
+       FROM subjects s
+       JOIN classes c ON c.id = s.class_id
+       WHERE s.id = ? AND c.id = ?`,
+      [subjectId, classId]
+    );
+
+    if (subRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Subject or class mapping not found.' });
+    }
+    const subject = subRows[0];
+
+    // 2. Verify faculty allocation
+    if (!subject.faculty_id) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: `Cannot initiate session: No faculty is currently allocated to [${subject.subject_code}] ${subject.subject_name}. Please assign faculty first.`
+      });
+    }
+
+    const [facRows] = await conn.execute('SELECT id, name FROM staffs WHERE id = ?', [subject.faculty_id]);
+    if (facRows.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: `Cannot initiate session: Allocated faculty '${subject.faculty_id}' was not found in staff registry.`
+      });
+    }
+    const allocatedFaculty = facRows[0];
+
+    // 3. Permission checks
+    const isAllocatedFaculty = String(subject.faculty_id) === String(staff.id);
+    const isDeptHod = isHod && (
+      subject.subject_department === staff.department ||
+      subject.class_department === staff.department
+    );
+
+    if (!isPrivileged && !isDeptHod && !isAllocatedFaculty) {
+      await conn.rollback();
+      return res.status(403).json({
+        error: 'Unauthorized: You do not have permission to initiate an assessment session for this subject.'
+      });
+    }
+
+    // 4. Duplicate session prevention
+    const [existingSessions] = await conn.execute(
+      `SELECT id, status FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ?`,
+      [subjectId, classId, sessionLabel]
+    );
+    if (existingSessions.length > 0) {
+      await conn.rollback();
+      const labelDisplay = sessionLabel === 'internal1' ? 'IA1' : 'IA2';
+      return res.status(409).json({
+        error: `An assessment session for ${labelDisplay} already exists for ${subject.subject_code} (${subject.class_name}). Duplicate sessions cannot be created.`,
+        sessionId: existingSessions[0].id
+      });
+    }
+
+    // 5. Total hours resolution
+    let totalHours = 30;
+    if (sessionLabel === 'internal1' && subject.int1_hours > 0) {
+      totalHours = subject.int1_hours;
+    } else if (sessionLabel === 'internal2' && subject.int2_hours > 0) {
+      totalHours = subject.int2_hours;
+    } else if (subject.total_hours > 0) {
+      totalHours = Math.round(subject.total_hours / 2);
+    }
+
+    // 6. Insert new session with status 'draft'
+    const [insertRes] = await conn.execute(
+      `INSERT INTO marks_sessions (subject_id, class_id, staff_id, session_label, status, total_hours, student_count, avg_score, total_max)
+       VALUES (?, ?, ?, ?, 'draft', ?, 0, 0, 50)`,
+      [subjectId, classId, subject.faculty_id, sessionLabel, totalHours]
+    );
+    const sessionId = insertRes.insertId;
+
+    // 7. Audit log
+    try {
+      await conn.execute(
+        `INSERT INTO marks_audit_logs
+           (session_id, student_id, component_id, field_name, old_value, new_value, user_id, user_name, action_type)
+         VALUES (?, 'ALL', NULL, 'status', 'not_created', 'draft', ?, ?, 'SESSION_INITIATED')`,
+        [
+          sessionId,
+          staff.id,
+          staff.name || 'System User'
+        ]
+      );
+    } catch (auditErr) {
+      console.warn('marks_audit_logs insert note:', auditErr.message);
+    }
+
+    // 8. Notifications
+    try {
+      const labelDisplay = sessionLabel === 'internal1' ? 'IA1' : 'IA2';
+      const actorDisplay = staff.name ? `${staff.name} (${staffRole.toUpperCase()})` : 'Administration';
+      await conn.execute(
+        `INSERT INTO notifications (target_role, target_department, title, message, link)
+         VALUES ('faculty', ?, ?, ?, '/marks-entry')`,
+        [
+          subject.class_department || subject.subject_department || 'General',
+          `${labelDisplay} Assessment Session Initiated`,
+          `${labelDisplay} session for [${subject.subject_code}] ${subject.subject_name} (${subject.class_name}) has been initiated by ${actorDisplay}. Mark entry is now available.`
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Notification insert note:', notifErr.message);
+    }
+
+    await conn.commit();
+
+    const labelDisplay = sessionLabel === 'internal1' ? 'IA1' : 'IA2';
+    res.json({
+      success: true,
+      message: `${labelDisplay} session initiated successfully for [${subject.subject_code}] ${subject.subject_name} (${subject.class_name}). Session is now available to allocated faculty ${allocatedFaculty.name}.`,
+      sessionId,
+      session: {
+        id: sessionId,
+        subjectId,
+        classId,
+        sessionLabel,
+        status: 'draft',
+        totalHours,
+        facultyName: allocatedFaculty.name
+      }
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('POST /marks/initiate-session error:', err);
+    res.status(500).json({ error: 'Failed to initiate assessment session: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 export default router;
