@@ -960,20 +960,39 @@ export const generateConsolidatedMarksPDF = async ({
         }
       } else {
         const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        const isLabType = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        if (isLabType) {
-          if (!att || att.lab_mark === null || att.lab_mark === undefined || att.lab_mark === '') {
-            absentCount++;
-            return 'AB';
+        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+        let rawScore = null;
+        if (isPureLab) {
+          // Pure Laboratory: strictly lab_mark as primary. Never substitute theory marks for missing lab marks.
+          if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+            const val = parseFloat(att.lab_mark);
+            if (!isNaN(val)) rawScore = val;
           }
-          score = parseFloat(att.lab_mark);
+        } else if (isTheoryCumLab) {
+          // Theory-cum-Lab: read internal_exam_mark first, use lab_mark only as fallback
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+            const val = parseFloat(att.internal_exam_mark);
+            if (!isNaN(val)) rawScore = val;
+          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+            const val = parseFloat(att.lab_mark);
+            if (!isNaN(val)) rawScore = val;
+          }
         } else {
-          if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-            absentCount++;
-            return 'AB';
+          // Pure Theory: read internal_exam_mark
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+            const val = parseFloat(att.internal_exam_mark);
+            if (!isNaN(val)) rawScore = val;
           }
-          score = parseFloat(att.internal_exam_mark);
         }
+
+        if (rawScore === null) {
+          absentCount++;
+          return 'AB';
+        }
+        score = rawScore;
       }
 
       if (isNaN(score) || score === null) {
@@ -1063,11 +1082,38 @@ export const generateConsolidatedMarksPDF = async ({
         }
       } else {
         const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
+        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+        let rawScore = null;
+        if (isPureLab) {
+          // Pure Laboratory: strictly lab_mark as primary. Never substitute theory marks for missing lab marks.
+          if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+            const val = parseFloat(att.lab_mark);
+            if (!isNaN(val)) rawScore = val;
+          }
+        } else if (isTheoryCumLab) {
+          // Theory-cum-Lab: read internal_exam_mark first, use lab_mark only as fallback
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+            const val = parseFloat(att.internal_exam_mark);
+            if (!isNaN(val)) rawScore = val;
+          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+            const val = parseFloat(att.lab_mark);
+            if (!isNaN(val)) rawScore = val;
+          }
+        } else {
+          // Pure Theory: read internal_exam_mark
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+            const val = parseFloat(att.internal_exam_mark);
+            if (!isNaN(val)) rawScore = val;
+          }
+        }
+
+        if (rawScore === null) {
           isAbsent = true;
         } else {
-          score = parseFloat(att.internal_exam_mark);
-          if (isNaN(score)) isAbsent = true;
+          score = rawScore;
         }
       }
 
@@ -1833,18 +1879,32 @@ export const generateOverallMarksAndAttendancePDF = async ({
           score = Math.min(ciaTotal + examConverted, 100);
         }
       } else {
-        const isLabType = ['Practical', 'Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        if (isLabType) {
-          if (!att || att.lab_mark === null || att.lab_mark === undefined || att.lab_mark === '') {
-            score = null;
-          } else {
+        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+        if (isPureLab) {
+          // Pure Laboratory: strictly lab_mark as primary. Never substitute theory marks for missing lab marks.
+          if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
             score = parseFloat(att.lab_mark);
+          } else {
+            score = null;
+          }
+        } else if (isTheoryCumLab) {
+          // Theory-cum-Lab: read internal_exam_mark first, use lab_mark only as fallback
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+            score = parseFloat(att.internal_exam_mark);
+          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+            score = parseFloat(att.lab_mark);
+          } else {
+            score = null;
           }
         } else {
-          if (!att || att.internal_exam_mark === null || att.internal_exam_mark === undefined || att.internal_exam_mark === '') {
-            score = null;
-          } else {
+          // Pure Theory: read internal_exam_mark
+          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
             score = parseFloat(att.internal_exam_mark);
+          } else {
+            score = null;
           }
         }
       }
