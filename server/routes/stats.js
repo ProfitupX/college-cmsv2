@@ -505,9 +505,9 @@ router.get('/continuous-assessment', async (req, res) => {
       const yearRows = [];
 
       if (d.name === 'Science and Humanities') {
-        // Query all first-year Science & Humanities undergraduate classes (excluding PG)
+        // Query all first-year Science & Humanities undergraduate classes (strictly excluding PG programmes)
         const [shClasses] = await db.execute(
-          "SELECT id, name, department, year_label, semester, section FROM classes WHERE (year_label = 'I' OR department = 'Science and Humanities' OR department = 'First Year') AND id NOT LIKE 'ME_%' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'ME %' ORDER BY id"
+          "SELECT id, name, department, year_label, semester, section FROM classes WHERE (year_label = 'I' OR department = 'Science and Humanities' OR department = 'First Year') AND (((id NOT LIKE 'ME!_%' ESCAPE '!' AND id NOT LIKE 'ME-%' AND id NOT LIKE 'PG!_%' ESCAPE '!' AND id NOT LIKE 'PG-%') OR id LIKE '%MECH%') AND ((name NOT LIKE 'ME!_%' ESCAPE '!' AND name NOT LIKE 'ME-%' AND name NOT LIKE 'ME %' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'M.TECH%') OR name LIKE '%MECH%' OR name LIKE '%MECHANICAL%')) ORDER BY id"
         );
 
         shClasses.sort((a, b) => getFirstYearSortWeight(a) - getFirstYearSortWeight(b));
@@ -610,7 +610,7 @@ router.get('/continuous-assessment', async (req, res) => {
       } else {
         for (const y of d.years) {
           const [classes] = await db.execute(
-            'SELECT id, name FROM classes WHERE department = ? AND year_label = ?',
+            "SELECT id, name FROM classes WHERE department = ? AND year_label = ? AND (((id NOT LIKE 'ME!_%' ESCAPE '!' AND id NOT LIKE 'ME-%' AND id NOT LIKE 'PG!_%' ESCAPE '!' AND id NOT LIKE 'PG-%') OR id LIKE '%MECH%') AND ((name NOT LIKE 'ME!_%' ESCAPE '!' AND name NOT LIKE 'ME-%' AND name NOT LIKE 'ME %' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'M.TECH%') OR name LIKE '%MECH%' OR name LIKE '%MECHANICAL%')) AND id NOT IN ('CL_1794909988', 'CL_1794910622')",
             [d.name, y]
           );
 
@@ -708,10 +708,172 @@ router.get('/continuous-assessment', async (req, res) => {
       ? ((totalFirstYearPassed / totalFirstYearStrength) * 100).toFixed(2) 
       : '0.00';
 
+    // ── Postgraduate Programmes Continuous Assessment Analysis ──
+    const pgDefs = [
+      { code: 'ME_CSE', name: 'M.E. Computer Science and Engineering', shortName: 'M.E. CSE', dept: 'Computer Science and Engineering', prodIds: ['CL_1794306342'], pattern: 'CSE' },
+      { code: 'ME_EST', name: 'M.E. Embedded System Technologies', shortName: 'M.E. EST', dept: 'Electronics and Communication Engineering', prodIds: ['CL_1794909437'], pattern: 'EST' },
+      { code: 'ME_SE', name: 'M.E. Structural Engineering', shortName: 'M.E. SE', dept: 'Civil Engineering', prodIds: ['CL_1794909933', 'CL_1794909988'], pattern: 'SE' },
+      { code: 'ME_MFE', name: 'M.E. Manufacturing Engineering', shortName: 'M.E. MFE', dept: 'Mechanical Engineering', prodIds: ['CL_1794910479', 'CL_1794910622'], pattern: 'MFE' }
+    ];
+
+    const pgResults = [];
+    let totalPgStrength = 0;
+    let totalPgPassed = 0;
+    let totalPgMarksEntered = false;
+
+    // Fetch all PG classes from DB with dynamic student counts
+    const [allPgClasses] = await db.query(`
+      SELECT c.id, c.name, c.department, c.year_label, c.semester, c.section, COUNT(s.id) AS student_count
+      FROM classes c
+      LEFT JOIN students s ON s.class_id = c.id
+      WHERE c.id IN ('CL_1794909933', 'CL_1794909988', 'CL_1794306342', 'CL_1794909437', 'CL_1794910479', 'CL_1794910622')
+         OR c.id LIKE 'ME!_%' ESCAPE '!'
+         OR c.id LIKE 'ME-%'
+         OR c.id LIKE 'PG!_%' ESCAPE '!'
+         OR (c.name LIKE 'ME!_%' ESCAPE '!' AND c.name NOT LIKE '%MECH%')
+         OR c.name LIKE 'M.E.%'
+      GROUP BY c.id
+      ORDER BY c.id
+    `);
+
+    for (const pg of pgDefs) {
+      const progClasses = (allPgClasses || []).filter(c => {
+        if (pg.prodIds.includes(c.id)) return true;
+        const nameUpper = String(c.name || '').toUpperCase();
+        if (nameUpper.includes(pg.pattern) && (nameUpper.startsWith('ME') || nameUpper.includes('M.E.') || c.id.startsWith('ME'))) return true;
+        return false;
+      });
+
+      const progYears = [];
+      let progStrength = 0;
+      let progPassed = 0;
+      let progHasMarks = false;
+
+      for (const y of ['I', 'II']) {
+        const yClasses = progClasses.filter(c => String(c.year_label || '').toUpperCase() === y || (y === 'I' && (c.semester == 1 || c.semester == 2)) || (y === 'II' && (c.semester == 3 || c.semester == 4)));
+        let yStrength = 0;
+        let yPassed = 0;
+        let yHasMarks = false;
+        let yClassesWithCount = [];
+
+        if (yClasses.length > 0) {
+          const classIds = yClasses.map(c => c.id);
+          const placeholders = classIds.map(() => '?').join(',');
+          const [students] = await db.execute(
+            `SELECT id, name, class_id FROM students WHERE class_id IN (${placeholders})`,
+            classIds
+          );
+
+          // Map student count per class as primary source of truth
+          const classCountMap = {};
+          students.forEach(st => {
+            classCountMap[st.class_id] = (classCountMap[st.class_id] || 0) + 1;
+          });
+
+          // Primary source of truth: actual records from students table
+          yStrength = students.length;
+          // Fallback if students table returned 0: check classes.student_count
+          if (yStrength === 0) {
+            yStrength = yClasses.reduce((sum, c) => sum + (parseInt(c.student_count, 10) || 0), 0);
+          }
+
+          yClassesWithCount = yClasses.map(c => ({
+            id: c.id,
+            name: c.name,
+            semester: c.semester,
+            year_label: c.year_label,
+            section: c.section,
+            student_count: classCountMap[c.id] ?? (parseInt(c.student_count, 10) || 0)
+          }));
+
+          // Check if marks sessions exist with ACTUAL marks entered
+          const [sessions] = await db.execute(
+            `SELECT id, class_id, subject_id FROM marks_sessions WHERE class_id IN (${placeholders}) AND (session_label = ? OR session_label LIKE ?)`,
+            [...classIds, sessionLabel, `%${sessionLabel}%`]
+          );
+
+          if (sessions.length > 0 && students.length > 0) {
+            const sessionIds = sessions.map(s => s.id);
+            const sessPlaceholders = sessionIds.map(() => '?').join(',');
+            // Check actual marks table for entered numeric marks
+            const [enteredMarks] = await db.execute(
+              `SELECT student_id, session_id, marks_obtained FROM marks WHERE session_id IN (${sessPlaceholders}) AND marks_obtained IS NOT NULL`,
+              sessionIds
+            );
+
+            if (enteredMarks.length > 0) {
+              yHasMarks = true;
+              progHasMarks = true;
+              totalPgMarksEntered = true;
+              const marksByStudent = {};
+              enteredMarks.forEach(m => {
+                if (!marksByStudent[m.student_id]) marksByStudent[m.student_id] = [];
+                marksByStudent[m.student_id].push(m);
+              });
+              students.forEach(st => {
+                const sMarks = marksByStudent[st.id] || [];
+                if (sMarks.length > 0 && sMarks.every(m => parseFloat(m.marks_obtained) >= 50)) {
+                  yPassed++;
+                }
+              });
+            }
+          }
+        }
+
+        progStrength += yStrength;
+        progPassed += yPassed;
+
+        progYears.push({
+          year: y === 'I' ? 'I Year (Sem I & II)' : 'II Year (Sem III & IV)',
+          yearLabel: y,
+          strength: yStrength,
+          passed: yHasMarks ? yPassed : 0,
+          failed: yHasMarks ? Math.max(0, yStrength - yPassed) : 0,
+          marksStatus: yStrength === 0 ? 'No Active Batch' : (yHasMarks ? 'Completed' : 'Not Started'),
+          resultStatus: yStrength === 0 ? 'Future Batch' : (yHasMarks ? 'Published' : 'Awaiting Marks'),
+          percentage: yHasMarks && yStrength > 0 ? ((yPassed / yStrength) * 100).toFixed(2) : null,
+          hasActiveClasses: yClasses.length > 0,
+          classes: yClassesWithCount
+        });
+      }
+
+      totalPgStrength += progStrength;
+      totalPgPassed += progPassed;
+
+      // Compute batch status dynamically from active years and semesters
+      const activeYears = progYears.filter(yr => yr.strength > 0 || (yr.classes && yr.classes.length > 0));
+      let batchStatus = 'No Active Batch';
+      if (activeYears.length === 2) {
+        batchStatus = 'Active: I & II Year';
+      } else if (activeYears.length === 1) {
+        const yr = activeYears[0];
+        const semList = yr.classes.map(c => `Sem ${c.semester}`).filter(Boolean);
+        const semStr = semList.length > 0 ? ` (${[...new Set(semList)].join(', ')})` : '';
+        batchStatus = `Active: ${yr.yearLabel} Year${semStr}`;
+      }
+
+      pgResults.push({
+        programmeCode: pg.code,
+        programmeName: pg.name,
+        shortName: pg.shortName,
+        owningDepartment: pg.dept,
+        degreeTitle: 'M.E.',
+        regulation: '2025',
+        years: progYears,
+        progStrength,
+        progPassed,
+        batchStatus,
+        marksStatus: progStrength === 0 ? 'No Active Batch' : (progHasMarks ? 'Completed' : 'Not Started'),
+        resultStatus: progStrength === 0 ? 'Future Batch' : (progHasMarks ? 'Published' : 'Awaiting Marks'),
+        progOverallPct: progHasMarks && progStrength > 0 ? ((progPassed / progStrength) * 100).toFixed(2) : null
+      });
+    }
+
     res.json({
       success: true,
       sessionLabel,
       departments: results,
+      pgProgrammes: pgResults,
       summary: {
         withoutFirstYear: {
           strength: totalUgStrengthWithoutFirstYear,
@@ -723,10 +885,32 @@ router.get('/continuous-assessment', async (req, res) => {
           passed: totalFirstYearPassed,
           percentage: firstYearOverallPct
         },
-        collegeOverall: {
+        ugOverall: {
           strength: totalCollegeStrength,
           passed: totalCollegePassed,
           percentage: collegeOverallPct
+        },
+        collegeOverall: {
+          strength: totalCollegeStrength + totalPgStrength,
+          passed: totalCollegePassed + totalPgPassed,
+          percentage: totalPgMarksEntered && (totalCollegeStrength + totalPgStrength) > 0
+            ? (((totalCollegePassed + totalPgPassed) / (totalCollegeStrength + totalPgStrength)) * 100).toFixed(2)
+            : null,
+          pgAwaitingMarks: !totalPgMarksEntered
+        },
+        pgSummary: {
+          strength: totalPgStrength,
+          passed: totalPgPassed,
+          marksStatus: totalPgMarksEntered ? 'Completed' : 'Not Started',
+          resultStatus: totalPgMarksEntered ? 'Published' : 'Awaiting Marks',
+          percentage: totalPgMarksEntered && totalPgStrength > 0 ? ((totalPgPassed / totalPgStrength) * 100).toFixed(2) : null
+        },
+        combinedInstitutional: {
+          totalStudents: totalCollegeStrength + totalPgStrength,
+          ugStrength: totalCollegeStrength,
+          pgStrength: totalPgStrength,
+          ugPassed: totalCollegePassed,
+          pgStatus: totalPgMarksEntered ? 'Published' : 'Awaiting Marks'
         }
       }
     });
@@ -782,9 +966,9 @@ router.get('/hod-marks', async (req, res) => {
     let deptPassed = 0;
 
     if (isSH) {
-      // Science & Humanities: Display First Year Result Analysis with relevant First Year sections
+      // Science & Humanities: Display First Year Result Analysis with relevant First Year sections (strictly excluding PG programmes)
       const [classes] = await db.query(
-        "SELECT id, name, semester, section FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND id NOT LIKE 'ME_%' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'ME %' ORDER BY id"
+        "SELECT id, name, semester, section FROM classes WHERE (department = 'Science and Humanities' OR department = 'First Year' OR year_label = 'I') AND (((id NOT LIKE 'ME!_%' ESCAPE '!' AND id NOT LIKE 'ME-%' AND id NOT LIKE 'PG!_%' ESCAPE '!' AND id NOT LIKE 'PG-%') OR id LIKE '%MECH%') AND ((name NOT LIKE 'ME!_%' ESCAPE '!' AND name NOT LIKE 'ME-%' AND name NOT LIKE 'ME %' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'M.TECH%') OR name LIKE '%MECH%' OR name LIKE '%MECHANICAL%')) ORDER BY id"
       );
 
       if (classes && classes.length > 0) {
@@ -909,7 +1093,9 @@ router.get('/hod-marks', async (req, res) => {
         const aliasPlaceholders = deptAliases.map(() => '?').join(',');
         const [classes] = await db.query(
           `SELECT id, name, semester FROM classes 
-           WHERE year_label = ? AND (department IN (${aliasPlaceholders}) OR name LIKE ?)`,
+           WHERE year_label = ? AND (department IN (${aliasPlaceholders}) OR name LIKE ?)
+             AND (((id NOT LIKE 'ME!_%' ESCAPE '!' AND id NOT LIKE 'ME-%' AND id NOT LIKE 'PG!_%' ESCAPE '!' AND id NOT LIKE 'PG-%') OR id LIKE '%MECH%') AND ((name NOT LIKE 'ME!_%' ESCAPE '!' AND name NOT LIKE 'ME-%' AND name NOT LIKE 'ME %' AND name NOT LIKE 'M.E.%' AND name NOT LIKE 'M.TECH%') OR name LIKE '%MECH%' OR name LIKE '%MECHANICAL%'))
+             AND id NOT IN ('CL_1794909988', 'CL_1794910622')`,
           [year, ...deptAliases, branchKeyword]
         );
 

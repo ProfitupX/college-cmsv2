@@ -289,17 +289,49 @@ export const evaluatePGPassStatus = ({
   };
 };
 
+import { getPGProgrammeByClass, PG_PROGRAMMES, UG_DEPARTMENTS, ACADEMIC_UNITS_METRICS } from './academicProgrammes.js';
+
+export { getPGProgrammeByClass, PG_PROGRAMMES, UG_DEPARTMENTS, ACADEMIC_UNITS_METRICS };
+
 /**
  * 3. PG Program & Class Identification Helpers
  */
 export const isPGClass = (classObj) => {
   if (!classObj) return false;
-  if (classObj.program_type === 'PG') return true;
-  if (classObj.regulation_code === 'R2025') return true;
-  const idStr = String(classObj.id || '').trim();
-  if (idStr.startsWith('ME_')) return true;
-  const nameStr = String(classObj.name || '').trim().toUpperCase();
-  if (nameStr.startsWith('M.E.') || nameStr.startsWith('ME ') || nameStr.includes('M.E. ')) return true;
+
+  // 1. Direct registry check via getPGProgrammeByClass
+  if (getPGProgrammeByClass(classObj)) return true;
+
+  const obj = typeof classObj === 'string' ? { id: classObj, name: classObj } : classObj;
+
+  // 2. Explicit schema flags (when available)
+  if (obj.program_type === 'PG' || obj.programType === 'PG') return true;
+  if (obj.degree === 'PG' || obj.degree_type === 'PG') return true;
+  if (obj.degree_title === 'M.E.' || obj.degree_title === 'M.Tech') return true;
+  if (obj.regulation_code === 'R2025') return true;
+
+  // 3. Class ID checks (supports ME_*, ME-*, PG_*)
+  const idStr = String(obj.id || obj.class_id || obj.classId || '').trim();
+  if (/^(ME|PG)[_\-\/]/i.test(idStr)) return true;
+
+  // 4. Class Name checks (case-insensitive)
+  const nameStr = String(obj.name || obj.class_name || obj.className || '').trim().toUpperCase();
+  if (!nameStr) return false;
+
+  // Pattern A: M.E. or M.TECH with dots or word boundaries (e.g. "M.E.", "M.E. CSE", "M.Tech")
+  // Negative lookahead ensures "MECH" or "MECHANICAL" is never matched
+  if (/\bM\.?E\.?\b/.test(nameStr) && !/\bMECH\b|\bMECHANICAL\b/i.test(nameStr)) return true;
+  if (/\bM\.?TECH\b/i.test(nameStr)) return true;
+
+  // Pattern B: Starts with ME followed by a non-alphabetic delimiter: space, underscore, hyphen, slash, colon
+  // Example: "ME_SE_1", "ME_MFE_II", "ME- I CSE", "ME _ EST_I"
+  // Negative lookahead ensures "MECH" (starts with 'C') is strictly excluded
+  if (/^ME[\s_\-\/:]/i.test(nameStr) && !/^MECH/i.test(nameStr)) return true;
+
+  // Pattern C: Delimited PG or ME acronym (e.g. "PG - CSE", "I Year - ME - CSE")
+  if (/\bPG[\s_\-\/:]/i.test(nameStr) || /[\s_\-\/:]PG\b/i.test(nameStr)) return true;
+  if (/[\s_\-\/:]ME[\s_\-\/:]/i.test(nameStr) && !/MECH/i.test(nameStr)) return true;
+
   return false;
 };
 
@@ -308,8 +340,18 @@ export const isPGSubject = (subjectObj, classObj) => {
   if (!subjectObj) return false;
   if (subjectObj.program_type === 'PG') return true;
   if (subjectObj.regulation_code === 'R2025') return true;
+
+  // Check joined class name if available on the subject object
+  if (subjectObj.class_name || subjectObj.className) {
+    if (isPGClass({ id: subjectObj.class_id, name: subjectObj.class_name || subjectObj.className })) return true;
+  }
+
   const classIdStr = String(subjectObj.class_id || '').trim();
-  if (classIdStr.startsWith('ME_')) return true;
+  if (/^(ME|PG)[_\-\/]/i.test(classIdStr)) return true;
+
+  // Project Work is uniquely a PG course type in R2025
+  if (subjectObj.type === 'Project') return true;
+
   return false;
 };
 

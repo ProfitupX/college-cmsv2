@@ -1,12 +1,83 @@
 import express from 'express';
 import db from '../db.js';
+import { verifyAuthToken } from './auth.js';
 
 const router = express.Router();
+
+/**
+ * Checks if a class belongs to an HOD's department or their owning PG programme.
+ */
+function isClassAuthorizedForHod(cls, hodDept) {
+  if (!cls || !hodDept) return false;
+  const dStr = String(hodDept).trim().toLowerCase();
+  const clsDept = String(cls.department || '').trim().toLowerCase();
+  const clsName = String(cls.name || '').trim().toUpperCase();
+  const clsId = String(cls.id || '').trim();
+
+  // 1. Direct department match (UG or matching department field)
+  if (clsDept === dStr) return true;
+
+  // 2. PG Programme Owning Department match
+  const isCseHod = dStr.includes('computer') || dStr === 'cse';
+  const isEceHod = dStr.includes('electronics') || dStr === 'ece';
+  const isCivilHod = dStr.includes('civil');
+  const isMechHod = dStr.includes('mechanical') || dStr === 'mech';
+
+  // CSE owns M.E. CSE
+  if (isCseHod) {
+    if (clsId === 'CL_1794306342' || (clsName.includes('CSE') && (clsName.includes('ME') || clsName.includes('M.E.')))) return true;
+  }
+  // ECE owns M.E. EST
+  if (isEceHod) {
+    if (clsId === 'CL_1794909437' || clsName.includes('EST') || clsName.includes('EMBEDDED')) return true;
+  }
+  // Civil owns M.E. Structural Engineering
+  if (isCivilHod) {
+    if (clsId === 'CL_1794909933' || clsId === 'CL_1794909988' || (clsName.includes('SE') && (clsName.includes('ME') || clsName.includes('M.E.'))) || clsName.includes('STRUCTURAL')) return true;
+  }
+  // Mechanical owns M.E. Manufacturing Engineering
+  if (isMechHod) {
+    if (clsId === 'CL_1794910479' || clsId === 'CL_1794910622' || clsName.includes('MFE') || clsName.includes('MANUFACTURING')) return true;
+  }
+
+  return false;
+}
 
 // GET /api/students?classId=CL001
 router.get('/', async (req, res) => {
   try {
     const { classId } = req.query;
+
+    // Check token if present for role-based authorization
+    let authUser = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const verified = verifyAuthToken(token);
+      if (verified && verified.id) {
+        authUser = verified;
+      }
+    }
+
+    // Role-based access control for HOD
+    if (authUser && authUser.role === 'hod' && authUser.id) {
+      // Fetch HOD's registered department from staffs table to prevent spoofing
+      const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
+      const hodDept = staffRows[0]?.department;
+
+      if (hodDept && classId) {
+        const [classRows] = await db.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
+        if (classRows.length > 0) {
+          const cls = classRows[0];
+          if (!isClassAuthorizedForHod(cls, hodDept)) {
+            return res.status(403).json({
+              error: "Access denied: You do not have permission to view students from another department's academic programme."
+            });
+          }
+        }
+      }
+    }
+
     let sql = 'SELECT id, s_no, roll_no, name, class_id FROM students';
     const params = [];
     if (classId) {

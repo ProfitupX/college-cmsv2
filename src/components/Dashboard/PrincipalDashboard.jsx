@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { 
   Users, Building, UserCheck, Activity,
-  TrendingUp, Award, FileText, Download, FileSpreadsheet
+  TrendingUp, Award, FileText, Download, FileSpreadsheet, GraduationCap
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { statsAPI } from '../../services/api';
+import { statsAPI, classesAPI, subjectsAPI } from '../../services/api';
 import { generateCollegeOverviewPDF, generateContinuousAssessmentAnalysisPDF } from '../../services/pdfReportGenerator';
 import { useAuth } from '../../context/AuthContext';
+import { ACADEMIC_UNITS_METRICS, getPGProgrammeByClass, PG_PROGRAMMES } from '../../utils/academicProgrammes';
 import AssessmentStatusCard from './AssessmentStatusCard';
 import styles from './PrincipalDashboard.module.css';
 
@@ -36,6 +37,16 @@ export default function PrincipalDashboard() {
   const [loading, setLoading] = useState(true);
   const [caLoading, setCaLoading] = useState(false);
   const [error, setError] = useState('');
+  const [classesList, setClassesList] = useState([]);
+  const [subjectsList, setSubjectsList] = useState([]);
+
+  // Compute live PG student strength from actual class records (zero hardcoding)
+  const pgStudentsCount = useMemo(() => {
+    return (classesList || []).filter(c => {
+      const isPG = getPGProgrammeByClass(c);
+      return Boolean(isPG);
+    }).reduce((sum, c) => sum + (parseInt(c.student_count, 10) || 0), 0);
+  }, [classesList]);
 
   // Load college overview stats
   useEffect(() => {
@@ -45,6 +56,14 @@ export default function PrincipalDashboard() {
       })
       .catch(() => setError('Failed to load college statistics.'))
       .finally(() => setLoading(false));
+
+    classesAPI.getAll()
+      .then((res) => setClassesList(Array.isArray(res) ? res : []))
+      .catch(() => {});
+
+    subjectsAPI.getAll()
+      .then((res) => setSubjectsList(Array.isArray(res) ? res : []))
+      .catch(() => {});
   }, []);
 
   // Load Continuous Assessment Analysis data
@@ -120,32 +139,152 @@ export default function PrincipalDashboard() {
     const shPassed = shDept?.deptPassed ?? (caData.summary.firstYear?.passed || 0);
     const shPct = shStrength > 0 ? ((shPassed / shStrength) * 100).toFixed(2) : '0.00';
 
-    const ugStrength = caData.summary.withoutFirstYear?.strength || 0;
-    const ugPassed = caData.summary.withoutFirstYear?.passed || 0;
-    const ugPct = caData.summary.withoutFirstYear?.percentage || '0.00';
+    const ugWithoutFirstYearStrength = caData.summary.withoutFirstYear?.strength || 0;
+    const ugWithoutFirstYearPassed = caData.summary.withoutFirstYear?.passed || 0;
+    const ugWithoutFirstYearPct = caData.summary.withoutFirstYear?.percentage || '0.00';
 
-    const collegeStrength = ugStrength + shStrength;
-    const collegePassed = ugPassed + shPassed;
-    const collegePct = collegeStrength > 0 ? ((collegePassed / collegeStrength) * 100).toFixed(2) : '0.00';
+    const ugOverallStrength = ugWithoutFirstYearStrength + shStrength;
+    const ugOverallPassed = ugWithoutFirstYearPassed + shPassed;
+    const ugOverallPct = ugOverallStrength > 0 ? ((ugOverallPassed / ugOverallStrength) * 100).toFixed(2) : '0.00';
+
+    const pgStrength = caData.summary?.pgSummary?.strength > 0
+      ? caData.summary.pgSummary.strength
+      : (pgStudentsCount || 0);
+    const pgPassed = caData.summary?.pgSummary?.passed || 0;
+    const pgMarksEntered = Boolean(caData.summary?.pgSummary?.marksStatus === 'Completed' || pgPassed > 0);
+
+    const totalCollegeStrength = ugOverallStrength + pgStrength;
+    const totalCollegePassed = ugOverallPassed + pgPassed;
+    const totalCollegePct = pgMarksEntered && totalCollegeStrength > 0
+      ? ((totalCollegePassed / totalCollegeStrength) * 100).toFixed(2)
+      : null;
 
     return {
       withoutFirstYear: {
-        strength: ugStrength,
-        passed: ugPassed,
-        percentage: ugPct
+        strength: ugWithoutFirstYearStrength,
+        passed: ugWithoutFirstYearPassed,
+        percentage: ugWithoutFirstYearPct
       },
       firstYear: {
         strength: shStrength,
         passed: shPassed,
         percentage: shPct
       },
+      ugOverall: {
+        strength: ugOverallStrength,
+        passed: ugOverallPassed,
+        percentage: ugOverallPct
+      },
       collegeOverall: {
-        strength: collegeStrength,
-        passed: collegePassed,
-        percentage: collegePct
+        strength: totalCollegeStrength,
+        passed: totalCollegePassed,
+        percentage: totalCollegePct,
+        pgAwaitingMarks: !pgMarksEntered
+      },
+      pgSummary: {
+        strength: pgStrength,
+        passed: pgPassed,
+        marksStatus: caData.summary?.pgSummary?.marksStatus || 'Not Started',
+        resultStatus: caData.summary?.pgSummary?.resultStatus || 'Awaiting Marks',
+        percentage: caData.summary?.pgSummary?.percentage || null
       }
     };
-  }, [caData, sanitizedCaDepartments]);
+  }, [caData, sanitizedCaDepartments, pgStudentsCount]);
+
+  // Derive robust, accurate PG programme statistics from backend data with dynamic fallback
+  const sanitizedPgProgrammes = useMemo(() => {
+    // Group classesList by PG Programme for accurate fallback and detailed semester views
+    const pgClassesByCode = {};
+    (classesList || []).forEach(c => {
+      const prog = getPGProgrammeByClass(c);
+      if (prog) {
+        if (!pgClassesByCode[prog.code]) pgClassesByCode[prog.code] = [];
+        pgClassesByCode[prog.code].push(c);
+      }
+    });
+
+    return PG_PROGRAMMES.map(baseProg => {
+      const backendProg = (caData?.pgProgrammes || []).find(p => p.programmeCode === baseProg.code);
+      const classesForProg = pgClassesByCode[baseProg.code] || [];
+
+      // Primary source of truth is actual student records / enrolled count; if backend returns 0 or missing, fall back to class list count
+      const classListStrength = classesForProg.reduce((sum, c) => sum + (parseInt(c.student_count, 10) || 0), 0);
+      const progStrength = (backendProg && backendProg.progStrength > 0)
+        ? backendProg.progStrength
+        : classListStrength;
+
+      // Construct Year I and Year II
+      const years = ['I', 'II'].map(yLabel => {
+        const backendYear = backendProg?.years?.find(y => y.yearLabel === yLabel);
+        const yClasses = classesForProg.filter(c => 
+          String(c.year_label || '').toUpperCase() === yLabel ||
+          (yLabel === 'I' && (c.semester == 1 || c.semester == 2)) ||
+          (yLabel === 'II' && (c.semester == 3 || c.semester == 4))
+        );
+        const yStrength = (backendYear && backendYear.strength > 0)
+          ? backendYear.strength
+          : yClasses.reduce((sum, c) => sum + (parseInt(c.student_count, 10) || 0), 0);
+        
+        // Merge classes from backend and/or classesList
+        const combinedClasses = (backendYear?.classes && backendYear.classes.length > 0)
+          ? backendYear.classes
+          : yClasses.map(c => ({
+              id: c.id,
+              name: c.name,
+              semester: c.semester,
+              year_label: c.year_label,
+              student_count: parseInt(c.student_count, 10) || 0
+            }));
+
+        const hasMarks = backendYear?.percentage !== null && backendYear?.percentage !== undefined;
+        const marksStatus = yStrength === 0 
+          ? 'No Active Batch' 
+          : (backendYear?.marksStatus || (hasMarks ? 'Completed' : 'Marks Entry: Not Started'));
+        const resultStatus = yStrength === 0 
+          ? 'Future Batch' 
+          : (backendYear?.resultStatus || (hasMarks ? 'Published' : 'Awaiting Marks'));
+
+        return {
+          year: yLabel === 'I' ? 'Year I' : 'Year II',
+          yearLabel: yLabel,
+          strength: yStrength,
+          passed: hasMarks ? (backendYear?.passed || 0) : 0,
+          percentage: hasMarks ? backendYear?.percentage : null,
+          marksStatus,
+          resultStatus,
+          classes: combinedClasses
+        };
+      });
+
+      // Active status description
+      const activeYears = years.filter(yr => yr.strength > 0 || (yr.classes && yr.classes.length > 0));
+      let batchStatus = 'No Active Batch';
+      if (activeYears.length === 2) {
+        batchStatus = 'Active: I & II Year';
+      } else if (activeYears.length === 1) {
+        const yr = activeYears[0];
+        const semList = yr.classes.map(c => `Sem ${c.semester}`).filter(Boolean);
+        const semStr = semList.length > 0 ? ` (${[...new Set(semList)].join(', ')})` : '';
+        batchStatus = `Active: ${yr.yearLabel} Year${semStr}`;
+      }
+
+      return {
+        programmeCode: baseProg.code,
+        programmeName: baseProg.name,
+        shortName: baseProg.shortName,
+        owningDepartment: baseProg.owningDepartment,
+        degreeTitle: baseProg.degreeTitle || 'M.E.',
+        regulation: baseProg.regulation || '2025',
+        years,
+        progStrength,
+        progPassed: backendProg?.progPassed || 0,
+        batchStatus: backendProg?.batchStatus || batchStatus,
+        marksStatus: progStrength === 0 ? 'No Active Batch' : (backendProg?.marksStatus || 'Marks Entry: Not Started'),
+        resultStatus: progStrength === 0 ? 'Future Batch' : (backendProg?.resultStatus || 'Awaiting Marks'),
+        progOverallPct: backendProg?.progOverallPct || null
+      };
+    });
+  }, [caData, classesList]);
 
   const handleDownloadCAPDF = async () => {
     if (!caData) return;
@@ -154,6 +293,7 @@ export default function PrincipalDashboard() {
         caData: {
           ...caData,
           departments: sanitizedCaDepartments,
+          pgProgrammes: sanitizedPgProgrammes,
           summary: sanitizedSummary || caData.summary
         },
         sessionLabel: caMode,
@@ -170,10 +310,11 @@ export default function PrincipalDashboard() {
     let csv = `NADAR SARASWATHI COLLEGE OF ENGINEERING AND TECHNOLOGY\n`;
     csv += `VADAPUDUPATTI, THENI - 625 531\n`;
     csv += `CONTINUOUS ASSESSMENT - ${isCA2 ? '2' : '1'} ANALYSIS\n\n`;
-    csv += `Department,Year,Strength,Passed,Percentage,Percentage (Over all)\n`;
+    csv += `Department / Programme,Year,Strength,Passed,Percentage,Percentage (Over all)\n`;
 
     const summary = sanitizedSummary || caData.summary;
 
+    // 1. All 8 UG Departments
     sanitizedCaDepartments.forEach((dept) => {
       dept.years.forEach((yr, idx) => {
         const deptLabel = idx === 0 ? `"${dept.department}"` : '""';
@@ -182,9 +323,36 @@ export default function PrincipalDashboard() {
       });
     });
 
+    // 2. All 4 PG Programmes immediately after Science & Humanities
+    const exportPgList = sanitizedPgProgrammes?.length ? sanitizedPgProgrammes : (caData.pgProgrammes || []);
+    (exportPgList || caData.pgProgrammes || []).forEach((prog) => {
+      prog.years.forEach((yr, idx) => {
+        const progLabel = idx === 0 ? `"${prog.programmeName}"` : '""';
+        const yrPassed = yr.percentage !== null && yr.percentage !== undefined ? yr.passed : '—';
+        const yrPct = yr.percentage !== null && yr.percentage !== undefined
+          ? `"${yr.percentage}%"`
+          : `"${yr.strength === 0 ? 'No Active Batch' : (yr.marksStatus || 'Marks Entry: Not Started')}"`;
+        const progOverall = idx === 0
+          ? (prog.progOverallPct !== null && prog.progOverallPct !== undefined
+              ? `"${prog.progOverallPct}%"`
+              : `"${prog.progStrength === 0 ? 'No Active Batch' : (prog.resultStatus || 'Awaiting Marks')}"`)
+          : '""';
+        csv += `${progLabel},"${yr.year}",${yr.strength},${yrPassed},${yrPct},${progOverall}\n`;
+      });
+    });
+
+    // 3. Three Summary Rows
+    // Row 1: Pass Percentage Without First Year (Years II, III, IV)
     csv += `"Pass Percentage Without First Year (Years II, III, IV)",,${summary.withoutFirstYear.strength},${summary.withoutFirstYear.passed},"${summary.withoutFirstYear.percentage}%",\n`;
 
-    csv += `"College Overall Pass Percentage (Total including First Year)",,${summary.collegeOverall.strength},${summary.collegeOverall.passed},"${summary.collegeOverall.percentage}%",\n`;
+    // Row 2: UG Overall Pass Percentage (Excluding PG)
+    csv += `"UG Overall Pass Percentage (Excluding PG)",,${summary.ugOverall.strength},${summary.ugOverall.passed},"${summary.ugOverall.percentage}%",\n`;
+
+    // Row 3: College Overall Pass Percentage (Including UG + PG)
+    const collegePct = summary.collegeOverall.pgAwaitingMarks || summary.collegeOverall.percentage === null
+      ? `"— (Awaiting PG Marks)"`
+      : `"${summary.collegeOverall.percentage}%"`;
+    csv += `"College Overall Pass Percentage (Including UG + PG)",,${summary.collegeOverall.strength},${summary.collegeOverall.passed},${collegePct},\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -288,25 +456,45 @@ export default function PrincipalDashboard() {
         </button>
       </div>
 
-      {/* Overview Stats Grid */}
+      {/* Overview Stats Grid: 4 Core Institutional KPI Cards */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
-          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(128, 0, 0, 0.1)', color: '#800000' }}>
-            <Users size={24} />
+          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(37, 99, 235, 0.1)', color: '#2563EB' }}>
+            <Building size={24} />
           </div>
           <div className={styles.statInfo}>
-            <h3>Total Students</h3>
-            <h2>{overview.totalStudents}</h2>
+            <h3>UG Departments</h3>
+            <h2>{ACADEMIC_UNITS_METRICS.ugDepartmentsCount}</h2>
           </div>
         </div>
 
         <div className={styles.statCard}>
-          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6' }}>
-            <Building size={24} />
+          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(124, 58, 237, 0.1)', color: '#7C3AED' }}>
+            <GraduationCap size={24} />
           </div>
           <div className={styles.statInfo}>
-            <h3>Departments</h3>
-            <h2>{overview.totalDepartments}</h2>
+            <h3>PG Programmes</h3>
+            <h2>{ACADEMIC_UNITS_METRICS.pgProgrammesCount}</h2>
+          </div>
+        </div>
+
+        <div className={styles.statCard}>
+          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }}>
+            <Award size={24} />
+          </div>
+          <div className={styles.statInfo}>
+            <h3>Total Academic Units</h3>
+            <h2>{ACADEMIC_UNITS_METRICS.totalAcademicUnits}</h2>
+          </div>
+        </div>
+
+        <div className={styles.statCard}>
+          <div className={styles.statIconWrapper} style={{ backgroundColor: 'rgba(236, 72, 153, 0.1)', color: '#EC4899' }}>
+            <Users size={24} />
+          </div>
+          <div className={styles.statInfo}>
+            <h3>PG Student Strength</h3>
+            <h2>{(caData?.summary?.pgSummary?.strength > 0 ? caData.summary.pgSummary.strength : (pgStudentsCount || 0))}</h2>
           </div>
         </div>
       </div>
@@ -374,18 +562,19 @@ export default function PrincipalDashboard() {
             <table className={styles.caTable}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', paddingLeft: '16px' }}>Department</th>
+                  <th style={{ textAlign: 'left', paddingLeft: '16px' }}>Department / Programme</th>
                   <th>Year</th>
                   <th>Strength</th>
                   <th>Passed</th>
                   <th>Percentage (%)</th>
-                  <th>Percentage (Over all)</th>
+                  <th>Percentage (Overall)</th>
                 </tr>
               </thead>
               <tbody>
+                {/* 1. Undergraduate Departments (8 Departments) */}
                 {sanitizedCaDepartments.map((dept, dIdx) => (
                   dept.years.map((yr, yIdx) => (
-                    <tr key={`${dIdx}-${yIdx}`}>
+                    <tr key={`ug-${dIdx}-${yIdx}`}>
                       {yIdx === 0 && (
                         <td 
                           rowSpan={dept.years.length} 
@@ -417,31 +606,142 @@ export default function PrincipalDashboard() {
                   ))
                 ))}
 
-                {/* Summary Row: Without First Year */}
+                {/* 2. Postgraduate Programmes Section Divider */}
+                <tr key="pg-section-divider" style={{ background: 'rgba(124, 58, 237, 0.08)', borderTop: '2px solid #7C3AED', borderBottom: '1px solid #7C3AED' }}>
+                  <td colSpan={6} style={{ padding: '8px 16px', fontWeight: 800, color: '#6D28D9', fontSize: '0.82rem', letterSpacing: '0.5px', textAlign: 'left' }}>
+                    POSTGRADUATE PROGRAMMES (Anna University M.E. Regulation 2025)
+                  </td>
+                </tr>
+
+                {/* 3. Postgraduate Programmes (4 M.E. Programmes, 2 rows each: Year I and Year II) */}
+                {sanitizedPgProgrammes.map((prog, pIdx) => (
+                  <Fragment key={prog.programmeCode}>
+                    {prog.years.map((yr, yIdx) => {
+                      const hasMarks = yr.percentage !== null && yr.percentage !== undefined;
+                      const yrPassedDisplay = hasMarks ? yr.passed : '—';
+                      const yrPctDisplay = hasMarks ? (
+                        <span style={{ fontWeight: 600, color: parseFloat(yr.percentage) >= 75 ? '#059669' : parseFloat(yr.percentage) >= 50 ? '#d97706' : '#dc2626' }}>
+                          {yr.percentage}%
+                        </span>
+                      ) : (
+                        <span style={{ color: yr.strength === 0 ? 'var(--text-muted)' : '#d97706', fontSize: '0.80rem', fontStyle: yr.strength === 0 ? 'italic' : 'normal', fontWeight: yr.strength === 0 ? 500 : 600 }}>
+                          {yr.strength === 0 ? 'No Active Batch' : (yr.marksStatus || 'Marks Entry: Not Started')}
+                        </span>
+                      );
+
+                      const hasProgOverall = prog.progOverallPct !== null && prog.progOverallPct !== undefined;
+                      const progOverallDisplay = hasProgOverall ? (
+                        `${prog.progOverallPct}%`
+                      ) : (
+                        <span style={{ color: prog.progStrength === 0 ? 'var(--text-muted)' : '#64748b', fontSize: '0.80rem', fontStyle: prog.progStrength === 0 ? 'italic' : 'normal', fontWeight: prog.progStrength === 0 ? 500 : 600 }}>
+                          {prog.progStrength === 0 ? 'No Active Batch' : (prog.resultStatus || 'Awaiting Marks')}
+                        </span>
+                      );
+
+                      return (
+                        <tr key={`pg-${pIdx}-${yIdx}`}>
+                          {yIdx === 0 && (
+                            <td 
+                              rowSpan={prog.years.length} 
+                              className={styles.caDeptCell}
+                              style={{ borderLeft: '3px solid #7C3AED' }}
+                            >
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                {prog.programmeName}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>
+                                {prog.owningDepartment ? `Dept of ${prog.owningDepartment}` : ''} · M.E. R2025
+                              </div>
+                            </td>
+                          )}
+                          <td style={{ 
+                            fontWeight: 600, 
+                            textAlign: 'center' 
+                          }}>
+                            {yr.year}
+                          </td>
+                          <td>{yr.strength}</td>
+                          <td>{yrPassedDisplay}</td>
+                          <td>{yrPctDisplay}</td>
+                          {yIdx === 0 && (
+                            <td 
+                              rowSpan={prog.years.length} 
+                              className={styles.caDeptOverallCell}
+                            >
+                              {progOverallDisplay}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+
+                {/* 4. Three Required Institutional Summary Rows */}
+
+                {/* Summary Row 1: Without First Year (Years II, III, IV) */}
                 <tr className={styles.caSummaryRow}>
-                  <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px' }}>
+                  <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px', fontWeight: 700 }}>
                     Pass Percentage Without First Year (Years II, III, IV)
                   </td>
-                  <td>{(sanitizedSummary || caData.summary).withoutFirstYear.strength}</td>
-                  <td>{(sanitizedSummary || caData.summary).withoutFirstYear.passed}</td>
-                  <td colSpan={2} style={{ color: '#800000', fontSize: '0.9rem' }}>
+                  <td style={{ fontWeight: 700 }}>{(sanitizedSummary || caData.summary).withoutFirstYear.strength}</td>
+                  <td style={{ fontWeight: 700 }}>{(sanitizedSummary || caData.summary).withoutFirstYear.passed}</td>
+                  <td colSpan={2} style={{ color: '#800000', fontSize: '0.92rem', fontWeight: 800 }}>
                     {(sanitizedSummary || caData.summary).withoutFirstYear.percentage}%
                   </td>
                 </tr>
 
-                {/* Summary Row: College Overall */}
-                <tr className={styles.caOverallRow}>
-                  <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px' }}>
-                    College Overall Pass Percentage (Total including First Year)
+                {/* Summary Row 2: UG Overall Pass Percentage (Excluding PG) */}
+                <tr className={styles.caSummaryRow} style={{ background: '#f8fafc', borderTop: '1px solid var(--border-solid)' }}>
+                  <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px', fontWeight: 700, color: '#1E3A8A' }}>
+                    UG Overall Pass Percentage (Excluding PG)
                   </td>
-                  <td>{(sanitizedSummary || caData.summary).collegeOverall.strength}</td>
-                  <td>{(sanitizedSummary || caData.summary).collegeOverall.passed}</td>
-                  <td colSpan={2} style={{ fontSize: '1rem' }}>
-                    {(sanitizedSummary || caData.summary).collegeOverall.percentage}%
+                  <td style={{ fontWeight: 700 }}>{(sanitizedSummary || caData.summary).ugOverall.strength}</td>
+                  <td style={{ fontWeight: 700 }}>{(sanitizedSummary || caData.summary).ugOverall.passed}</td>
+                  <td colSpan={2} style={{ color: '#1E3A8A', fontSize: '0.92rem', fontWeight: 800 }}>
+                    {(sanitizedSummary || caData.summary).ugOverall.percentage}%
+                  </td>
+                </tr>
+
+                {/* Summary Row 3: College Overall Pass Percentage (Including UG + PG) */}
+                <tr className={styles.caOverallRow}>
+                  <td colSpan={2} style={{ textAlign: 'left', paddingLeft: '16px', fontWeight: 800 }}>
+                    College Overall Pass Percentage (Including UG + PG)
+                  </td>
+                  <td style={{ fontWeight: 800 }}>{(sanitizedSummary || caData.summary).collegeOverall.strength}</td>
+                  <td style={{ fontWeight: 800 }}>{(sanitizedSummary || caData.summary).collegeOverall.passed}</td>
+                  <td colSpan={2} style={{ fontSize: '0.95rem', fontWeight: 800 }}>
+                    {(sanitizedSummary || caData.summary).collegeOverall.pgAwaitingMarks || (sanitizedSummary || caData.summary).collegeOverall.percentage === null ? (
+                      <span style={{ color: '#d97706', fontWeight: 700 }}>
+                        — (Awaiting PG Marks)
+                      </span>
+                    ) : (
+                      `${(sanitizedSummary || caData.summary).collegeOverall.percentage}%`
+                    )}
                   </td>
                 </tr>
               </tbody>
             </table>
+
+            <div style={{
+              padding: '12px 20px',
+              background: 'var(--bg)',
+              borderTop: '1px solid var(--border-solid)',
+              fontSize: '0.8rem',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <span>
+                <strong style={{ color: 'var(--text-primary)' }}>Institutional Structure:</strong> 8 UG Departments (R2021) + 4 PG Programmes (R2025) = 12 Total Academic Units.
+              </span>
+              <span style={{ fontStyle: 'italic' }}>
+                Dynamic enrollment from live database · Zero duplicate counts
+              </span>
+            </div>
           </div>
         ) : null}
       </div>

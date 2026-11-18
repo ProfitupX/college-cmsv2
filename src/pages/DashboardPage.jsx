@@ -32,6 +32,8 @@ import {
   exportConsolidatedMarksExcel,
   exportClassAnalysisExcel
 } from '../services/excelReportGenerator';
+import { isPGClass, isPGSubject } from '../utils/pgRegulation2025';
+import AcademicUnitsManagement from '../components/Dashboard/AcademicUnitsManagement';
 import styles from './DashboardPage.module.css';
 
 export default function DashboardPage() {
@@ -1342,6 +1344,15 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* HOD Owning Department Postgraduate Programme Management (Strictly CSE, ECE, Civil, Mechanical Only) */}
+      {user?.role === 'hod' && (
+        <AcademicUnitsManagement 
+          mode="hod"
+          department={user?.department}
+          classes={classes}
+        />
+      )}
+
       {/* Class In-charge Dedicated Command Center */}
       {user?.isClassCoordinator && coordinatedClass && (
         <div className={styles.inchargeCard}>
@@ -1481,8 +1492,8 @@ export default function DashboardPage() {
 
           <div className={styles.subjectGrid}>
             {(assignedSubjects || []).filter(Boolean).map((sub) => {
-              const isPGSubject = String(sub?.class_id || '').startsWith('ME_') || sub?.program_type === 'PG' || sub?.regulation_code === 'R2025';
-              const is2021 = !isPGSubject && (sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5);
+              const isPG = isPGSubject(sub);
+              const is2021 = !isPG && (sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5);
               const targetRoute = is2021 ? '/marks-entry-2021' : '/marks-entry';
 
               return (
