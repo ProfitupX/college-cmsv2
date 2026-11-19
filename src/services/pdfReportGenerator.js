@@ -861,148 +861,653 @@ export const generateConsolidatedMarksPDF = async ({
   classObj, sessionLabel = 'internal1', subjects, students, allSessions, allAttendance, allMarks = [], allComponents = [], selectedSubjectIds,
   inchargeNameParam = '', user
 }) => {
+  const isPG = isPGClass(classObj);
+  const regValue = String(
+    classObj?.regulation_code ||
+    classObj?.regulation ||
+    classObj?.regulation_year ||
+    ''
+  ).trim();
+  const isExplicit2021 = regValue === '2021' || regValue === 'R2021';
+  const isExplicit2025 = regValue === '2025' || regValue === 'R2025';
+
+  const VERIFIED_2021_CLASS_IDS = [
+    'CL_AIDS_III', 'CL_AIDS_IV',
+    'CL_CIVIL_III', 'CL_CIVIL_IV',
+    'CL_CSE_III', 'CL_CSE_IV',
+    'CL_ECE_III', 'CL_ECE_IV',
+    'CL_EEE_III', 'CL_EEE_IV',
+    'CL_IT_III', 'CL_IT_IV',
+    'CL_MECH_III', 'CL_MECH_IV'
+  ];
+  const classId = String(classObj?.id || classObj?.class_id || '').trim();
+  const isVerified2021Class = VERIFIED_2021_CLASS_IDS.includes(classId);
+
+  const is2021 = !isPG && !isExplicit2025 && (isExplicit2021 || isVerified2021Class);
+
+  // ─────────────────────────────────────────────────────────────
+  // 2025 REGULATION & PG PROGRAMMES: PRESERVE ORIGINAL LOGIC UNCHANGED
+  // ─────────────────────────────────────────────────────────────
+  if (!is2021) {
+    // Standard A4 paper in landscape mode (297 x 210 mm)
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
+
+    let y = 46;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Year / Semester : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
+    doc.text(`Department      : ${classObj?.department || 'IT'}`, 140, y);
+    y += 5;
+    doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
+    doc.text(`Academic Year : 2026 - 2027`, 140, y);
+    y += 5;
+    doc.text(`Student Strength : ${students.length}`, 14, y);
+    y += 6;
+
+    // Remove Library and apply selectedSubjectIds filter
+    let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
+    if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+      filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+    }
+
+    // Subject Columns (all selected subjects)
+    const targetSubjects = filteredSubjects;
+    const numSubs = targetSubjects.length;
+    const subCols = targetSubjects.map(s => {
+      const sess = (allSessions || []).find(sessObj => (sessObj.subject_id === s.id || sessObj.subject_id === s.code) && (sessObj.session_label === sessionLabel || !sessObj.session_label));
+      const dateText = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
+      return `${s.code}\n(${dateText})`;
+    });
+    const headRow = ['Reg.No', 'Name', ...subCols, 'No. of Sub\nFailed', 'No. of Sub\nPassed', 'No. of Sub\nAbsent'];
+
+    // Map student rows
+    const tableRows = students.map(st => {
+      let failedCount = 0;
+      let passedCount = 0;
+      let absentCount = 0;
+
+      const markCols = targetSubjects.map(sub => {
+        const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
+        if (!sess) {
+          absentCount++;
+          return '-';
+        }
+        const isPGSub = isPGClass(classObj) || isPGSubject(sub, classObj);
+        let score;
+        if (isPGSub) {
+          const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+          const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+          let rawCIA = 0;
+          sessionComps.forEach((comp) => {
+            const markObj = studentMarks.find(m => m.component_id === comp.id);
+            const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+            rawCIA += Math.min(val, conducted);
+          });
+          const subConfig = getPGComponentPresets(sub?.type);
+          const maxCA = subConfig?.ciaMax || 40;
+          score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
+          if (studentMarks.length === 0 && sessionComps.length > 0) {
+            score = 'AB';
+          }
+        } else {
+          const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+          const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+          const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+            (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+          let rawScore = null;
+          if (isPureLab) {
+            if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+              const val = parseFloat(att.lab_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          } else if (isTheoryCumLab) {
+            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+              const val = parseFloat(att.internal_exam_mark);
+              if (!isNaN(val)) rawScore = val;
+            } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+              const val = parseFloat(att.lab_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          } else {
+            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+              const val = parseFloat(att.internal_exam_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          }
+
+          if (rawScore === null) {
+            absentCount++;
+            return 'AB';
+          }
+          score = rawScore;
+        }
+
+        if (isNaN(score) || score === null) {
+          absentCount++;
+          return 'AB';
+        }
+        const rounded = Math.round(score);
+        if (rounded >= 50) passedCount++;
+        else failedCount++;
+        return rounded;
+      });
+
+      return [
+        st.roll_no || st.rollNo || st.id,
+        st.name,
+        ...markCols,
+        failedCount,
+        passedCount,
+        absentCount
+      ];
+    });
+
+    // Calculate summary per subject (passed, failed, absent, pass %)
+    const perSubjectPassed = [];
+    const perSubjectFailed = [];
+    const perSubjectAbsent = [];
+    const perSubjectPassPct = [];
+
+    targetSubjects.forEach(sub => {
+      const sess = allSessions.find(s => s.subject_id === sub.id);
+      let p = 0, f = 0, ab = 0;
+      students.forEach(st => {
+        if (!sess) {
+          ab++;
+          return;
+        }
+        const isPGSub = isPGClass(classObj) || isPGSubject(sub, classObj);
+        let score;
+        let isAbsent = false;
+
+        if (isPGSub) {
+          const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+          const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+          let rawCIA = 0;
+          sessionComps.forEach((comp) => {
+            const markObj = studentMarks.find(m => m.component_id === comp.id);
+            const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+            rawCIA += Math.min(val, conducted);
+          });
+          const subConfig = getPGComponentPresets(sub?.type);
+          const maxCA = subConfig?.ciaMax || 40;
+          score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
+          if (studentMarks.length === 0 && sessionComps.length > 0) {
+            isAbsent = true;
+          }
+        } else {
+          const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+          const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+          const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+            (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+          let rawScore = null;
+          if (isPureLab) {
+            if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+              const val = parseFloat(att.lab_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          } else if (isTheoryCumLab) {
+            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+              const val = parseFloat(att.internal_exam_mark);
+              if (!isNaN(val)) rawScore = val;
+            } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
+              const val = parseFloat(att.lab_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          } else {
+            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
+              const val = parseFloat(att.internal_exam_mark);
+              if (!isNaN(val)) rawScore = val;
+            }
+          }
+
+          if (rawScore === null) {
+            isAbsent = true;
+          } else {
+            score = rawScore;
+          }
+        }
+
+        if (isAbsent || isNaN(score) || score === null) {
+          ab++;
+        } else if (score >= 50) {
+          p++;
+        } else {
+          f++;
+        }
+      });
+      perSubjectPassed.push(p);
+      perSubjectFailed.push(f);
+      perSubjectAbsent.push(ab);
+      const totalAppeared = p + f;
+      perSubjectPassPct.push(totalAppeared > 0 ? `${((p / totalAppeared) * 100).toFixed(1)}%` : '100%');
+    });
+
+    const footRows = [
+      ['', 'No. of Students Passed', ...perSubjectPassed, '-', '-', '-'],
+      ['', 'No. of Students Failed', ...perSubjectFailed, '-', '-', '-'],
+      ['', 'No. of Students Absent', ...perSubjectAbsent, '-', '-', '-'],
+      ['', 'Pass Percentage', ...perSubjectPassPct, '-', '-', '-']
+    ];
+
+    // Dynamic layout & column width allocation across standard A4 paper landscape
+    const maxUsableWidth = pageWidth - 20; // 277mm with 10mm margins on A4
+    const regWidth = 24;
+    let nameWidth = numSubs <= 3 ? 55 : (numSubs <= 6 ? 42 : 36);
+    let summaryColWidth = numSubs <= 3 ? 20 : (numSubs <= 6 ? 16 : 14);
+
+    const safeSubsCount = Math.max(1, numSubs);
+    let perSubColWidth;
+    if (numSubs <= 2) {
+      perSubColWidth = 32;
+    } else if (numSubs <= 4) {
+      perSubColWidth = 26;
+    } else if (numSubs <= 6) {
+      perSubColWidth = 22;
+    } else {
+      const fixedTotal = regWidth + nameWidth + (summaryColWidth * 3);
+      const rem = maxUsableWidth - fixedTotal;
+      perSubColWidth = Math.floor((rem / safeSubsCount) * 100) / 100;
+    }
+
+    const totalTableWidth = regWidth + nameWidth + (perSubColWidth * numSubs) + (summaryColWidth * 3);
+    const marginLeft = totalTableWidth < maxUsableWidth ? Math.round(((pageWidth - totalTableWidth) / 2) * 10) / 10 : 10;
+
+    const colStyles = {
+      0: { cellWidth: regWidth, halign: 'center' },
+      1: { cellWidth: nameWidth, halign: 'left' }
+    };
+
+    for (let i = 0; i < numSubs; i++) {
+      colStyles[2 + i] = { cellWidth: perSubColWidth, halign: 'center' };
+    }
+    colStyles[2 + numSubs] = { cellWidth: summaryColWidth, halign: 'center' };
+    colStyles[2 + numSubs + 1] = { cellWidth: summaryColWidth, halign: 'center' };
+    colStyles[2 + numSubs + 2] = { cellWidth: summaryColWidth, halign: 'center' };
+
+    const fontSize = numSubs > 7 ? 6.5 : (numSubs > 5 ? 7 : 7.5);
+    const cellPadding = numSubs > 7 ? 0.9 : 1.2;
+
+    autoTable(doc, {
+      startY: y,
+      head: [headRow],
+      body: tableRows,
+      foot: footRows,
+      theme: 'grid',
+      showFoot: 'lastPage',
+      showHead: 'everyPage',
+      margin: { top: 15, bottom: 18, left: marginLeft, right: marginLeft },
+      styles: {
+        fontSize,
+        halign: 'center',
+        valign: 'middle',
+        cellPadding,
+        lineWidth: 0.1,
+        lineColor: [120, 120, 120]
+      },
+      headStyles: {
+        fillColor: [240, 242, 245],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        fontSize,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0]
+      },
+      footStyles: {
+        fillColor: [245, 247, 250],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        fontSize,
+        halign: 'center',
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0]
+      },
+      columnStyles: colStyles
+    });
+
+    // Signatures (Class Incharge, HOD, Principal)
+    const finalY = doc.lastAutoTable.finalY;
+    const neededHeight = 24;
+    let sigY;
+    if (finalY + neededHeight > pageHeight - 14) {
+      doc.addPage();
+      sigY = pageHeight - 18;
+    } else {
+      sigY = pageHeight - 18;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
+    doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
+    doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
+
+    const now = new Date();
+    addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }), user);
+    doc.save(`${classObj?.name}_Consolidated_Mark_Statement.pdf`);
+    return;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2021 REGULATION CONSOLIDATED MARK STATEMENT
+  // ─────────────────────────────────────────────────────────────
+  const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
+  const targetSessionLabel = isInternal2 ? 'internal2' : 'internal1';
+
   // Standard A4 paper in landscape mode (297 x 210 mm)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const centerX = pageWidth / 2;
+  const boxWidth = pageWidth - 20; // 277 mm
 
-  await drawCollegeHeader(doc, 'Consolidated Mark Statement', 'NAC/TLP-07a.20', '01', '', '1 of 1');
+  // Header Box
+  doc.rect(10, 8, boxWidth, 24);
 
-  let y = 46;
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Year / Semester : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
-  doc.text(`Department      : ${classObj?.department || 'IT'}`, 140, y);
-  y += 5;
-  doc.text(`Internal Test   : ${sessionLabel === 'internal1' ? 'Internal Test 1 with Assignment' : 'Internal Test 2 with Assignment'}`, 14, y);
-  doc.text(`Academic Year : 2026 - 2027`, 140, y);
-  y += 5;
-  doc.text(`Student Strength : ${students.length}`, 14, y);
-  y += 6;
+  // Logo & College Name
+  let logoBase64 = null;
+  try {
+    logoBase64 = typeof Image !== 'undefined' ? await getImageDataUrl(logoImg) : null;
+  } catch (e) {}
 
-  // Remove Library and apply selectedSubjectIds filter
-  let filteredSubjects = subjects.filter(s => s.code !== 'LIB' && s.name.toUpperCase() !== 'LIBRARY');
-  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
-    filteredSubjects = filteredSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  if (logoBase64) {
+    try {
+      doc.addImage(logoBase64, 'JPEG', 12, 9, 85, 22);
+    } catch (e) {
+      console.warn('Could not render logo in PDF', e);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY', 102 + (boxWidth - 92) / 2, 17, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('(Approved by AICTE, New Delhi & Affiliated to Anna University, Chennai)', 102 + (boxWidth - 92) / 2, 23, { align: 'center' });
+  } else {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY', centerX, 17, { align: 'center' });
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('(Approved by AICTE, New Delhi & Affiliated to Anna University, Chennai)', centerX, 23, { align: 'center' });
   }
 
-  // Subject Columns (all selected subjects)
-  const targetSubjects = filteredSubjects;
-  const numSubs = targetSubjects.length;
-  const subCols = targetSubjects.map(s => {
-    const sess = (allSessions || []).find(sessObj => (sessObj.subject_id === s.id || sessObj.subject_id === s.code) && (sessObj.session_label === sessionLabel || !sessObj.session_label));
-    const dateText = sess?.exam_date ? formatExamDate(sess.exam_date) : '—';
-    return `${s.code}\n(${dateText})`;
+  // Title Banner
+  doc.rect(10, 32, boxWidth, 7);
+  doc.setFillColor(245, 247, 250);
+  doc.rect(10.1, 32.1, boxWidth - 0.2, 6.8, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text('CONSOLIDATED MARK STATEMENT', centerX, 36.5, { align: 'center' });
+
+  // Metadata block (dynamic data, no format codes)
+  let yMeta = 42;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+
+  const examLabel = isInternal2 ? 'INTERNAL TEST 2' : 'INTERNAL TEST 1';
+  const deptStr = classObj?.department || classObj?.dept || user?.department || '—';
+  const acadYearStr = classObj?.academic_year || classObj?.academicYear || '—';
+  const yrStr = classObj?.year_label || classObj?.year || '—';
+  const semStr = classObj?.semester || '—';
+  const strengthStr = String(Array.isArray(students) ? students.length : 0);
+
+  // Row 1
+  doc.text(`Department      : ${deptStr}`, 14, yMeta);
+  doc.text(`Year / Semester : ${yrStr} / ${semStr}`, 110, yMeta);
+  doc.text(`Academic Year   : ${acadYearStr}`, 210, yMeta);
+
+  // Row 2
+  yMeta += 4.5;
+  doc.text(`Examination     : ${examLabel}`, 14, yMeta);
+  doc.text(`Student Strength: ${strengthStr}`, 110, yMeta);
+
+  const tableStartY = yMeta + 4.5;
+
+  // Filter subjects (remove Library and apply selectedSubjectIds filter)
+  let targetSubjects = (subjects || []).filter(s => s.code !== 'LIB' && s.name?.toUpperCase() !== 'LIBRARY');
+  if (selectedSubjectIds && selectedSubjectIds.length > 0) {
+    targetSubjects = targetSubjects.filter(s => selectedSubjectIds.includes(s.id));
+  }
+
+  // Build subject columns for 2021 Regulation:
+  // - Theory-cum-Lab in Internal 2: 2 columns (Theory, Lab)
+  // - Pure Laboratory: 1 column (Lab)
+  // - Pure Theory: 1 column
+  const colDefs = [];
+  targetSubjects.forEach(sub => {
+    const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+    const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+      (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+    if (isPureLab) {
+      colDefs.push({
+        key: `${sub.id}_lab`,
+        sub,
+        type: 'pure_lab',
+        header: `${sub.code} - Lab`
+      });
+    } else if (isTheoryCumLab) {
+      if (isInternal2) {
+        colDefs.push({
+          key: `${sub.id}_theory`,
+          sub,
+          type: 'theory',
+          header: `${sub.code} - Theory`
+        });
+        colDefs.push({
+          key: `${sub.id}_lab`,
+          sub,
+          type: 'lab',
+          header: `${sub.code} - Lab`
+        });
+      } else {
+        colDefs.push({
+          key: `${sub.id}_theory`,
+          sub,
+          type: 'theory',
+          header: sub.code
+        });
+      }
+    } else {
+      // Pure Theory
+      colDefs.push({
+        key: `${sub.id}_theory`,
+        sub,
+        type: 'theory',
+        header: sub.code
+      });
+    }
   });
-  const headRow = ['Reg.No', 'Name', ...subCols, 'No. of Sub\nFailed', 'No. of Sub\nPassed', 'No. of Sub\nAbsent'];
+
+  const numCols = colDefs.length;
+  // Header row without absent column
+  const headRow = ['Reg.No', 'Name', ...colDefs.map(c => c.header), 'No. of Sub\nFailed', 'No. of Sub\nPassed'];
 
   // Map student rows
   const tableRows = students.map(st => {
-    let failedCount = 0;
-    let passedCount = 0;
-    let absentCount = 0;
-
-    const markCols = targetSubjects.map(sub => {
-      const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
+    // 1. Map marks for display columns (colDefs)
+    const markCols = colDefs.map(col => {
+      const sub = col.sub;
+      const sess = (allSessions || []).find(s =>
+        (s.subject_id === sub.id || s.subject_id === sub.code) &&
+        s.session_label === targetSessionLabel
+      );
       if (!sess) {
-        absentCount++;
         return '-';
       }
-      const isPG = isPGClass(classObj) || isPGSubject(sub, classObj);
-      const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
-      
-      let score;
-      if (isPG) {
-        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        let rawCIA = 0;
-        sessionComps.forEach((comp) => {
-          const markObj = studentMarks.find(m => m.component_id === comp.id);
-          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
-        });
-        const subConfig = getPGComponentPresets(sub?.type);
-        const maxCA = subConfig?.ciaMax || 40;
-        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
-        if (studentMarks.length === 0 && sessionComps.length > 0) {
+
+      const sessionComps = (allComponents || []).filter(c => c.session_id === sess.id);
+      const studentMarks = (allMarks || []).filter(m => m.session_id === sess.id && m.student_id === st.id);
+      let rawCIA = 0;
+      sessionComps.forEach((comp) => {
+        const markObj = studentMarks.find(m => m.component_id === comp.id || (comp.uid && m.component_id === comp.uid));
+        const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+        const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+        rawCIA += Math.min(val, conducted);
+      });
+
+      const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+      const att = (allAttendance || []).find(a => a.session_id === sess.id && a.student_id === st.id);
+
+      let score = null;
+
+      if (col.type === 'pure_lab') {
+        if (att && att.lab_mark === 'AB') {
           score = 'AB';
-        }
-      } else if (is2021) {
-        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        
-        let rawCIA = 0;
-        sessionComps.forEach((comp) => {
-          const markObj = studentMarks.find(m => m.component_id === comp.id);
-          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-          // Use conducted_max, fallback to max_marks, default to 100
-          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
-        });
-        
-        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        const ciaMax = isLabType ? 50 : 40;
-        const examConvertedMax = isLabType ? 50 : 60;
-        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
-
-        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        const examRaw = parseFloat(att?.internal_exam_mark) || 0;
-        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-        
-        const labExamRaw = parseFloat(att?.lab_mark) || 0;
-        const labExamConverted = Math.round((labExamRaw / 100) * 50);
-
-        if (isLabType && sessionLabel === 'internal2') {
-          score = Math.min(ciaTotal + labExamConverted, 100);
+        } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '') {
+          const val = parseFloat(att.lab_mark);
+          if (!isNaN(val)) score = Math.min(100, Math.max(0, Math.round(val)));
         } else {
-          score = Math.min(ciaTotal + examConverted, 100);
+          score = '-';
+        }
+      } else if (col.type === 'lab') {
+        // Lab component of Theory-cum-Lab in Internal 2
+        const ciaTotal = Math.min(Math.round(rawCIA), 50);
+        if (att && att.lab_mark === 'AB') {
+          score = 'AB';
+        } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '') {
+          const labExamRaw = parseFloat(att.lab_mark);
+          if (!isNaN(labExamRaw)) {
+            const labExamConverted = Math.round((labExamRaw / 100) * 50);
+            score = Math.min(ciaTotal + labExamConverted, 100);
+          } else {
+            score = '-';
+          }
+        } else {
+          score = '-';
         }
       } else {
-        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
-          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+        // Theory column (Pure Theory or Theory-cum-Lab theory component)
+        const ciaMax = isTheoryCumLab ? 50 : 40;
+        const examConvertedMax = isTheoryCumLab ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
 
-        let rawScore = null;
-        if (isPureLab) {
-          // Pure Laboratory: strictly lab_mark as primary. Never substitute theory marks for missing lab marks.
-          if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-            const val = parseFloat(att.lab_mark);
-            if (!isNaN(val)) rawScore = val;
+        if (att && att.internal_exam_mark === 'AB') {
+          score = 'AB';
+        } else if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '') {
+          const examRaw = parseFloat(att.internal_exam_mark);
+          if (!isNaN(examRaw)) {
+            const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+            score = Math.min(ciaTotal + examConverted, 100);
+          } else {
+            score = '-';
           }
-        } else if (isTheoryCumLab) {
-          // Theory-cum-Lab: read internal_exam_mark first, use lab_mark only as fallback
-          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-            const val = parseFloat(att.internal_exam_mark);
-            if (!isNaN(val)) rawScore = val;
-          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-            const val = parseFloat(att.lab_mark);
-            if (!isNaN(val)) rawScore = val;
-          }
+        } else if (sessionComps.length > 0 || studentMarks.length > 0) {
+          score = Math.min(ciaTotal, 100);
         } else {
-          // Pure Theory: read internal_exam_mark
-          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-            const val = parseFloat(att.internal_exam_mark);
-            if (!isNaN(val)) rawScore = val;
-          }
+          score = '-';
         }
-
-        if (rawScore === null) {
-          absentCount++;
-          return 'AB';
-        }
-        score = rawScore;
       }
 
-      if (isNaN(score) || score === null) {
-        absentCount++;
+      if (typeof score === 'number') {
+        return score;
+      }
+      if (score === 'AB') {
         return 'AB';
       }
-      const rounded = Math.round(score);
-      if (rounded >= 50) passedCount++;
-      else failedCount++;
-      return rounded;
+      return '-';
+    });
+
+    // 2. Calculate student-level pass/fail per actual SUBJECT (targetSubjects)
+    // Ensures Theory-cum-Lab in Internal 2 is counted exactly ONCE per student
+    let passedCount = 0;
+    let failedCount = 0;
+
+    targetSubjects.forEach(sub => {
+      const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+      const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+        (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+
+      const sess = (allSessions || []).find(s =>
+        (s.subject_id === sub.id || s.subject_id === sub.code) &&
+        s.session_label === targetSessionLabel
+      );
+      if (!sess) {
+        failedCount++;
+        return;
+      }
+
+      const sessionComps = (allComponents || []).filter(c => c.session_id === sess.id);
+      const studentMarks = (allMarks || []).filter(m => m.session_id === sess.id && m.student_id === st.id);
+      let rawCIA = 0;
+      sessionComps.forEach((comp) => {
+        const markObj = studentMarks.find(m => m.component_id === comp.id || (comp.uid && m.component_id === comp.uid));
+        const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+        const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
+        rawCIA += Math.min(val, conducted);
+      });
+
+      const att = (allAttendance || []).find(a => a.session_id === sess.id && a.student_id === st.id);
+
+      if (isPureLab) {
+        if (att && att.lab_mark !== 'AB' && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '') {
+          const val = parseFloat(att.lab_mark);
+          if (!isNaN(val) && val >= 50) passedCount++;
+          else failedCount++;
+        } else {
+          failedCount++;
+        }
+      } else if (isTheoryCumLab && isInternal2) {
+        // Theory-cum-Lab in Internal 2:
+        // Existing approved MarkHub rule (from excelReportGenerator.js lines 1747-1753 and MarksRow2021.jsx lines 195-200):
+        // Subject Total = CIA (/50) + Lab Exam Converted (/50). Subject passed if total >= 50 and neither component is AB.
+        const ciaTotal = Math.min(Math.round(rawCIA), 50);
+        const isTheoryAB = !att || att.internal_exam_mark === 'AB';
+        const isLabAB = !att || att.lab_mark === 'AB';
+
+        if (isTheoryAB || isLabAB) {
+          failedCount++;
+        } else {
+          const labRaw = parseFloat(att?.lab_mark);
+          const examRaw = parseFloat(att?.internal_exam_mark);
+          if (!isNaN(labRaw)) {
+            const labExamConverted = Math.round((labRaw / 100) * 50);
+            const subjectScore = Math.min(ciaTotal + labExamConverted, 100);
+            if (subjectScore >= 50) passedCount++;
+            else failedCount++;
+          } else if (!isNaN(examRaw)) {
+            const examConverted = Math.round((examRaw / 100) * 50);
+            const subjectScore = Math.min(ciaTotal + examConverted, 100);
+            if (subjectScore >= 50) passedCount++;
+            else failedCount++;
+          } else {
+            failedCount++;
+          }
+        }
+      } else {
+        // Pure Theory or Theory-cum-Lab in Internal 1
+        const ciaMax = isTheoryCumLab ? 50 : 40;
+        const examConvertedMax = isTheoryCumLab ? 50 : 60;
+        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
+
+        if (!att || att.internal_exam_mark === 'AB') {
+          failedCount++;
+        } else if (att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '') {
+          const examRaw = parseFloat(att.internal_exam_mark);
+          if (!isNaN(examRaw)) {
+            const examConverted = Math.round((examRaw / 100) * examConvertedMax);
+            const subjectScore = Math.min(ciaTotal + examConverted, 100);
+            if (subjectScore >= 50) passedCount++;
+            else failedCount++;
+          } else {
+            failedCount++;
+          }
+        } else if (sessionComps.length > 0 || studentMarks.length > 0) {
+          if (ciaTotal >= 50) passedCount++;
+          else failedCount++;
+        } else {
+          failedCount++;
+        }
+      }
     });
 
     return [
@@ -1010,203 +1515,99 @@ export const generateConsolidatedMarksPDF = async ({
       st.name,
       ...markCols,
       failedCount,
-      passedCount,
-      absentCount
+      passedCount
     ];
   });
 
-  // Calculate summary per subject (passed, failed, absent, pass %)
-  const perSubjectPassed = [];
-  const perSubjectFailed = [];
-  const perSubjectAbsent = [];
-  const perSubjectPassPct = [];
+  // Calculate summary per column (passed, failed, pass %) without absent row
+  const perColPassed = [];
+  const perColFailed = [];
+  const perColPassPct = [];
 
-  targetSubjects.forEach(sub => {
-    const sess = allSessions.find(s => s.subject_id === sub.id);
-    let p = 0, f = 0, ab = 0;
-    students.forEach(st => {
-      if (!sess) {
-        ab++;
-        return;
-      }
-      const isPG = isPGClass(classObj) || isPGSubject(sub, classObj);
-      const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
-      
-      let score;
-      let isAbsent = false;
-      
-      if (isPG) {
-        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        let rawCIA = 0;
-        sessionComps.forEach((comp) => {
-          const markObj = studentMarks.find(m => m.component_id === comp.id);
-          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
-        });
-        const subConfig = getPGComponentPresets(sub?.type);
-        const maxCA = subConfig?.ciaMax || 40;
-        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
-        if (studentMarks.length === 0 && sessionComps.length > 0) {
-          isAbsent = true;
-        }
-      } else if (is2021) {
-        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        
-        let rawCIA = 0;
-        sessionComps.forEach((comp) => {
-          const markObj = studentMarks.find(m => m.component_id === comp.id);
-          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
-        });
-        
-        const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        const ciaMax = isLabType ? 50 : 40;
-        const examConvertedMax = isLabType ? 50 : 60;
-        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
-
-        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        const examRaw = parseFloat(att?.internal_exam_mark) || 0;
-        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-        
-        const labExamRaw = parseFloat(att?.lab_mark) || 0;
-        const labExamConverted = Math.round((labExamRaw / 100) * 50);
-
-        if (isLabType && sessionLabel === 'internal2') {
-          score = Math.min(ciaTotal + labExamConverted, 100);
-        } else {
-          score = Math.min(ciaTotal + examConverted, 100);
-        }
-      } else {
-        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
-          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
-
-        let rawScore = null;
-        if (isPureLab) {
-          // Pure Laboratory: strictly lab_mark as primary. Never substitute theory marks for missing lab marks.
-          if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-            const val = parseFloat(att.lab_mark);
-            if (!isNaN(val)) rawScore = val;
-          }
-        } else if (isTheoryCumLab) {
-          // Theory-cum-Lab: read internal_exam_mark first, use lab_mark only as fallback
-          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-            const val = parseFloat(att.internal_exam_mark);
-            if (!isNaN(val)) rawScore = val;
-          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-            const val = parseFloat(att.lab_mark);
-            if (!isNaN(val)) rawScore = val;
-          }
-        } else {
-          // Pure Theory: read internal_exam_mark
-          if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-            const val = parseFloat(att.internal_exam_mark);
-            if (!isNaN(val)) rawScore = val;
-          }
-        }
-
-        if (rawScore === null) {
-          isAbsent = true;
-        } else {
-          score = rawScore;
-        }
-      }
-
-      if (isAbsent || isNaN(score) || score === null) {
-        ab++;
-      } else if (score >= 50) {
-        p++;
-      } else {
+  colDefs.forEach((col, colIdx) => {
+    let p = 0;
+    let f = 0;
+    tableRows.forEach(row => {
+      const val = row[2 + colIdx];
+      if (typeof val === 'number') {
+        if (val >= 50) p++;
+        else f++;
+      } else if (val === 'AB') {
         f++;
       }
     });
-    perSubjectPassed.push(p);
-    perSubjectFailed.push(f);
-    perSubjectAbsent.push(ab);
+    perColPassed.push(p);
+    perColFailed.push(f);
     const totalAppeared = p + f;
-    perSubjectPassPct.push(totalAppeared > 0 ? `${((p / totalAppeared) * 100).toFixed(1)}%` : '100%');
+    perColPassPct.push(totalAppeared > 0 ? `${((p / totalAppeared) * 100).toFixed(1)}%` : '100%');
   });
 
   const footRows = [
-    ['', 'No. of Students Passed', ...perSubjectPassed, '-', '-', '-'],
-    ['', 'No. of Students Failed', ...perSubjectFailed, '-', '-', '-'],
-    ['', 'No. of Students Absent', ...perSubjectAbsent, '-', '-', '-'],
-    ['', 'Pass Percentage', ...perSubjectPassPct, '-', '-', '-']
+    ['', 'No. of Students Passed', ...perColPassed, '-', '-'],
+    ['', 'No. of Students Failed', ...perColFailed, '-', '-'],
+    ['', 'Pass Percentage', ...perColPassPct, '-', '-']
   ];
 
-  // Dynamic layout & column width allocation across standard A4 paper landscape
-  const maxUsableWidth = pageWidth - 20; // 277mm with 10mm margins on A4
+  // Dynamic layout & column width allocation across standard A4 paper landscape (297 x 210 mm)
+  const maxUsableWidth = pageWidth - 20; // 277 mm with 10 mm margins
   const regWidth = 24;
-  let nameWidth = numSubs <= 3 ? 55 : (numSubs <= 6 ? 42 : 36);
-  let summaryColWidth = numSubs <= 3 ? 20 : (numSubs <= 6 ? 16 : 14);
+  let nameWidth = numCols <= 3 ? 55 : (numCols <= 6 ? 42 : 36);
+  let summaryColWidth = numCols <= 3 ? 18 : 14;
 
-  const safeSubsCount = Math.max(1, numSubs);
-  let perSubColWidth;
-  if (numSubs <= 2) {
-    perSubColWidth = 32;
-  } else if (numSubs <= 4) {
-    perSubColWidth = 26;
-  } else if (numSubs <= 6) {
-    perSubColWidth = 22;
-  } else {
-    const fixedTotal = regWidth + nameWidth + (summaryColWidth * 3);
-    const rem = maxUsableWidth - fixedTotal;
-    perSubColWidth = Math.floor((rem / safeSubsCount) * 100) / 100;
-  }
+  const safeColsCount = Math.max(1, numCols);
+  const fixedTotal = regWidth + nameWidth + (summaryColWidth * 2);
+  const rem = maxUsableWidth - fixedTotal;
+  const perColWidth = Math.floor((rem / safeColsCount) * 100) / 100;
 
-  const totalTableWidth = regWidth + nameWidth + (perSubColWidth * numSubs) + (summaryColWidth * 3);
+  const totalTableWidth = regWidth + nameWidth + (perColWidth * numCols) + (summaryColWidth * 2);
   const marginLeft = totalTableWidth < maxUsableWidth ? Math.round(((pageWidth - totalTableWidth) / 2) * 10) / 10 : 10;
+  const marginRight = marginLeft;
 
   const colStyles = {
     0: { cellWidth: regWidth, halign: 'center' },
     1: { cellWidth: nameWidth, halign: 'left' }
   };
 
-  for (let i = 0; i < numSubs; i++) {
-    colStyles[2 + i] = { cellWidth: perSubColWidth, halign: 'center' };
+  for (let i = 0; i < numCols; i++) {
+    colStyles[2 + i] = { cellWidth: perColWidth, halign: 'center' };
   }
-  colStyles[2 + numSubs] = { cellWidth: summaryColWidth, halign: 'center' };
-  colStyles[2 + numSubs + 1] = { cellWidth: summaryColWidth, halign: 'center' };
-  colStyles[2 + numSubs + 2] = { cellWidth: summaryColWidth, halign: 'center' };
+  colStyles[2 + numCols] = { cellWidth: summaryColWidth, halign: 'center' };
+  colStyles[2 + numCols + 1] = { cellWidth: summaryColWidth, halign: 'center' };
 
-  const fontSize = numSubs > 7 ? 6.5 : (numSubs > 5 ? 7 : 7.5);
-  const cellPadding = numSubs > 7 ? 0.9 : 1.2;
+  const fontSize = numCols > 8 ? 6.2 : (numCols > 5 ? 6.8 : 7.2);
+  const cellPadding = numCols > 8 ? 0.75 : (numCols > 5 ? 0.85 : 1.0);
 
   autoTable(doc, {
-    startY: y,
+    startY: tableStartY,
+    tableWidth: totalTableWidth,
     head: [headRow],
     body: tableRows,
     foot: footRows,
     theme: 'grid',
     showFoot: 'lastPage',
     showHead: 'everyPage',
-    margin: { top: 15, bottom: 18, left: marginLeft, right: marginLeft },
-    styles: { 
-      fontSize, 
-      halign: 'center', 
-      valign: 'middle', 
+    margin: { top: 12, bottom: 14, left: marginLeft, right: marginRight },
+    styles: {
+      fontSize,
+      halign: 'center',
+      valign: 'middle',
       cellPadding,
       lineWidth: 0.1,
       lineColor: [120, 120, 120]
     },
-    headStyles: { 
-      fillColor: [240, 242, 245], 
-      textColor: [0, 0, 0], 
-      fontStyle: 'bold', 
+    headStyles: {
+      fillColor: [240, 242, 245],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
       fontSize,
       lineWidth: 0.1,
       lineColor: [0, 0, 0]
     },
-    footStyles: { 
-      fillColor: [245, 247, 250], 
-      textColor: [0, 0, 0], 
-      fontStyle: 'bold', 
-      fontSize, 
+    footStyles: {
+      fillColor: [245, 247, 250],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize,
       halign: 'center',
       lineWidth: 0.1,
       lineColor: [0, 0, 0]
@@ -1216,12 +1617,13 @@ export const generateConsolidatedMarksPDF = async ({
 
   // Signatures (Class Incharge, HOD, Principal)
   const finalY = doc.lastAutoTable.finalY;
-  const neededHeight = 24;
   let sigY;
-  if (finalY + neededHeight > pageHeight - 14) {
-    doc.addPage();
-    sigY = pageHeight - 18;
+  if (finalY <= pageHeight - 18) {
+    // Fits comfortably on current page below the table
+    sigY = Math.max(finalY + 11, pageHeight - 16);
   } else {
+    // Genuinely insufficient space on current page; add a page only when strictly necessary
+    doc.addPage();
     sigY = pageHeight - 18;
   }
 
@@ -1229,7 +1631,7 @@ export const generateConsolidatedMarksPDF = async ({
   doc.setFontSize(8.5);
   doc.text('CLASS IN-CHARGE', marginLeft + 25, sigY);
   doc.text('HOD', pageWidth / 2, sigY, { align: 'center' });
-  doc.text('PRINCIPAL', pageWidth - marginLeft - 25, sigY, { align: 'right' });
+  doc.text('PRINCIPAL', pageWidth - marginRight - 25, sigY, { align: 'right' });
 
   const now = new Date();
   addFooterToAllPages(doc, now.toLocaleDateString('en-GB'), now.toLocaleTimeString('en-GB', { hour12: false }), user);
