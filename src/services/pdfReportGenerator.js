@@ -1812,7 +1812,13 @@ export const generateOverallMarksAndAttendancePDF = async ({
     ];
 
     targetSubjects.forEach(sub => {
-      const sess = allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
+      const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
+      const sess = is2021
+        ? (allSessions || []).find(s =>
+            (s.subject_id === sub.id || s.subject_id === sub.code) &&
+            (s.session_label === sessionLabel || (isInternal2 ? s.session_label === 'internal2' : s.session_label === 'internal1'))
+          )
+        : allSessions.find(s => s.subject_id === sub.id || s.subject_id === sub.code);
       if (!sess) {
         if (is2021 && withInternal) {
           row.push('-', '0');
@@ -1821,23 +1827,36 @@ export const generateOverallMarksAndAttendancePDF = async ({
         }
         return;
       }
-      
+
       const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-      
+
       // Use standardized subject hours based on Admin configuration & session hours
       const subTotal = parseInt(sub.total_hours) || 60;
       const hourSplits = getHourSplits(sub.ltpc, sub.type, subTotal);
-      const isInternal2 = sessionLabel === 'internal2' || String(sessionLabel).includes('2');
       const sessHrs = sess ? (isInternal2 ? (sess.internal2_total_hours || sess.total_hours) : sess.total_hours) : null;
       const configuredHrs = isInternal2
         ? (parseInt(sub.int2_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int2 : null) || 30)
         : (parseInt(sub.int1_hours, 10) || parseInt(sessHrs, 10) || (hourSplits ? hourSplits.int1 : null) || 30);
       const wHrs = configuredHrs;
 
-      const pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
-      
-      overallWHrs += wHrs;
-      overallPHrs += pHrs;
+      let pHrs;
+      if (is2021) {
+        // 2021 Regulation: strictly use student present hours from att.hours_attended.
+        // Preserve 0 values; missing records contribute 0 present hours. No actual_taken_hours or lab fallback.
+        let rawPHrs = 0;
+        if (att && att.hours_attended !== null && att.hours_attended !== undefined && att.hours_attended !== '') {
+          const parsed = parseInt(att.hours_attended, 10);
+          rawPHrs = !isNaN(parsed) && parsed >= 0 ? parsed : 0;
+        }
+        pHrs = Math.min(rawPHrs, wHrs);
+        overallWHrs += wHrs;
+        overallPHrs += pHrs;
+      } else {
+        // 2025 Regulation: existing calculation preserved exactly as before
+        pHrs = att ? (parseInt(att.hours_attended) || parseInt(att.actual_taken_hours) || parseInt(att.attendance_days) || parseInt(att.lab_attendance) || 0) : 0;
+        overallWHrs += wHrs;
+        overallPHrs += pHrs;
+      }
       
       let score;
       if (is2021) {
@@ -1943,16 +1962,20 @@ export const generateOverallMarksAndAttendancePDF = async ({
         }
       } else {
         if (!withInternal) {
-          row.push(wHrs, Math.min(pHrs, wHrs), markStr);
+          row.push(wHrs, pHrs, markStr);
         } else {
           // 2021: 1st Attended Hours, 2nd Int Marks (written exam mark + assignment marks)
-          row.push(Math.min(pHrs, wHrs), markStr);
+          row.push(pHrs, markStr);
         }
       }
     });
 
     const pct = overallWHrs > 0 ? Math.min(100, Math.round((overallPHrs / overallWHrs) * 100)) : 0;
-    row.push(overallWHrs, Math.min(overallPHrs, overallWHrs), pct);
+    if (is2021) {
+      row.push(overallWHrs, overallPHrs, pct);
+    } else {
+      row.push(overallWHrs, Math.min(overallPHrs, overallWHrs), pct);
+    }
     
     return row;
   });
