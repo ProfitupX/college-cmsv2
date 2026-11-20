@@ -56,6 +56,7 @@ async function request(method, path, body = null) {
 const get    = (path)         => request('GET',    path);
 const post   = (path, body)   => request('POST',   path, body);
 const put    = (path, body)   => request('PUT',    path, body);
+const patch  = (path, body)   => request('PATCH',  path, body);
 const remove = (path)         => request('DELETE', path);
 
 // ─────────────────────────────────────────
@@ -70,7 +71,13 @@ export const authAPI = {
 // STUDENTS
 // ─────────────────────────────────────────
 export const studentsAPI = {
-  getByClass: (classId) => get(`/students?classId=${classId}`),
+  getByClass: (classId, subjectId = null) => {
+    let url = `/students?classId=${encodeURIComponent(classId)}`;
+    if (subjectId) {
+      url += `&subjectId=${encodeURIComponent(subjectId)}`;
+    }
+    return get(url);
+  },
   getAll:     ()        => get('/students'),
   create:     (data)    => post('/students', data),
   update:     (id, data)=> put(`/students/${id}`, data),
@@ -567,6 +574,18 @@ export const notificationsAPI = {
 
 export const settingsAPI = {
   getActiveCycle: () => get('/settings/active-cycle'),
+  getAcademicYears: () => get('/settings/academic-years'),
+  createAcademicYear: (data) => post('/settings/academic-years', data),
+  setCurrentAcademicYear: (ayId, payload = {}) => patch(`/settings/academic-years/${ayId}/current`, payload),
+  generateCycles: (ayId) => post(`/settings/academic-years/${ayId}/generate-cycles`),
+  getCycles: (academicYearId) => get(`/settings/cycles${academicYearId ? `?academicYearId=${academicYearId}` : ''}`),
+  updateCycleStatus: (id, status, overridePayload = {}) => patch(`/settings/cycles/${id}/status`, { status, ...overridePayload }),
+  reopenCycle: (id, payload, confirm = true) => {
+    const body = typeof payload === 'string'
+      ? { reason: payload, confirm }
+      : { confirm: payload?.confirm ?? confirm, ...payload };
+    return post(`/settings/cycles/${id}/reopen`, body);
+  },
   getDeadline: () => get('/settings/marks_entry_deadline'),
   setDeadline: (dateStr) => post('/settings/marks_entry_deadline', { value: dateStr }),
   getEnv: () => get('/settings/env'),

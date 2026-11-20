@@ -23,7 +23,7 @@ import {
   exportConsolidatedMarksExcel,
   exportClassAnalysisExcel
 } from '../services/excelReportGenerator';
-import { Save, RotateCcw, Download, AlertTriangle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
+import { Save, RotateCcw, Download, AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
 const isSubjectAssignedToUser = (s, currentUser) => {
@@ -62,6 +62,8 @@ export default function MarksEntryPage() {
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentError, setStudentError] = useState('');
 
   // UI & Lock state
   const [assessmentComponents, setAssessmentComponents] = useState([]);
@@ -237,13 +239,40 @@ export default function MarksEntryPage() {
     }).catch(() => setSubjects([]));
   }, [effectiveClassId, user, selectedSubjectId]);
 
-  // ── Load students when class changes ──────────────────
+  // ── Load students when class or subject changes ───────
   useEffect(() => {
-    if (!effectiveClassId) { setStudents([]); return; }
-    studentsAPI.getByClass(effectiveClassId).then(allStudents => {
-      setStudents(Array.isArray(allStudents) ? allStudents.filter(Boolean) : []);
-    }).catch(() => setStudents([]));
-  }, [effectiveClassId]);
+    if (!effectiveClassId) {
+      setStudents([]);
+      setStudentError('');
+      setStudentsLoading(false);
+      return;
+    }
+
+    // A selected subject is required to verify subject faculty assignment and prevent premature 403s
+    if (!effectiveSubjectId) {
+      setStudents([]);
+      setStudentError('');
+      setStudentsLoading(false);
+      return;
+    }
+
+    setStudentsLoading(true);
+    setStudentError('');
+
+    studentsAPI.getByClass(effectiveClassId, effectiveSubjectId)
+      .then(allStudents => {
+        setStudents(Array.isArray(allStudents) ? allStudents.filter(Boolean) : []);
+        setStudentError('');
+      })
+      .catch(err => {
+        setStudents([]);
+        const errMsg = err?.error || err?.message || 'Failed to load students for this class.';
+        setStudentError(errMsg);
+      })
+      .finally(() => {
+        setStudentsLoading(false);
+      });
+  }, [effectiveClassId, effectiveSubjectId]);
 
   const selectedClass = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
   const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
@@ -882,6 +911,7 @@ export default function MarksEntryPage() {
   const handleClassChange = (val) => {
     setClass(val);
     setSelectedComponentId(null);
+    setStudentError('');
     if (!val) {
       sessionStorage.removeItem('last_classId_2025');
       sessionStorage.removeItem('last_subjectId_2025');
@@ -898,6 +928,7 @@ export default function MarksEntryPage() {
   const handleSubjectChange = (val) => {
     setSubject(val);
     setSelectedComponentId(null);
+    setStudentError('');
     if (val) {
       sessionStorage.setItem('last_subjectId_2025', String(val));
     } else {
@@ -1174,7 +1205,44 @@ export default function MarksEntryPage() {
         </>
       )}
 
-      {canEnterMarks && (!students || students.length === 0) && (
+      {/* Student Loading State */}
+      {canEnterMarks && studentsLoading && (
+        <div style={{
+          background: 'var(--surface, #ffffff)',
+          border: '1px solid var(--border-solid, #e2e8f0)',
+          borderRadius: '12px',
+          padding: '36px 24px',
+          textAlign: 'center',
+          margin: '24px 0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ color: 'var(--text-secondary, #64748b)', fontSize: '0.95rem' }}>
+            Loading enrolled students...
+          </div>
+        </div>
+      )}
+
+      {/* Access Restriction / Error State (e.g. 403 Forbidden) */}
+      {canEnterMarks && !studentsLoading && studentError && (
+        <div style={{
+          background: 'var(--surface, #ffffff)',
+          border: '1px solid #fecaca',
+          borderRadius: '12px',
+          padding: '36px 24px',
+          textAlign: 'center',
+          margin: '24px 0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        }}>
+          <AlertCircle size={38} style={{ color: '#ef4444', marginBottom: '12px' }} />
+          <h3 style={{ margin: '0 0 8px', color: '#b91c1c' }}>Access Restricted</h3>
+          <p style={{ margin: 0, color: '#7f1d1d', fontSize: '0.9rem' }}>
+            {studentError}
+          </p>
+        </div>
+      )}
+
+      {/* Genuine Empty Roster State (HTTP 200 with 0 students) */}
+      {canEnterMarks && !studentsLoading && !studentError && (!students || students.length === 0) && (
         <div style={{
           background: 'var(--surface, #ffffff)',
           border: '1px solid var(--border-solid, #e2e8f0)',
@@ -1193,7 +1261,7 @@ export default function MarksEntryPage() {
         </div>
       )}
 
-      {canEnterMarks && students.length > 0 && (
+      {canEnterMarks && !studentsLoading && !studentError && students.length > 0 && (
         <>
           <MarksTable
             students={students}

@@ -33,7 +33,7 @@ function isClassAuthorizedForHod(cls, hodDept) {
   }
   // Civil owns M.E. Structural Engineering
   if (isCivilHod) {
-    if (clsId === 'CL_1794909933' || clsId === 'CL_1794909988' || (clsName.includes('SE') && (clsName.includes('ME') || clsName.includes('M.E.'))) || clsName.includes('STRUCTURAL')) return true;
+    if (clsId === 'CL_1794909933' || clsId === 'CL_1794909988' || (/\bSE\b/.test(clsName) && (clsName.includes('ME') || clsName.includes('M.E.'))) || clsName.includes('STRUCTURAL')) return true;
   }
   // Mechanical owns M.E. Manufacturing Engineering
   if (isMechHod) {
@@ -46,7 +46,7 @@ function isClassAuthorizedForHod(cls, hodDept) {
 // GET /api/students?classId=CL001
 router.get('/', async (req, res) => {
   try {
-    const { classId } = req.query;
+    const { classId, subjectId } = req.query;
 
     // Check token if present for role-based authorization
     let authUser = null;
@@ -61,18 +61,40 @@ router.get('/', async (req, res) => {
 
     // Role-based access control for HOD
     if (authUser && authUser.role === 'hod' && authUser.id) {
-      // Fetch HOD's registered department from staffs table to prevent spoofing
-      const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
-      const hodDept = staffRows[0]?.department;
+      let isSubjectAuthorized = false;
 
-      if (hodDept && classId) {
-        const [classRows] = await db.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
-        if (classRows.length > 0) {
-          const cls = classRows[0];
-          if (!isClassAuthorizedForHod(cls, hodDept)) {
-            return res.status(403).json({
-              error: "Access denied: You do not have permission to view students from another department's academic programme."
-            });
+      // When subjectId is provided, verify subject-specific faculty assignment in the database
+      if (classId && subjectId) {
+        const [subRows] = await db.execute(
+          'SELECT id, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
+          [subjectId]
+        );
+        if (subRows.length > 0) {
+          const sub = subRows[0];
+          // 1. Subject exists (subRows.length > 0)
+          // 2. Subject belongs to requested class
+          // 3. Faculty assigned to that subject matches authenticated user
+          if (String(sub.class_id) === String(classId) && String(sub.faculty_id) === String(authUser.id)) {
+            isSubjectAuthorized = true;
+          }
+        }
+      }
+
+      // If subject assignment is not verified, apply existing HOD department-based authorization
+      if (!isSubjectAuthorized) {
+        // Fetch HOD's registered department from staffs table to prevent spoofing
+        const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
+        const hodDept = staffRows[0]?.department;
+
+        if (hodDept && classId) {
+          const [classRows] = await db.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
+          if (classRows.length > 0) {
+            const cls = classRows[0];
+            if (!isClassAuthorizedForHod(cls, hodDept)) {
+              return res.status(403).json({
+                error: "Access denied: You do not have permission to view students from another department's academic programme."
+              });
+            }
           }
         }
       }
