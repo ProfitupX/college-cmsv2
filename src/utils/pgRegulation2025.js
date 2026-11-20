@@ -24,7 +24,7 @@ export const PG_COURSE_TYPES = {
   THEORY: {
     id: 'Theory',
     label: 'Theory Course (T)',
-    ciaMax: 40,
+    ciaMax: 95,
     eseMax: 60,
     esePassingPercentage: 45, // 45% of 60 = 27 marks
     eseMinPassingMarks: 27,
@@ -33,32 +33,42 @@ export const PG_COURSE_TYPES = {
       {
         uid: 101,
         typeId: 'test',
-        label: 'Internal Test 1 (35% CA)',
-        conductedMax: 100,
-        max: 14,
+        label: 'Internal Test 1',
+        conductedMax: 25,
+        max: 25,
         color: '#6C63FF',
         icon: '📝',
-        description: 'First continuous assessment test scaled to 14 marks'
+        description: 'First continuous assessment test (25 marks)'
       },
       {
         uid: 102,
         typeId: 'test',
-        label: 'Internal Test 2 (35% CA)',
-        conductedMax: 100,
-        max: 14,
+        label: 'Internal Test 2',
+        conductedMax: 25,
+        max: 25,
         color: '#3B82F6',
         icon: '📝',
-        description: 'Second continuous assessment test scaled to 14 marks'
+        description: 'Second continuous assessment test (25 marks)'
       },
       {
         uid: 103,
         typeId: 'assignment',
-        label: 'Course Activities (30% CA)',
-        conductedMax: 100,
-        max: 12,
-        color: '#10B981',
+        label: 'Course Activities / Assignment',
+        conductedMax: 25,
+        max: 25,
+        color: '#22D3EE',
         icon: '📋',
-        description: 'Assignments / Seminars / Case Studies / GATE Problem Solving'
+        description: 'Course activities, assignments, and problem-solving (25 marks)'
+      },
+      {
+        uid: 104,
+        typeId: 'quiz',
+        label: 'Quiz / Seminar',
+        conductedMax: 20,
+        max: 20,
+        color: '#10B981',
+        icon: '❓',
+        description: 'Quiz, seminar, or viva evaluation (20 marks)'
       }
     ]
   },
@@ -66,7 +76,7 @@ export const PG_COURSE_TYPES = {
   THEORY_CUM_LAB: {
     id: 'Theory-cum-Lab',
     label: 'Theory-cum-Laboratory Course (TL)',
-    ciaMax: 50,
+    ciaMax: 95,
     eseMax: 50,
     esePassingPercentage: 45, // 45% of 50 = 22.5 marks
     eseMinPassingMarks: 22.5,
@@ -76,7 +86,7 @@ export const PG_COURSE_TYPES = {
         uid: 201,
         typeId: 'test',
         label: 'Theory Continuous Assessment',
-        conductedMax: 100,
+        conductedMax: 25,
         max: 25,
         color: '#6C63FF',
         icon: '📝',
@@ -86,11 +96,31 @@ export const PG_COURSE_TYPES = {
         uid: 202,
         typeId: 'practical',
         label: 'Laboratory Continuous Assessment',
-        conductedMax: 100,
+        conductedMax: 25,
         max: 25,
         color: '#F472B6',
         icon: '🔬',
         description: 'Practical lab experiments evaluation scaled to 25 marks'
+      },
+      {
+        uid: 203,
+        typeId: 'assignment',
+        label: 'Course Activities / Assignment',
+        conductedMax: 25,
+        max: 25,
+        color: '#22D3EE',
+        icon: '📋',
+        description: 'Course activities, assignments, and problem-solving (25 marks)'
+      },
+      {
+        uid: 204,
+        typeId: 'quiz',
+        label: 'Quiz / Viva',
+        conductedMax: 20,
+        max: 20,
+        color: '#10B981',
+        icon: '❓',
+        description: 'Quiz / Viva evaluation (20 marks)'
       }
     ]
   },
@@ -98,7 +128,7 @@ export const PG_COURSE_TYPES = {
   PRACTICAL: {
     id: 'Practical',
     label: 'Laboratory / Practical Course (P)',
-    ciaMax: 60,
+    ciaMax: 95,
     eseMax: 40,
     esePassingPercentage: 50, // 50% of 40 = 20 marks
     eseMinPassingMarks: 20,
@@ -107,22 +137,42 @@ export const PG_COURSE_TYPES = {
       {
         uid: 301,
         typeId: 'practical',
-        label: 'Lab Experiments & Record Work',
-        conductedMax: 100,
-        max: 40,
+        label: 'Lab Experiments & Observation',
+        conductedMax: 35,
+        max: 35,
         color: '#F472B6',
         icon: '🔬',
-        description: 'Continuous lab observation, execution, and record evaluation'
+        description: 'Continuous lab observation, execution, and evaluation'
       },
       {
         uid: 302,
         typeId: 'model',
         label: 'Model Practical Examination',
-        conductedMax: 100,
-        max: 20,
+        conductedMax: 30,
+        max: 30,
         color: '#8B5CF6',
         icon: '🏆',
         description: 'End-of-term model laboratory examination'
+      },
+      {
+        uid: 303,
+        typeId: 'viva',
+        label: 'Viva / Oral Examination',
+        conductedMax: 15,
+        max: 15,
+        color: '#FB923C',
+        icon: '🎤',
+        description: 'Oral / Viva examination'
+      },
+      {
+        uid: 304,
+        typeId: 'lab_record',
+        label: 'Lab Record / Journal',
+        conductedMax: 15,
+        max: 15,
+        color: '#10B981',
+        icon: '📓',
+        description: 'Lab record notebook and observation journal'
       }
     ]
   },

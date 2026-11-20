@@ -98,7 +98,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   const currentDate = dateStr || now.toLocaleDateString('en-GB'); // DD/MM/YYYY
   const currentTime = now.toLocaleTimeString('en-GB', { hour12: false }); // HH:MM:SS
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+
   // Outer Border for Header Box (fits page width with 10mm margins on both sides)
   const boxWidth = pageWidth - 20;
   const formatBoxWidth = 50;
@@ -109,7 +109,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   // Outer Border for Header Box
   doc.rect(10, 8, boxWidth, 26);
   doc.line(dividerX, 8, dividerX, 34); // Right divider for Format Info
-  
+
   // Format Info Box on top right
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
@@ -117,7 +117,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
   doc.text(`Rev.No     : ${revNo || '01'}`, dividerX + 2, 18);
   doc.text(`Date       : ${currentDate}`, dividerX + 2, 23);
   doc.text(`Page       : ${pageStr || '01'}`, dividerX + 2, 28);
-  
+
   // Lines inside Format Info Box
   doc.line(dividerX, 14.5, rightEdge, 14.5);
   doc.line(dividerX, 19.5, rightEdge, 19.5);
@@ -147,7 +147,7 @@ const drawCollegeHeader = async (doc, title, formatNo, revNo, dateStr, pageStr) 
 // REPORT 1: Test Analysis Report (Subject Wise) - Format NAC/TLP-07a.21
 // ─────────────────────────────────────────────────────────────
 export const generateSubjectAnalysisPDF = async ({
-  subject, classObj, staff, session, remedialAction, students = [], marksData, allMarks, components, attendanceData, internalExamData, labData, assessmentMode, totalHours = 0, declarationData, user
+  subject, classObj, staff, session, remedialAction, students = [], marksData, allMarks, components, attendanceData, attendanceMarks = {}, internalExamData, labData, assessmentMode, totalHours = 0, int1Hours, int2Hours, labHours, int1AttendanceData = {}, declarationData, user
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -156,7 +156,7 @@ export const generateSubjectAnalysisPDF = async ({
   // Subheader Details Table Block
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  
+
   let y = 46;
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
   doc.text(`Year / Sem             : ${classObj?.year_label || 'II'} / ${classObj?.semester || '4'}`, 14, y);
@@ -219,11 +219,11 @@ export const generateSubjectAnalysisPDF = async ({
           rawCIA += Math.min(val, conducted);
         });
       }
-      
+
       const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
       const examRaw = parseFloat(internalExamData?.[st.id]) || 0;
       const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-      
+
       const labExamRaw = labData?.[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
       const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
@@ -236,43 +236,65 @@ export const generateSubjectAnalysisPDF = async ({
       const rawVal = internalExamData?.[st.id];
       // For 2021 reg: absent only if no CIA marks AND no exam mark
       if ((rawVal === '' || rawVal === undefined || rawVal === null) && ciaTotal === 0 && (!isLabType || assessmentMode !== 'internal2')) {
-         isAbsent = true; 
+         isAbsent = true;
       }
     } else {
-      // Regulation 2025: prefer internalExamData, fall back to CIA component marks + attendance mark
-      const rawExamVal = internalExamData?.[st.id];
-      const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null;
-
-      if (hasExamMark) {
-        // Use the stored internal exam mark directly
-        mark = parseFloat(rawExamVal) || 0;
-      } else {
-        // Fall back: sum CIA component marks + attendance contribution
-        let rawCIA = 0;
-        const dataSource = activeMarksData;
-        if (components && dataSource) {
-          const isArray = Array.isArray(dataSource);
-          components.forEach(comp => {
-            let val = 0;
-            if (isArray) {
-              const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
-              val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-            } else {
-              val = parseFloat(dataSource?.[st.id]?.[comp.uid || comp.id]) || 0;
+      // Regulation 2025 (UG & PG): Standardized Continuous Assessment calculation:
+      // Component marks (max 95) + Attendance marks (max 5) = Final Total (max 100)
+      let rawCIA = 0;
+      let hasComponentMarks = false;
+      const dataSource = activeMarksData;
+      if (components && dataSource) {
+        const isArray = Array.isArray(dataSource);
+        components.forEach(comp => {
+          let val = undefined;
+          if (isArray) {
+            const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
+            if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
+              val = markObj.marks_obtained;
             }
+          } else {
+            val = dataSource?.[st.id]?.[comp.uid || comp.id];
+          }
+          if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
+            hasComponentMarks = true;
+            const numVal = parseFloat(val);
             const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
-            rawCIA += Math.min(val, conducted);
-          });
-        }
-        rawCIA = Math.round(rawCIA);
+            rawCIA += Math.min(numVal, conducted);
+          }
+        });
+      }
+      rawCIA = Math.round(rawCIA);
 
-        if (rawCIA > 0) {
-          // CIA marks exist — use them as the analysis mark
-          mark = Math.min(rawCIA, 100);
-        } else {
-          // No marks at all — mark as absent
-          isAbsent = true;
-        }
+      const rawHoursVal = attendanceData?.[st.id] ?? attendanceData?.[String(st.id || '')];
+      const hasAttendanceHours = rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null;
+      const dbAttMark = (attendanceMarks?.[st.id] !== undefined && attendanceMarks?.[st.id] !== null && attendanceMarks?.[st.id] !== '')
+        ? parseFloat(attendanceMarks[st.id])
+        : null;
+      const hasAttendanceMark = dbAttMark !== null && !isNaN(dbAttMark);
+
+      const attendanceMark = resolveAttendanceMark(st.id, {
+        attendanceMarks,
+        attendanceData,
+        totalHours: analysisPrescribedHrs,
+        assessmentMode,
+        int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
+        int1Hours: int1Hours || subject?.int1_hours || 30,
+        int2Hours: int2Hours || subject?.int2_hours || 30,
+        labHours: labHours || subject?.lab_hours || 0,
+        labData
+      });
+
+      const rawExamVal = internalExamData?.[st.id];
+      const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null && rawExamVal !== 'AB' && !isNaN(parseFloat(rawExamVal));
+
+      if (hasComponentMarks || hasAttendanceHours || hasAttendanceMark) {
+        mark = Math.min(100, rawCIA + attendanceMark);
+      } else if (hasExamMark) {
+        // Fallback for legacy standalone exam entry if no 2025 assessment components/attendance exist
+        mark = Math.min(100, Math.round(parseFloat(rawExamVal) || 0));
+      } else {
+        isAbsent = true;
       }
     }
 
@@ -280,7 +302,7 @@ export const generateSubjectAnalysisPDF = async ({
       absent++;
       return;
     }
-    
+
     appeared++;
     if (mark > maxMark) maxMark = mark;
     if (mark < minMark) minMark = mark;
@@ -387,7 +409,7 @@ export const generateSubjectAnalysisPDF = async ({
 
   doc.setFont('helvetica', 'bold');
   doc.text(`8. Principal's suggestions to improve the pass percentage: ${declarationData?.principalSuggestions || '-'}`, 14, y);
-  
+
   // Signature Block: Subject Faculty & HOD (dynamically positioned to avoid overlapping text)
   const pageHeight = doc.internal.pageSize.getHeight();
   const neededY = y + 16;
@@ -397,7 +419,7 @@ export const generateSubjectAnalysisPDF = async ({
   } else {
     y = Math.max(neededY, pageHeight - 30);
   }
-  
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('SUBJECT FACULTY', 25, y);
@@ -417,10 +439,10 @@ export const generateSubjectMarksListPDF = async ({
   withInternal = true, targetPages = 'auto', user
 }) => {
   const doc = new jsPDF('p', 'mm', 'a4');
-  
+
   const title = `${assessmentMode === 'internal1' ? 'Internal Assessment 1' : 'Internal Assessment 2'} - Subject Marks List`;
   await drawCollegeHeader(doc, title, 'NAC/TLP-07a.20', '01', '', '1 of 1');
-  
+
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
@@ -464,9 +486,9 @@ export const generateSubjectMarksListPDF = async ({
     'Student Name',
     'Attended\nHrs',
     'Attd Mark\n(Max: 5)',
-    isPG ? `CA Mark\n(Max: ${pgCiaMax})` : 'Activities Mark\n(Max: 95)',
+    'Activities Mark\n(Max: 95)',
     'Internal\nMark',
-    isPG ? 'CA Mark\nTotal' : 'Activities Mark\nTotal'
+    'Activities Mark\nTotal'
   ];
 
   // Prepare Table Body
@@ -499,7 +521,7 @@ export const generateSubjectMarksListPDF = async ({
     const isExamAbsent = isNaN(numExam) || internalExamMark === null || internalExamMark === undefined || internalExamMark === '' || internalExamMark === 'AB';
     const internalExamMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
-    const totalInternal = isPG ? Math.min(pgCiaMax, convertedTotal) : Math.min(100, convertedTotal + attendanceMark);
+    const totalInternal = Math.min(100, convertedTotal + attendanceMark);
     const cleanStudentName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     return [
@@ -520,9 +542,9 @@ export const generateSubjectMarksListPDF = async ({
     'MAX MARKS',
     `${tHours > 0 ? tHours : '-'} Hrs`,
     '5',
-    isPG ? String(pgCiaMax) : '95',
+    '95',
     '100',
-    isPG ? String(pgCiaMax) : '100'
+    '100'
   ];
 
   const colStyles = {
@@ -794,7 +816,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('Key Metrics:', 14, y);
-  
+
   y += 6;
   doc.setFont('helvetica', 'normal');
   doc.text(`Total Students: ${overview.totalStudents}`, 20, y);
@@ -807,7 +829,7 @@ export const generateCollegeOverviewPDF = async ({ overview, departmentStats, us
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('Department-wise Detailed Analytics:', 14, y);
-  
+
   y += 4;
 
   const tableBody = departmentStats.map((dept, i) => {
@@ -1665,7 +1687,7 @@ export const generateSubjectMarksListPDF2021 = async ({
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   const ciaMax = hasLab ? 50 : 40;
   const examConvertedMax = hasLab ? 50 : 60;
-  
+
   // Total hours split logic: If subject has 60 hrs total, Internal 1 is 30 hrs, Internal 2 is 30 hrs
   const rawTotHours = parseInt(totalHours || session?.total_hours || subject?.total_hours || 0);
   const hourSplits = getHourSplits(subject?.ltpc, subject?.type, rawTotHours);
@@ -1955,14 +1977,14 @@ export const generateContinuousAssessmentAnalysisPDF = async ({
     visibleYears.forEach((yr, idx) => {
       if (idx === 0) {
         bodyRows.push([
-          { 
-            content: dept.department, 
-            rowSpan: visibleYears.length, 
-            styles: { 
-              valign: 'middle', 
-              fontStyle: 'bold', 
-              halign: isSH ? 'center' : 'left' 
-            } 
+          {
+            content: dept.department,
+            rowSpan: visibleYears.length,
+            styles: {
+              valign: 'middle',
+              fontStyle: 'bold',
+              halign: isSH ? 'center' : 'left'
+            }
           },
           yr.year,
           yr.strength,
@@ -2101,7 +2123,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   // Custom Simple Header
   const title = 'NADAR SARASWATHI COLLEGE OF ENGINEERING & TECHNOLOGY';
   const subtitle = '(Approved by AICTE-New Delhi & Affiliated to Anna University-Chennai)';
-  
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text(title, centerX, 15, { align: 'center' });
@@ -2114,8 +2136,8 @@ export const generateOverallMarksAndAttendancePDF = async ({
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  const typeLabel = withInternal 
-    ? 'ExamCell Legal Statement (With Assignment Marks)' 
+  const typeLabel = withInternal
+    ? 'ExamCell Legal Statement (With Assignment Marks)'
     : 'ExamCell Legal Statement (Without Assignment Marks / Real Exam Marks)';
   if (fromDate && toDate) {
     const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
@@ -2131,7 +2153,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const secLabel = `Section: ${classObj?.section || 'A'}`;
   const semLabel = `Semester: ${classObj?.semester || '4'}`;
   const acadLabel = `Academic Year: 2026 - 2027`;
-  
+
   doc.text(deptLabel, 35, 33);
   doc.text(secLabel, 125, 33);
   doc.text(semLabel, 215, 33);
@@ -2183,7 +2205,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   });
   headRow1.push({ content: 'Over All', colSpan: 3, styles: { halign: 'center' } });
 
-  // Second header row: 
+  // Second header row:
   // For 2021 withInternal: strictly 2 columns (Attd Hrs, Int Marks)
   // For 2025 withInternal: 3 columns (Attd Hrs, Int Marks, Activity Marks)
   const headRow2 = [];
@@ -2206,7 +2228,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   const bodyRows = students.map((st, idx) => {
     let overallWHrs = 0;
     let overallPHrs = 0;
-    
+
     const row = [
       idx + 1,
       st.roll_no || st.rollNo || st.id,
@@ -2259,12 +2281,12 @@ export const generateOverallMarksAndAttendancePDF = async ({
         overallWHrs += wHrs;
         overallPHrs += pHrs;
       }
-      
+
       let score;
       if (is2021) {
         const sessionComps = allComponents.filter(c => c.session_id === sess.id);
         const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        
+
         let rawCIA = 0;
         sessionComps.forEach((comp) => {
           const markObj = studentMarks.find(m => m.component_id === comp.id);
@@ -2272,7 +2294,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
           const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
           rawCIA += Math.min(val, conducted);
         });
-        
+
         const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
         const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) || (sub.name?.toLowerCase().includes('laboratory') && !isLabType);
         const ciaMax = isLabType ? 50 : 40;
@@ -2281,7 +2303,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
 
         const examRaw = parseFloat(att?.internal_exam_mark) || 0;
         const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-        
+
         const labExamRaw = parseFloat(att?.lab_mark) || 0;
         const labExamConverted = Math.round((labExamRaw / 100) * 50);
 
@@ -2331,7 +2353,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
       }
 
       const markStr = (score === null || isNaN(score)) ? 'AB' : Math.round(score);
-      
+
       if (!is2021) {
         let attMark = 0;
         if (att && att.attendance_mark !== undefined && att.attendance_mark !== null) {
@@ -2378,7 +2400,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
     } else {
       row.push(overallWHrs, Math.min(overallPHrs, overallWHrs), pct);
     }
-    
+
     return row;
   });
 
@@ -2442,25 +2464,25 @@ export const generateOverallMarksAndAttendancePDF = async ({
     horizontalPageBreak: false,
     showHead: 'everyPage',
     margin: { top: 15, bottom: 18, left: marginLeft, right: marginLeft },
-    styles: { 
-      fontSize, 
-      halign: 'center', 
-      valign: 'middle', 
+    styles: {
+      fontSize,
+      halign: 'center',
+      valign: 'middle',
       cellPadding,
       lineWidth: 0.1,
       lineColor: [120, 120, 120]
     },
-    headStyles: { 
-      fillColor: [240, 242, 245], 
-      textColor: [0, 0, 0], 
-      fontStyle: 'bold', 
-      fontSize, 
-      lineWidth: 0.1, 
-      lineColor: [0, 0, 0] 
+    headStyles: {
+      fillColor: [240, 242, 245],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize,
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0]
     },
-    bodyStyles: { 
-      lineWidth: 0.1, 
-      lineColor: [150, 150, 150] 
+    bodyStyles: {
+      lineWidth: 0.1,
+      lineColor: [150, 150, 150]
     },
     columnStyles: colStyles
   });
@@ -2481,7 +2503,7 @@ export const generateOverallMarksAndAttendancePDF = async ({
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(30, 41, 59);
   doc.text('*** W.Hrs = Working Hours, P.Hrs = Present Hours, % = Attendance Percentage', marginLeft, noteY);
-  
+
   // Signatures: Class Incharge, HOD, Principal
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
@@ -2498,13 +2520,13 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB');
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+
   await drawCollegeHeader(doc, 'DEPARTMENT CONTINUOUS ASSESSMENT REPORT', 'NAC/TLP-XX', '01', dateStr, '01');
 
-  const sessionName = sessionLabel === 'internal1' 
-    ? 'Internal Test 1 (CA-1)' 
-    : sessionLabel === 'internal2' 
-      ? 'Internal Test 2 (CA-2)' 
+  const sessionName = sessionLabel === 'internal1'
+    ? 'Internal Test 1 (CA-1)'
+    : sessionLabel === 'internal2'
+      ? 'Internal Test 2 (CA-2)'
       : 'Model Examination';
 
   const hodName = hodNameParam || data?.hodName || getDepartmentHodFallback(department);
@@ -2600,17 +2622,17 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
     head: [['Year / Semester', 'Total Students', 'Passed Students', 'Failed Students', 'Pass Percentage']],
     body: tableBody,
     theme: 'grid',
-    headStyles: { 
-      fillColor: [30, 41, 59], 
-      textColor: [255, 255, 255], 
-      halign: 'center', 
-      fontSize: 10, 
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
+      halign: 'center',
+      fontSize: 10,
       fontStyle: 'bold',
-      cellPadding: 6 
+      cellPadding: 6
     },
-    bodyStyles: { 
-      halign: 'center', 
-      fontSize: 10, 
+    bodyStyles: {
+      halign: 'center',
+      fontSize: 10,
       cellPadding: 6,
       textColor: [30, 41, 59]
     },
@@ -2620,7 +2642,7 @@ export const generateHodMarksPDF = async (department, sessionLabel, data, hodNam
 
   // Official Signature Block (HOD only - for HOD's internal reference)
   const sigY = Math.max(doc.lastAutoTable.finalY + 32, 160);
-  
+
   // Right: HOD Signature
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);

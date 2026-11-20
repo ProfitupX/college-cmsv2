@@ -2,7 +2,7 @@ import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/atte
 import styles from './MarksRow.module.css';
 
 export default function MarksRow({
-  student = {}, components = [], marks = {}, attendanceHours = '', savedAttendanceMark, isElevated, int1AttendanceHours = '', internalExamMark = '', displayHours = 30, conductedHours, conductedCumHours, int1Hours = 30, int2Hours = 30, labHours = 0,
+  student = {}, components = [], displayComponents = [], selectedComponentId = null, marks = {}, attendanceHours = '', savedAttendanceMark, isElevated, int1AttendanceHours = '', internalExamMark = '', displayHours = 30, conductedHours, conductedCumHours, int1Hours = 30, int2Hours = 30, labHours = 0,
   onMarkChange, onAttendanceChange, onInternalExamChange, index = 0,
   assessmentMode = 'internal1', labData = {}, selectedSubject = {}, onLabDataChange, isLocked,
   isPureLab = false, prescribedLabHours = 40,
@@ -11,11 +11,95 @@ export default function MarksRow({
   // Converted total (sum of raw marks)
   let convertedTotal = 0;
   (components || []).forEach(c => {
-    const val = parseFloat((marks || {})[c?.uid]) || 0;
-    const conducted = parseFloat(c?.conductedMax) || 100;
+    const val = parseFloat((marks || {})[c?.uid ?? c?.id]) || 0;
+    const conducted = parseFloat(c?.conductedMax || c?.max) || 100;
     convertedTotal += Math.min(val, conducted);
   });
   convertedTotal = Math.round(convertedTotal);
+
+  // Active component for focused student-wise mark entry
+  const activeComponent = (selectedComponentId && selectedComponentId !== 'all')
+    ? (components || []).find(c => c && (String(c.uid) === String(selectedComponentId) || String(c.id) === String(selectedComponentId)))
+    : null;
+
+  const initials = (student?.name || 'Unknown')
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const regNumber = student?.register_number || student?.regNo || student?.rollNo || student?.roll_no || '-';
+
+  // 1. Focused Student-Wise Component Mark Entry Mode
+  if (activeComponent) {
+    const compUid = activeComponent?.uid ?? activeComponent?.id;
+    const val = (marks && compUid !== undefined && marks[compUid] !== undefined) ? marks[compUid] : '';
+    const numVal = parseFloat(val);
+    const conductedMax = parseFloat(activeComponent?.conductedMax || activeComponent?.max) || 100;
+    const isOver = !isNaN(numVal) && numVal > conductedMax;
+
+    return (
+      <tr className={styles.row} style={{ animationDelay: `${index * 40}ms` }}>
+        {/* S.No */}
+        <td className={styles.sNoCell}>{student?.sNo || index + 1}</td>
+
+        {/* Register / Roll No */}
+        <td className={styles.rollNoCell} style={{ fontWeight: 600 }}>{regNumber}</td>
+
+        {/* Student Name */}
+        <td className={styles.studentCell}>
+          <div className={styles.studentInfo}>
+            <div className={styles.avatar} style={{ '--idx': index }}>
+              {initials}
+            </div>
+            <span className={styles.name}>{student?.name || 'Student'}</span>
+          </div>
+        </td>
+
+        {/* Focused Component Marks Obtained Input */}
+        <td className={styles.inputCell}>
+          <div className={styles.inputWrap} style={{ maxWidth: '220px' }}>
+            <input
+              id={`marks-${student?.id || index}-${compUid || 'comp'}`}
+              type="number"
+              min="0"
+              max={conductedMax}
+              step="0.5"
+              className={`${styles.input} ${isOver ? styles.inputError : ''}`}
+              value={val}
+              onChange={(e) => {
+                let v = e.target.value;
+                if (v !== '') {
+                  const n = parseFloat(v);
+                  if (!isNaN(n) && conductedMax > 0 && n > conductedMax) v = String(conductedMax);
+                  else if (!isNaN(n) && n < 0) v = '0';
+                }
+                if (onMarkChange && student?.id && compUid !== undefined) {
+                  onMarkChange(student.id, compUid, v);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+                  const sel = window.getSelection()?.toString();
+                  if (!sel && parseFloat(val) >= conductedMax) {
+                    e.preventDefault();
+                  }
+                }
+              }}
+              disabled={isLocked}
+              placeholder={`0 - ${conductedMax}`}
+            />
+            <span className={styles.inputMax}>/{conductedMax}</span>
+            {isOver && (
+              <span className={styles.errorTip}>Max: {conductedMax}</span>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   // Max allowed hours (strictly 30 or LTPC prescribed, cannot exceed)
   const maxAttdHours = Math.max(7, parseInt(int1Hours || displayHours || 30, 10));
@@ -34,16 +118,9 @@ export default function MarksRow({
     labData: student?.id ? { [student.id]: labData } : {}
   });
   const finalTotal100 = convertedTotal + effectiveAttMark;
-  const initials = (student?.name || 'Unknown')
-    .split(' ')
-    .filter(Boolean)
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
-  // Pure Laboratory / Practical Mode
-  if (isPureLab) {
+  // Pure Laboratory / Practical Mode (legacy fallback when no assessment components are defined)
+  if (isPureLab && (!components || components.length === 0)) {
     const pureLabHoursMax = parseInt(prescribedLabHours || labHours || selectedSubject?.total_hours || 40, 10);
     const pureLabAttdRaw = (attendanceHours !== undefined && attendanceHours !== '') ? attendanceHours : (labData?.labAttendance || '');
     const pureLabAttdNum = parseInt(pureLabAttdRaw || 0, 10);
@@ -201,11 +278,11 @@ export default function MarksRow({
       </td>
 
       {/* Dynamic Component Inputs (Assessment / Activities) */}
-      {(components || []).filter(Boolean).map((comp) => {
+      {(displayComponents && displayComponents.length > 0 ? displayComponents : components || []).filter(Boolean).map((comp) => {
         const compUid = comp?.uid ?? comp?.id;
         const val = (marks && compUid !== undefined && marks[compUid] !== undefined) ? marks[compUid] : '';
         const numVal = parseFloat(val);
-        const conductedMax = parseFloat(comp?.conductedMax) || 100;
+        const conductedMax = parseFloat(comp?.conductedMax || comp?.max) || 100;
         const isOver = !isNaN(numVal) && numVal > conductedMax;
 
         return (

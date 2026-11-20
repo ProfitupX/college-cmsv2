@@ -59,20 +59,21 @@ export default function MarksEntryPage() {
   const navigate = useNavigate();
 
   // Remote data
-  const [classes,   setClasses]   = useState([]);
-  const [subjects,  setSubjects]  = useState([]);
-  const [students,  setStudents]  = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [students, setStudents] = useState([]);
 
   // UI & Lock state
   const [assessmentComponents, setAssessmentComponents] = useState([]);
-  const [saved,   setSaved]   = useState(false);
+  const [saved, setSaved] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState('internal1');
-  const [saving,  setSaving]  = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [isComponentsDirty, setIsComponentsDirty] = useState(false);
   const [reportType, setReportType] = useState('theory_marks');
   const [int1AttendanceData, setInt1AttendanceData] = useState({});
+  const [selectedComponentId, setSelectedComponentId] = useState(null);
 
   // Lock / Unlock Request State
   const [currentSession, setCurrentSession] = useState(null);
@@ -244,7 +245,7 @@ export default function MarksEntryPage() {
     }).catch(() => setStudents([]));
   }, [effectiveClassId]);
 
-  const selectedClass   = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
+  const selectedClass = (classes || []).find((c) => c && String(c.id) === String(effectiveClassId));
   const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
   const isPG = Boolean(
     isPGClass(selectedClass) ||
@@ -286,7 +287,7 @@ export default function MarksEntryPage() {
                 ...s,
                 int1_hours: (s.int1_hours !== null && s.int1_hours !== undefined && s.int1_hours !== '') ? s.int1_hours : (i1 !== undefined && i1 !== null ? parseInt(i1, 10) : s.int1_hours),
                 int2_hours: (s.int2_hours !== null && s.int2_hours !== undefined && s.int2_hours !== '') ? s.int2_hours : (i2 !== undefined && i2 !== null ? parseInt(i2, 10) : s.int2_hours),
-                lab_hours:  (s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== '') ? s.lab_hours : (lb !== undefined && lb !== null ? parseInt(lb, 10) : s.lab_hours),
+                lab_hours: (s.lab_hours !== null && s.lab_hours !== undefined && s.lab_hours !== '') ? s.lab_hours : (lb !== undefined && lb !== null ? parseInt(lb, 10) : s.lab_hours),
                 total_hours: (s.total_hours !== null && s.total_hours !== undefined && s.total_hours !== '') ? s.total_hours : (tot !== undefined && tot !== null ? parseInt(tot, 10) : s.total_hours),
               };
             }
@@ -300,7 +301,7 @@ export default function MarksEntryPage() {
           setSessionBulk((prev) => ({ ...prev, totalHours: parseInt(targetHours, 10) }));
         }
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [effectiveSubjectId, assessmentMode]);
 
   // ── Load existing session when subject or mode changes ────────
@@ -324,12 +325,12 @@ export default function MarksEntryPage() {
 
     const fetchInt1Promise = (assessmentMode === 'internal2')
       ? marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: 'internal1' })
-          .then((sessions) => {
-            if (sessions && sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
-            return null;
-          })
-          .then((detail) => (detail ? detail.attendance || {} : {}))
-          .catch(() => ({}))
+        .then((sessions) => {
+          if (sessions && sessions.length > 0) return marksAPI.getSessionDetail(sessions[0].id);
+          return null;
+        })
+        .then((detail) => (detail ? detail.attendance || {} : {}))
+        .catch(() => ({}))
       : Promise.resolve({});
 
     fetchInt1Promise
@@ -339,13 +340,13 @@ export default function MarksEntryPage() {
         const fetchSession = targetSessionId
           ? marksAPI.getSessionDetail(targetSessionId).catch(() => null)
           : marksAPI.getSessions({ classId: effectiveClassId, subjectId: effectiveSubjectId, sessionLabel: assessmentMode })
-              .then((sessions) => {
-                if (sessions && sessions.length > 0) {
-                  return marksAPI.getSessionDetail(sessions[0].id);
-                }
-                return null;
-              })
-              .catch(() => null);
+            .then((sessions) => {
+              if (sessions && sessions.length > 0) {
+                return marksAPI.getSessionDetail(sessions[0].id);
+              }
+              return null;
+            })
+            .catch(() => null);
 
         return fetchSession
           .then((detail) => {
@@ -487,7 +488,7 @@ export default function MarksEntryPage() {
   const int2Hours = (selectedSubject?.int2_hours !== null && selectedSubject?.int2_hours !== undefined && selectedSubject?.int2_hours !== '')
     ? parseInt(selectedSubject.int2_hours, 10)
     : (defaultSplits.int2 || 30);
-  const labHours  = (selectedSubject?.lab_hours !== null && selectedSubject?.lab_hours !== undefined && selectedSubject?.lab_hours !== '')
+  const labHours = (selectedSubject?.lab_hours !== null && selectedSubject?.lab_hours !== undefined && selectedSubject?.lab_hours !== '')
     ? parseInt(selectedSubject.lab_hours, 10)
     : (defaultSplits.lab || 0);
 
@@ -502,9 +503,9 @@ export default function MarksEntryPage() {
         assessmentComponents.forEach((comp, idx) => {
           const val = m[comp.uid];
           marksPayload.push({
-            studentId:       st.id,
-            componentIndex:  idx,
-            marksObtained:   (val !== undefined && val !== '' && !isNaN(parseFloat(val))) ? parseFloat(val) : null,
+            studentId: st.id,
+            componentIndex: idx,
+            marksObtained: (val !== undefined && val !== '' && !isNaN(parseFloat(val))) ? parseFloat(val) : null,
           });
         });
       });
@@ -554,23 +555,23 @@ export default function MarksEntryPage() {
       });
 
       const payload = {
-        subjectId:     effectiveSubjectId,
-        classId:       effectiveClassId,
-        staffId:       user.id,
-        sessionLabel:  assessmentMode,
-        examDate:      examDate || null,
-        totalHours:    parseInt(currentAssessmentHours, 10),
-        int1Hours:     parseInt(int1Hours || 0, 10),
-        int2Hours:     parseInt(int2Hours || 0, 10),
-        labHours:      parseInt(labHours || 0, 10),
+        subjectId: effectiveSubjectId,
+        classId: effectiveClassId,
+        staffId: user.id,
+        sessionLabel: assessmentMode,
+        examDate: examDate || null,
+        totalHours: parseInt(currentAssessmentHours, 10),
+        int1Hours: parseInt(int1Hours || 0, 10),
+        int2Hours: parseInt(int2Hours || 0, 10),
+        labHours: parseInt(labHours || 0, 10),
         remedialAction: remedialAction,
-        components:    assessmentComponents.map((c) => ({
-          typeId:   c.typeId,
-          label:    c.label,
+        components: assessmentComponents.map((c) => ({
+          typeId: c.typeId,
+          label: c.label,
           conductedMax: parseFloat(c.conductedMax) || 100,
           maxMarks: parseFloat(c.max) || 0,
-          icon:     c.icon,
-          color:    c.color,
+          icon: c.icon,
+          color: c.color,
         })),
         marks: marksPayload,
         attendance: attendancePayload,
@@ -880,6 +881,7 @@ export default function MarksEntryPage() {
 
   const handleClassChange = (val) => {
     setClass(val);
+    setSelectedComponentId(null);
     if (!val) {
       sessionStorage.removeItem('last_classId_2025');
       sessionStorage.removeItem('last_subjectId_2025');
@@ -895,6 +897,7 @@ export default function MarksEntryPage() {
   };
   const handleSubjectChange = (val) => {
     setSubject(val);
+    setSelectedComponentId(null);
     if (val) {
       sessionStorage.setItem('last_subjectId_2025', String(val));
     } else {
@@ -951,10 +954,10 @@ export default function MarksEntryPage() {
   const subDeptNorm = normDept(selectedSubject?.department) || inferDeptFromCode(selectedSubject?.code);
   const isSubjectDeptHod = user?.role === 'hod' && Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm);
   const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isSubjectDeptHod);
-  const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
+  const step = !selectedSubject ? 1 : (assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';
   const isLocked = isPrincipal || ((sessionStatus === 'locked' || sessionStatus === 'unlock_requested') && !canDirectlyUnlock);
-  const canEnterMarks = isPrincipal || isPureLab ? true : assessmentComponents.length > 0;
+  const canEnterMarks = isPrincipal || assessmentComponents.length > 0 || (isPureLab && (!assessmentComponents || assessmentComponents.length === 0));
 
   if (loading) {
     return (
@@ -970,8 +973,8 @@ export default function MarksEntryPage() {
       <div className={styles.steps}>
         {[
           { n: 1, label: 'Select Class & Subject' },
-          ...(!isPureLab ? [{ n: 2, label: 'Build Assessment Sheet' }] : []),
-          { n: isPureLab ? 2 : 3, label: 'Enter & Submit Marks' },
+          { n: 2, label: 'Build Assessment Sheet' },
+          { n: 3, label: 'Enter & Submit Marks' },
         ].map((s) => (
           <div
             key={s.n}
@@ -979,7 +982,7 @@ export default function MarksEntryPage() {
           >
             <div className={styles.stepNum}>{step > s.n ? <CheckCircle size={14} /> : s.n}</div>
             <span className={styles.stepLabel}>{s.label}</span>
-            {s.n < (isPureLab ? 2 : 3) && <div className={styles.stepLine} />}
+            {s.n < 3 && <div className={styles.stepLine} />}
           </div>
         ))}
       </div>
@@ -1134,7 +1137,7 @@ export default function MarksEntryPage() {
               )}
             </div>
           </div>
-          {!isPrincipal && !isPureLab && (
+          {!isPrincipal && (
             <ComponentBuilder
               components={assessmentComponents}
               onChange={(comps) => { setAssessmentComponents(comps); setSaved(false); setIsComponentsDirty(true); }}
@@ -1142,10 +1145,12 @@ export default function MarksEntryPage() {
               maxAllocation={dynamicCiaMax}
               isPG={isPG}
               subjectType={selectedSubject?.type || 'Theory'}
+              selectedComponentId={selectedComponentId}
+              onSelectComponent={setSelectedComponentId}
             />
           )}
 
-          {isPureLab && (
+          {isPureLab && assessmentComponents.length === 0 && (
             <div style={{
               background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
               border: '1.5px solid #86efac',
@@ -1159,14 +1164,33 @@ export default function MarksEntryPage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#166534', fontWeight: 600 }}>
                 <span style={{ fontSize: '1.3rem' }}>🔬</span>
-                <span>Laboratory / Practical Course — Direct Mark Entry (Lab Attended Hours &amp; 100 Marks Practical Exam)</span>
+                <span>Laboratory / Practical Course — Click "Load Practical Preset" above for standard 95M assessment components + 5M Attendance, or enter direct lab marks below.</span>
               </div>
               <span style={{ fontSize: '0.8rem', background: '#16a34a', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontWeight: 600 }}>
-                Direct Entry • No Theory CIA
+                Standard 95M + 5M
               </span>
             </div>
           )}
         </>
+      )}
+
+      {canEnterMarks && (!students || students.length === 0) && (
+        <div style={{
+          background: 'var(--surface, #ffffff)',
+          border: '1px solid var(--border-solid, #e2e8f0)',
+          borderRadius: '12px',
+          padding: '36px 24px',
+          textAlign: 'center',
+          margin: '24px 0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        }}>
+          <UserCheck size={38} style={{ color: '#94a3b8', marginBottom: '12px' }} />
+          <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary, #1e293b)' }}>No Students Enrolled</h3>
+          <p style={{ margin: 0, color: 'var(--text-secondary, #64748b)', fontSize: '0.9rem' }}>
+            There are currently no students registered or assigned to this class ({classes.find(c => String(c.id) === String(effectiveClassId))?.name || 'Selected Class'}).
+            Please enroll students or assign them to this class in the Admin Portal to enter marks.
+          </p>
+        </div>
       )}
 
       {canEnterMarks && students.length > 0 && (
@@ -1174,6 +1198,8 @@ export default function MarksEntryPage() {
           <MarksTable
             students={students}
             components={assessmentComponents}
+            selectedComponentId={selectedComponentId}
+            onSelectComponent={setSelectedComponentId}
             marksData={marksData}
             attendanceData={attendanceData}
             attendanceMarks={attendanceMarks}
@@ -1282,7 +1308,7 @@ export default function MarksEntryPage() {
                 <button
                   className={styles.saveBtn}
                   onClick={() => {
-                    if(window.confirm('Are you sure you want to freeze these marks? You will not be able to edit them further without HOD approval.')) {
+                    if (window.confirm('Are you sure you want to freeze these marks? You will not be able to edit them further without HOD approval.')) {
                       handleSave('frozen');
                     }
                   }}

@@ -836,7 +836,7 @@ export default function ReportsPage() {
 
   const handleHistoryRowClick = (session) => {
     // Check if class is 2021 Regulation (3rd & 4th Year)
-    const isPG = String(session.class_id || '').startsWith('ME_') || session.program_type === 'PG' || session.regulation_code === 'R2025';
+    const isPG = isPGClass(session);
     const is2021 = !isPG && (session.year_label === 'III' || session.year_label === 'IV' || session.year_label === '3' || session.year_label === '4' || parseInt(session.semester) >= 5);
     const path = is2021 ? '/marks-entry-2021' : '/marks-entry';
     navigate(path, { 

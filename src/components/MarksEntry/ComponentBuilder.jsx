@@ -26,25 +26,55 @@ export default function ComponentBuilder({
   isLocked,
   maxAllocation = MAX_STAFF_ALLOCATION,
   isPG = false,
-  subjectType = 'Theory'
+  subjectType = 'Theory',
+  selectedComponentId = null,
+  onSelectComponent
 }) {
   const [selectedType, setSelectedType] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [maxMarks, setMaxMarks] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const effectiveMaxAllocation = isPG ? (maxAllocation || 40) : MAX_STAFF_ALLOCATION;
+  // Standardized to 95 Marks for all 2025 assessment modules (5 Marks reserved for Attendance)
+  const effectiveMaxAllocation = MAX_STAFF_ALLOCATION;
   const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
-  const pgPreset = isPG ? getPGComponentPresets(subjectType) : null;
+  const remainingMarks = Math.max(0, effectiveMaxAllocation - totalMax);
 
-  const handleLoadPGR2025Preset = () => {
-    if (!pgPreset || !pgPreset.defaultComponents) return;
-    const comps = pgPreset.defaultComponents.map((c, i) => ({
-      ...c,
-      uid: Date.now() + i,
-    }));
-    onChange(comps);
+  // Standard Official R2025 Assessment Presets (summing to 95 Marks)
+  const getStandardR2025Preset = () => {
+    const sType = String(subjectType || '').toLowerCase();
+    if (sType.includes('practical') || sType.includes('lab') && !sType.includes('cum')) {
+      return [
+        { uid: Date.now() + 1, typeId: 'practical', label: 'Lab Experiments & Observation', conductedMax: 35, max: 35, color: '#F472B6', icon: '🔬' },
+        { uid: Date.now() + 2, typeId: 'model', label: 'Model Practical Examination', conductedMax: 30, max: 30, color: '#8B5CF6', icon: '🏆' },
+        { uid: Date.now() + 3, typeId: 'viva', label: 'Viva / Oral Examination', conductedMax: 15, max: 15, color: '#FB923C', icon: '🎤' },
+        { uid: Date.now() + 4, typeId: 'lab_record', label: 'Lab Record / Journal', conductedMax: 15, max: 15, color: '#10B981', icon: '📓' }
+      ];
+    } else if (sType.includes('cum') || (sType.includes('theory') && sType.includes('lab'))) {
+      return [
+        { uid: Date.now() + 1, typeId: 'test', label: 'Theory Continuous Assessment', conductedMax: 25, max: 25, color: '#6C63FF', icon: '📝' },
+        { uid: Date.now() + 2, typeId: 'practical', label: 'Laboratory Assessment', conductedMax: 25, max: 25, color: '#F472B6', icon: '🔬' },
+        { uid: Date.now() + 3, typeId: 'assignment', label: 'Course Assignment / Activities', conductedMax: 25, max: 25, color: '#22D3EE', icon: '📋' },
+        { uid: Date.now() + 4, typeId: 'quiz', label: 'Quiz / Viva', conductedMax: 20, max: 20, color: '#10B981', icon: '❓' }
+      ];
+    } else {
+      // Theory Standard Preset
+      return [
+        { uid: Date.now() + 1, typeId: 'test', label: 'Internal Test 1', conductedMax: 25, max: 25, color: '#6C63FF', icon: '📝' },
+        { uid: Date.now() + 2, typeId: 'test', label: 'Internal Test 2', conductedMax: 25, max: 25, color: '#3B82F6', icon: '📝' },
+        { uid: Date.now() + 3, typeId: 'assignment', label: 'Assignment / Activities', conductedMax: 25, max: 25, color: '#22D3EE', icon: '📋' },
+        { uid: Date.now() + 4, typeId: 'quiz', label: 'Quiz / Seminar', conductedMax: 20, max: 20, color: '#10B981', icon: '❓' }
+      ];
+    }
+  };
+
+  const handleLoadOfficialPreset = () => {
+    const presetComps = getStandardR2025Preset();
+    onChange(presetComps);
     setErrorMsg('');
+    if (onSelectComponent && presetComps.length > 0) {
+      onSelectComponent(presetComps[0].uid);
+    }
   };
 
   const selectedTypeMeta = ASSESSMENT_TYPES.find((t) => t.id === selectedType);
@@ -54,7 +84,8 @@ export default function ComponentBuilder({
     const meta = ASSESSMENT_TYPES.find((t) => t.id === val);
     if (meta) {
       setCustomLabel(meta.label);
-      setMaxMarks(String(meta.suggestedMax));
+      const suggested = meta.suggestedMax || 25;
+      setMaxMarks(String(remainingMarks > 0 ? Math.min(suggested, remainingMarks) : suggested));
     }
   };
 
@@ -62,12 +93,12 @@ export default function ComponentBuilder({
     if (!selectedType || !maxMarks || parseFloat(maxMarks) <= 0) return;
     const weight = parseFloat(maxMarks);
     if (totalMax + weight > effectiveMaxAllocation) {
-      setErrorMsg(`Cannot add component. Total weight would exceed ${effectiveMaxAllocation}${isPG ? ' Marks' : '%'}. (You currently have ${totalMax}${isPG ? ' Marks' : '%'} allocated)`);
+      setErrorMsg(`Cannot add component. Total weight would exceed ${effectiveMaxAllocation} Marks. (You currently have ${totalMax} Marks allocated, remaining: ${remainingMarks} Marks)`);
       return;
     }
-    
+
     const newComp = {
-      uid: uid++,
+      uid: Date.now() + Math.floor(Math.random() * 1000),
       typeId: selectedType,
       label: customLabel.trim() || selectedTypeMeta?.label || selectedType,
       conductedMax: weight,
@@ -75,7 +106,11 @@ export default function ComponentBuilder({
       color: selectedTypeMeta?.color || '#6C63FF',
       icon: selectedTypeMeta?.icon || '📝',
     };
-    onChange([...components, newComp]);
+    const updated = [...components, newComp];
+    onChange(updated);
+    if (onSelectComponent) {
+      onSelectComponent(newComp.uid);
+    }
     // Reset
     setSelectedType('');
     setCustomLabel('');
@@ -102,7 +137,7 @@ export default function ComponentBuilder({
         <div className={styles.header}>
           <div>
             <h3 className={styles.title}>Assessment Composition</h3>
-            <p className={styles.sub}>Total Weight: <strong>{totalMax}{isPG ? ' Marks' : '%'}</strong></p>
+            <p className={styles.sub}>Total Weight: <strong>{totalMax} Marks</strong> (out of 95)</p>
           </div>
         </div>
         <div className={styles.compList}>
@@ -115,7 +150,7 @@ export default function ComponentBuilder({
               <div className={styles.compInputs}>
                 <div className={styles.compField}>
                   <span className={styles.fieldLabel}>Weight</span>
-                  <span>{comp.max}{isPG ? 'm' : '%'}</span>
+                  <span>{comp.max} Marks</span>
                 </div>
               </div>
             </div>
@@ -130,76 +165,70 @@ export default function ComponentBuilder({
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>
-            {isPG ? `Build Assessment Sheet (PG R2025 - ${subjectType})` : 'Build Assessment Sheet'}
+            Build Assessment Sheet {isPG ? `(PG R2025 - ${subjectType})` : `(R2025 - ${subjectType})`}
           </h3>
           <p className={styles.sub}>
-            {isPG ? (
-              <>Continuous Assessment (CA) weight limit is <strong>{effectiveMaxAllocation} Marks</strong> for Anna University PG R2025 {subjectType} courses.</>
-            ) : (
-              <>Add the marks components for this subject. Total weight allowed is <strong>{MAX_STAFF_ALLOCATION}%</strong> (5% reserved for Attendance).</>
-            )}
+            Add assessment components for this subject. Maximum allocation is <strong>95 Marks</strong> (remaining <strong>5 Marks</strong> reserved for Attendance; Overall Total: <strong>100 Marks</strong>).
           </p>
         </div>
         {/* Total indicator */}
         <div className={styles.totalIndicator}>
-          <div className={styles.totalLabel}>Total Weight</div>
+          <div className={styles.totalLabel}>Total Allocated</div>
           <div className={`${styles.totalVal} ${totalMax === 0 ? styles.totalZero : ''} ${totalMax > effectiveMaxAllocation ? styles.totalError : ''}`}>
             {totalMax} / {effectiveMaxAllocation}
           </div>
           <div className={styles.totalSub}>
-            {isPG ? `Max CA: ${effectiveMaxAllocation} Marks` : '5% reserved for Attendance'}
+            5 Marks reserved for Attendance
           </div>
         </div>
       </div>
 
-      {/* PG Regulation 2025 Quick Preset Banner */}
-      {isPG && pgPreset && (
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
-          border: '1.5px solid rgba(99, 102, 241, 0.3)',
-          borderRadius: '10px',
-          padding: '12px 16px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '10px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.2rem' }}>📜</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#4338ca' }}>
-                Anna University PG Regulation 2025 Assessment Scheme
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#6366f1' }}>
-                {pgPreset.label} · Continuous Assessment: <strong>{effectiveMaxAllocation} Marks</strong> · ESE: <strong>{pgPreset.eseMax} Marks</strong>
-              </div>
+      {/* Standard Official R2025 Assessment Preset Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+        border: '1.5px solid rgba(99, 102, 241, 0.3)',
+        borderRadius: '10px',
+        padding: '12px 16px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '1.2rem' }}>📜</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#4338ca' }}>
+              Standard Regulation 2025 Assessment Scheme ({subjectType})
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#6366f1' }}>
+              Component Allocation: <strong>95 Marks</strong> · Attendance: <strong>5 Marks</strong> · Overall Total: <strong>100 Marks</strong>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleLoadPGR2025Preset}
-            style={{
-              background: '#4f46e5',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '7px 14px',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-            title={`Load standard Anna University R2025 preset for ${subjectType}`}
-          >
-            <Sparkles size={14} /> Load Official R2025 Preset ({pgPreset.defaultComponents.map(c => `${c.label.split('(')[0].trim()} ${c.max}m`).join(' + ')} = {effectiveMaxAllocation}m)
-          </button>
         </div>
-      )}
-      
+        <button
+          type="button"
+          onClick={handleLoadOfficialPreset}
+          style={{
+            background: '#4f46e5',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '7px 14px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          title={`Load official 2025 preset (95 Marks) for ${subjectType}`}
+        >
+          <Sparkles size={14} /> Load Official R2025 Preset (95 Marks)
+        </button>
+      </div>
+
       {errorMsg && (
         <div className={styles.errorBanner}>
           <AlertTriangle size={16} /> {errorMsg}
@@ -251,7 +280,7 @@ export default function ComponentBuilder({
             min="1"
             max={String(effectiveMaxAllocation)}
             className={styles.input}
-            placeholder={String(effectiveMaxAllocation)}
+            placeholder={String(remainingMarks > 0 ? remainingMarks : 25)}
             value={maxMarks}
             onChange={(e) => {
               setMaxMarks(e.target.value);
@@ -297,17 +326,30 @@ export default function ComponentBuilder({
             <span>Name</span>
             <span>Type</span>
             <span className={styles.centerCol}>Max Marks</span>
+            <span className={styles.centerCol}>Mark Entry</span>
             <span />
           </div>
           {(components || []).filter(Boolean).map((comp) => {
+            const isSelected = selectedComponentId === comp.uid;
             return (
-              <div key={comp.uid} className={styles.compItem}>
+              <div
+                key={comp.uid}
+                className={`${styles.compItem} ${isSelected ? styles.compItemSelected : ''}`}
+                style={{
+                  border: isSelected ? '1.5px solid #6366f1' : undefined,
+                  background: isSelected ? 'rgba(99, 102, 241, 0.04)' : undefined,
+                  cursor: onSelectComponent ? 'pointer' : undefined
+                }}
+                onClick={() => onSelectComponent && onSelectComponent(comp.uid)}
+                title="Click to select this component for mark entry"
+              >
                 {/* Label */}
                 <input
                   type="text"
                   className={styles.compLabelInput}
                   value={comp.label}
                   onChange={(e) => handleLabelChange(comp.uid, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
                 />
                 {/* Type badge */}
                 <TypeBadge typeId={comp.typeId} small />
@@ -319,13 +361,43 @@ export default function ComponentBuilder({
                     className={styles.maxInput}
                     value={comp.max}
                     onChange={(e) => handleMaxChange(comp.uid, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
                     title="Max Marks"
                   />
+                </div>
+                {/* Select / Active Indicator */}
+                <div className={styles.centerCol}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onSelectComponent) onSelectComponent(comp.uid);
+                    }}
+                    style={{
+                      background: isSelected ? '#4f46e5' : '#f1f5f9',
+                      color: isSelected ? '#ffffff' : '#475569',
+                      border: isSelected ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Select this component for student-wise mark entry"
+                  >
+                    {isSelected ? '✓ Selected' : 'Select'}
+                  </button>
                 </div>
                 {/* Remove */}
                 <button
                   className={styles.removeBtn}
-                  onClick={() => handleRemove(comp.uid)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemove(comp.uid);
+                  }}
                   title="Remove component"
                 >
                   <Trash2 size={15} />
@@ -340,10 +412,10 @@ export default function ComponentBuilder({
               <CheckCircle2 size={15} color="var(--success)" />
               <span>{components.length} component{components.length !== 1 ? 's' : ''}</span>
               <span className={styles.summarySep}>·</span>
-              <span>Total Allocated Weight: <strong className={totalMax > effectiveMaxAllocation ? styles.textError : ''}>{totalMax}{isPG ? ' Marks' : '%'}</strong></span>
+              <span>Total Allocated Weight: <strong className={totalMax > effectiveMaxAllocation ? styles.textError : ''}>{totalMax} Marks</strong></span>
               <span className={styles.summarySep}>·</span>
               <span className={styles.normalizeNote}>
-                Remaining {Math.max(0, effectiveMaxAllocation - totalMax)}{isPG ? ' Marks' : '%'} available.
+                Remaining {remainingMarks} Marks available (5 Marks for Attendance).
               </span>
             </div>
           </div>
@@ -356,9 +428,7 @@ export default function ComponentBuilder({
           <AlertCircle size={32} color="var(--text-muted)" />
           <p>No assessment components added yet.</p>
           <p className={styles.emptySub}>
-            {isPG
-              ? 'Click "Load Official R2025 Preset" above or select a type to customize components.'
-              : 'Select a type and click Add to build your marks sheet.'}
+            Click "Load Official R2025 Preset" above or choose a type and click Add to build your marks sheet.
           </p>
         </div>
       )}

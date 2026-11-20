@@ -10,8 +10,8 @@ const triggerDownload = async (workbook, filename) => {
     .trim();
   const finalFilename = safeFilename.endsWith('.xlsx') ? safeFilename : `${safeFilename}.xlsx`;
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { 
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -310,8 +310,8 @@ export const exportSubjectMarksExcel = async ({
   if (isPG) {
     headers = [
       'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
-      'Attd Mark (Max: 5)', `CA Mark (Max: ${pgCiaMax})`,
-      'Internal Mark', 'CA Mark Total'
+      'Attd Mark (Max: 5)', 'Activities Mark (Max: 95)',
+      'Internal Mark', 'Activities Mark Total'
     ];
   } else if (!is2021) {
     // 2025 Autonomous Regulation headers
@@ -374,7 +374,7 @@ export const exportSubjectMarksExcel = async ({
 
     let totalInternal;
     if (isPG) {
-      totalInternal = Math.min(pgCiaMax, convertedTotal);
+      totalInternal = Math.min(100, convertedTotal + attendanceMark);
     } else if (is2021) {
       const ciaMax = hasLab ? 50 : 40;
       const examConvertedMax = hasLab ? 50 : 60;
@@ -462,7 +462,7 @@ export const exportSubjectMarksExcel = async ({
   const criteriaRow = worksheet.getRow(currentRow);
   const maxAssignment = is2021 ? (hasLab ? 50 : 40) : 95;
   if (isPG) {
-    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, pgCiaMax, 100, pgCiaMax];
+    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
   } else if (!is2021) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
   } else if (withInternal) {
@@ -1145,10 +1145,15 @@ export const exportSubjectAnalysisExcel = async ({
   allMarks = [],
   components = [],
   attendanceData = {},
+  attendanceMarks = {},
   internalExamData = {},
   labData = {},
   assessmentMode = 'internal1',
   totalHours = 0,
+  int1Hours,
+  int2Hours,
+  labHours,
+  int1AttendanceData = {},
   declarationData = {},
   user
 }) => {
@@ -1233,11 +1238,62 @@ export const exportSubjectAnalysisExcel = async ({
         isAbsent = true;
       }
     } else {
-      const rawVal = internalExamData[st.id];
-      if (rawVal === '' || rawVal === undefined || rawVal === null) {
-        isAbsent = true;
+      // Regulation 2025 (UG & PG): Standardized Continuous Assessment calculation:
+      // Component marks (max 95) + Attendance marks (max 5) = Final Total (max 100)
+      let rawCIA = 0;
+      let hasComponentMarks = false;
+      const dataSource = marksData || allMarks;
+      if (components && dataSource) {
+        const isArray = Array.isArray(dataSource);
+        components.forEach(comp => {
+          let val = undefined;
+          if (isArray) {
+            const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
+            if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
+              val = markObj.marks_obtained;
+            }
+          } else {
+            val = dataSource?.[st.id]?.[comp.uid || comp.id];
+          }
+          if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
+            hasComponentMarks = true;
+            const numVal = parseFloat(val);
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
+            rawCIA += Math.min(numVal, conducted);
+          }
+        });
+      }
+      rawCIA = Math.round(rawCIA);
+
+      const rawHoursVal = attendanceData?.[st.id] ?? attendanceData?.[String(st.id || '')];
+      const hasAttendanceHours = rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null;
+      const dbAttMark = (attendanceMarks?.[st.id] !== undefined && attendanceMarks?.[st.id] !== null && attendanceMarks?.[st.id] !== '')
+        ? parseFloat(attendanceMarks[st.id])
+        : null;
+      const hasAttendanceMark = dbAttMark !== null && !isNaN(dbAttMark);
+
+      const attendanceMark = resolveAttendanceMark(st.id, {
+        attendanceMarks,
+        attendanceData,
+        totalHours: analysisPrescribedHrs,
+        assessmentMode,
+        int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
+        int1Hours: int1Hours || subject?.int1_hours || 30,
+        int2Hours: int2Hours || subject?.int2_hours || 30,
+        labHours: labHours || subject?.lab_hours || 0,
+        labData
+      });
+
+      const rawExamVal = internalExamData?.[st.id];
+      const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null && rawExamVal !== 'AB' && !isNaN(parseFloat(rawExamVal));
+
+      if (hasComponentMarks || hasAttendanceHours || hasAttendanceMark) {
+        mark = Math.min(100, rawCIA + attendanceMark);
+      } else if (hasExamMark) {
+        // Fallback for legacy standalone exam entry if no 2025 assessment components/attendance exist
+        mark = Math.min(100, Math.round(parseFloat(rawExamVal) || 0));
       } else {
-        mark = parseFloat(rawVal) || 0;
+        isAbsent = true;
       }
     }
 
@@ -1257,7 +1313,9 @@ export const exportSubjectAnalysisExcel = async ({
     if (mark > maxMark) maxMark = mark;
     if (mark < minMark) minMark = mark;
 
-    const passMarkThreshold = (isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) ? 50 : 60;
+    const passMarkThreshold = is2021
+      ? ((isLabType || subject?.type?.toLowerCase().includes('lab') || subject?.type?.toLowerCase().includes('practical')) ? 50 : 60)
+      : 50;
     const isPass = mark >= passMarkThreshold;
     if (isPass) passed++;
     else failed++;
