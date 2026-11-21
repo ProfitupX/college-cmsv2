@@ -928,7 +928,7 @@ export default function MarksEntryPage2021() {
     if (/^OHS/.test(c)) return 'sh';
     // 2. Standard 2-character prefixes
     if (/^(MA|PH|CY|GE|HS|BS|UC|EN)/.test(c)) return 'sh';
-    if (/^(CS|CB)/.test(c)) return 'cse';
+    if (/^(CS|CB|CP)/.test(c)) return 'cse';
     if (/^(IT|CW)/.test(c)) return 'it';
     if (/^AD/.test(c)) return 'aids';
     if (/^EC/.test(c)) return 'ece';
@@ -938,9 +938,49 @@ export default function MarksEntryPage2021() {
     return '';
   };
 
+  const resolveClassOwningDept = (cls) => {
+    if (!cls) return '';
+    const clsId = String(cls.id || '').trim();
+    const clsName = String(cls.name || '').trim().toUpperCase();
+    const clsDept = String(cls.department || '').trim();
+
+    if (
+      clsId === 'CL_1794306342' || clsId === 'CL_1795140566' ||
+      /^ME[_\-/]CSE/i.test(clsId) ||
+      (clsName.includes('CSE') && (clsName.includes('ME') || clsName.includes('M.E.')))
+    ) {
+      return 'cse';
+    }
+    if (
+      clsId === 'CL_1794909437' ||
+      /^ME[_\-/]EST/i.test(clsId) ||
+      clsName.includes('EST') || clsName.includes('EMBEDDED')
+    ) {
+      return 'ece';
+    }
+    if (
+      clsId === 'CL_1794909933' || clsId === 'CL_1794909988' ||
+      /^ME[_\-/]SE/i.test(clsId) ||
+      (/\bSE\b/.test(clsName) && (clsName.includes('ME') || clsName.includes('M.E.'))) ||
+      clsName.includes('STRUCTURAL')
+    ) {
+      return 'civil';
+    }
+    if (
+      clsId === 'CL_1794910479' || clsId === 'CL_1794910622' ||
+      /^ME[_\-/]MFE/i.test(clsId) ||
+      clsName.includes('MFE') || clsName.includes('MANUFACTURING')
+    ) {
+      return 'mech';
+    }
+    return normDept(clsDept);
+  };
+
   const userDeptNorm = normDept(user?.department);
-  const subDeptNorm = normDept(selectedSubject?.department) || inferDeptFromCode(selectedSubject?.code);
-  const isSubjectDeptHod = user?.role === 'hod' && Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm);
+  const classDeptNorm = resolveClassOwningDept(selectedClass);
+  const subDeptNorm = normDept(selectedSubject?.department) || classDeptNorm || inferDeptFromCode(selectedSubject?.code);
+  const isClassAuthorized = Boolean(userDeptNorm && classDeptNorm && userDeptNorm === classDeptNorm);
+  const isSubjectDeptHod = user?.role === 'hod' && (Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm) || isClassAuthorized);
   const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isSubjectDeptHod);
   const step = !selectedSubject ? 1 : (isPureLab || assessmentComponents.length > 0 ? 3 : 2);
   const isPrincipal = user?.role === 'principal' || user?.role === 'vice_principal';

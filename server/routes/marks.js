@@ -245,7 +245,7 @@ export function inferDepartmentFromSubjectCode(code) {
   if (/^(MA|PH|CY|GE|HS|BS|UC|EN)/.test(c)) {
     return CANONICAL_DEPARTMENTS.SH;
   }
-  if (/^(CS|CB)/.test(c)) {
+  if (/^(CS|CB|CP)/.test(c)) {
     return CANONICAL_DEPARTMENTS.CSE;
   }
   if (/^(IT|CW)/.test(c)) {
@@ -270,7 +270,65 @@ export function inferDepartmentFromSubjectCode(code) {
   return null;
 }
 
-export function getAuthoritativeSubjectDepartment(subject) {
+/**
+ * Resolves the owning canonical department of a class.
+ * Handles both Undergraduate classes and all Postgraduate (M.E.) programmes.
+ */
+export function resolveClassOwningDepartment(cls) {
+  if (!cls) return null;
+
+  const clsId = String(cls.id || cls.class_id || '').trim();
+  const clsName = String(cls.name || cls.class_name || '').trim().toUpperCase();
+  const clsDept = String(cls.department || cls.class_department || '').trim();
+
+  // 1. Postgraduate Programme Owning Departments
+  // M.E. CSE
+  if (
+    clsId === 'CL_1794306342' || clsId === 'CL_1795140566' ||
+    /^ME[_\-\/]CSE/i.test(clsId) ||
+    (clsName.includes('CSE') && (clsName.includes('ME') || clsName.includes('M.E.')))
+  ) {
+    return CANONICAL_DEPARTMENTS.CSE;
+  }
+
+  // M.E. EST (Embedded System Technologies) -> ECE
+  if (
+    clsId === 'CL_1794909437' ||
+    /^ME[_\-\/]EST/i.test(clsId) ||
+    clsName.includes('EST') || clsName.includes('EMBEDDED')
+  ) {
+    return CANONICAL_DEPARTMENTS.ECE;
+  }
+
+  // M.E. Structural Engineering -> Civil
+  if (
+    clsId === 'CL_1794909933' || clsId === 'CL_1794909988' ||
+    /^ME[_\-\/]SE/i.test(clsId) ||
+    (/\bSE\b/.test(clsName) && (clsName.includes('ME') || clsName.includes('M.E.'))) ||
+    clsName.includes('STRUCTURAL')
+  ) {
+    return CANONICAL_DEPARTMENTS.CIVIL;
+  }
+
+  // M.E. Manufacturing Engineering -> Mechanical
+  if (
+    clsId === 'CL_1794910479' || clsId === 'CL_1794910622' ||
+    /^ME[_\-\/]MFE/i.test(clsId) ||
+    clsName.includes('MFE') || clsName.includes('MANUFACTURING')
+  ) {
+    return CANONICAL_DEPARTMENTS.MECH;
+  }
+
+  // 2. Direct canonical department match (UG or standard department field)
+  if (clsDept) {
+    const canonical = canonicalizeDepartment(clsDept);
+    if (canonical) return canonical;
+  }
+
+  return null;
+}
+
+export function getAuthoritativeSubjectDepartment(subject, targetClass = null) {
   if (!subject) return null;
 
   // 1. Primary source: subjects.department
@@ -280,7 +338,14 @@ export function getAuthoritativeSubjectDepartment(subject) {
     if (canonical) return canonical;
   }
 
-  // 2. Authoritative Fallback: Subject Code Prefix
+  // 2. Class-level Owning Department Fallback
+  // If subject.department is null or unassigned, resolve from the associated class
+  if (targetClass) {
+    const classDept = resolveClassOwningDepartment(targetClass);
+    if (classDept) return classDept;
+  }
+
+  // 3. Authoritative Fallback: Subject Code Prefix
   const fromCode = inferDepartmentFromSubjectCode(subject.code);
   if (fromCode) return fromCode;
 
@@ -330,10 +395,109 @@ export async function getDepartmentHod(database, canonicalDept) {
 
 // Helper to resolve accurate department for notification targeting:
 // MANDATORY RULE: The Subject's Department HOD ALWAYS has authority!
-function resolveSubjectDepartment(sub) {
-  const authDept = getAuthoritativeSubjectDepartment(sub);
+function resolveSubjectDepartment(sub, targetClass = null) {
+  const authDept = getAuthoritativeSubjectDepartment(sub, targetClass);
   if (authDept) return authDept;
   return 'College Administration';
+}
+
+/**
+ * Checks if a class belongs to an HOD's department or their owning PG programme.
+ * Standardized across MarkHub authorization checks.
+ */
+export function isClassAuthorizedForHod(cls, hodDept) {
+  if (!cls || !hodDept) return false;
+  const hodCanonical = canonicalizeDepartment(hodDept);
+  if (!hodCanonical) return false;
+
+  const classOwningDept = resolveClassOwningDepartment(cls);
+  if (classOwningDept && classOwningDept === hodCanonical) return true;
+
+  // Direct match on raw department string
+  const dStr = String(hodDept).trim().toLowerCase();
+  const clsDept = String(cls.department || cls.class_department || '').trim().toLowerCase();
+  if (clsDept === dStr) return true;
+
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Database Schema Capabilities & Dynamic Fallback Helper
+// Ensures marks routes run safely on Phase 1 (markhub_db) and Phase 2 (markhub_phase2_test)
+// without throwing "Unknown column 'exam_date' in 'field list'"
+// ─────────────────────────────────────────────────────────────
+let schemaCapabilities = null;
+async function getSchemaCapabilities(conn, forceRefresh = false) {
+  if (schemaCapabilities && !forceRefresh) return schemaCapabilities;
+  try {
+    const [cols] = await conn.execute(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'marks_sessions'`
+    );
+    const colSet = new Set(cols.map(c => c.COLUMN_NAME));
+
+    schemaCapabilities = {
+      hasExamDateCol: colSet.has('exam_date'),
+      hasTotalHoursCol: colSet.has('total_hours'),
+      hasInternal2TotalHoursCol: colSet.has('internal2_total_hours')
+    };
+  } catch (err) {
+    schemaCapabilities = null; // Do NOT permanently cache failed metadata lookups!
+    console.error('getSchemaCapabilities error querying INFORMATION_SCHEMA:', err.message);
+    throw new Error(`Failed to query database schema capabilities: ${err.message}`);
+  }
+  return schemaCapabilities;
+}
+router.__resetSchemaCapabilities = () => { schemaCapabilities = null; };
+
+// Helper to save exam date in system_settings when marks_sessions does not have exam_date column
+// exam_date_<sessionId> is the SOLE authoritative source of truth
+async function saveExamDateToSettings(conn, sessionId, _subjectId, _classId, _sessionLabel, examDate) {
+  try {
+    if (!sessionId) return;
+    const settingKey = `exam_date_${sessionId}`;
+
+    if (!examDate) {
+      // Explicitly cleared date: remove authoritative individual session key
+      await conn.execute(
+        `DELETE FROM system_settings WHERE setting_key = ?`,
+        [settingKey]
+      );
+      return;
+    }
+
+    const cleanDate = String(examDate).substring(0, 10);
+
+    // Save authoritative individual session key using INSERT ... ON DUPLICATE KEY UPDATE
+    await conn.execute(
+      `INSERT INTO system_settings (setting_key, setting_value)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE setting_value = ?`,
+      [settingKey, cleanDate, cleanDate]
+    );
+  } catch (err) {
+    console.error('saveExamDateToSettings error:', err.message);
+    throw new Error(`Failed to persist exam date in settings: ${err.message}`);
+  }
+}
+
+// Helper to resolve exam date from system_settings for a single session
+// Reads exclusively from authoritative individual key exam_date_<sessionId>
+async function resolveExamDateFromSettings(conn, sessionId, _subjectId, _classId, _sessionLabel) {
+  if (!sessionId) return null;
+  try {
+    const [singleRow] = await conn.execute(
+      `SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1`,
+      [`exam_date_${sessionId}`]
+    );
+    if (singleRow.length > 0 && singleRow[0].setting_value) {
+      return String(singleRow[0].setting_value).substring(0, 10);
+    }
+    return null; // Setting does not exist
+  } catch (err) {
+    console.error('resolveExamDateFromSettings error:', err.message);
+    throw new Error(`Failed to resolve exam date from settings: ${err.message}`);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -347,24 +511,109 @@ function resolveSubjectDepartment(sub) {
 router.post('/submit', async (req, res) => {
   const conn = await db.getConnection();
   try {
+    // ── 1. Backend Authentication Context Verification ──
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser || !authUser.id) {
+      return res.status(401).json({ error: 'Authentication required to save marks.' });
+    }
+
+    let actingStaff;
+    try {
+      actingStaff = await resolveActingStaff(conn, authUser.id, authUser.pwf);
+    } catch (authErr) {
+      return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
+    }
+    if (!actingStaff) {
+      return res.status(403).json({ error: 'Unauthorized: User not found in staff registry.' });
+    }
+
     await conn.beginTransaction();
 
     const { subjectId, classId, staffId, sessionLabel, components, marks, totalHours, internal2TotalHours, attendance, actionType, remedialAction, examDate } = req.body;
 
-    if (!subjectId || !classId || !staffId || !components) {
+    if (!subjectId || !classId || !components) {
+      await conn.rollback();
       return res.status(400).json({ error: 'Missing required fields.' });
     }
+
+    const userRole = String(actingStaff.role || '').toLowerCase();
+    const isPrivileged = ['admin', 'principal', 'vice_principal'].includes(userRole);
 
     const cleanExamDate = examDate && typeof examDate === 'string' && examDate.trim().length >= 10
       ? examDate.trim().substring(0, 10)
       : (examDate ? examDate : null);
 
-    // Fetch subject details for accurate hours splits & subject type detection
+    // Fetch subject details including class_id and faculty_id for assignment authorization
     const [subRows] = await conn.execute(
-      'SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours, department FROM subjects WHERE id = ? OR code = ?',
+      'SELECT id, code, name, type, ltpc, total_hours, int1_hours, int2_hours, lab_hours, department, class_id, faculty_id FROM subjects WHERE id = ? OR code = ?',
       [subjectId, subjectId]
     );
-    const subObj = subRows.length > 0 ? subRows[0] : {};
+    if (subRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Subject not found.' });
+    }
+    const subObj = subRows[0];
+
+    // Verify Subject belongs to the requested class
+    if (subObj.class_id && String(subObj.class_id) !== String(classId)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid class: Subject does not belong to the selected class.' });
+    }
+
+    // Role-Based Assignment Authorization & Session Ownership Resolution
+    let effectiveStaffId = actingStaff.id;
+    if (isPrivileged) {
+      // Privileged administrative accounts can submit on behalf of assigned faculty
+      effectiveStaffId = staffId || subObj.faculty_id || actingStaff.id;
+    } else if (userRole === 'hod') {
+      const authDept = getAuthoritativeSubjectDepartment(subObj);
+      const hodDept = actingStaff.department;
+      const isDeptSubject = authDept && hodDept && (
+        String(authDept).toLowerCase() === String(hodDept).toLowerCase() ||
+        String(subObj.department || '').toLowerCase() === String(hodDept).toLowerCase()
+      );
+
+      // Check if class belongs to HOD's department or PG owning programme
+      const [clsRows] = await conn.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
+      const targetClass = clsRows[0];
+      const isDeptClass = targetClass && isClassAuthorizedForHod(targetClass, hodDept);
+      const isAssignedFaculty = String(subObj.faculty_id || '') === String(actingStaff.id);
+
+      if (!isAssignedFaculty && !isDeptSubject && !isDeptClass) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Access denied: You do not have permission to enter marks for another department\'s subject or academic programme.' });
+      }
+
+      // Session owner validation: HOD can only submit under the subject's assigned faculty or the HOD themselves
+      if (staffId && String(staffId).trim()) {
+        const cleanStaffId = String(staffId).trim();
+        const assignedFacId = subObj.faculty_id ? String(subObj.faculty_id).trim() : null;
+        const hodId = String(actingStaff.id).trim();
+
+        if (cleanStaffId !== hodId && (!assignedFacId || cleanStaffId !== assignedFacId)) {
+          await conn.rollback();
+          return res.status(403).json({ error: 'Unauthorized: Session owner must be the assigned faculty member or the authorized HOD.' });
+        }
+        effectiveStaffId = cleanStaffId;
+      } else {
+        effectiveStaffId = subObj.faculty_id || actingStaff.id;
+      }
+    } else if (userRole === 'faculty') {
+      const isAssignedFaculty = String(subObj.faculty_id || '') === String(actingStaff.id);
+      if (!isAssignedFaculty) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Access denied: You are not the assigned faculty for this subject.' });
+      }
+      // Prevent faculty impersonation: non-privileged users cannot spoof staffId
+      if (staffId && String(staffId).trim() !== String(actingStaff.id).trim()) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Unauthorized: Cannot submit marks on behalf of another faculty member.' });
+      }
+      effectiveStaffId = actingStaff.id;
+    } else {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Access denied: Your role does not have mark-entry permissions.' });
+    }
     const isPureLabSubmission = Boolean(
       subObj.type === 'Practical' ||
       subObj.type === 'Laboratory' ||
@@ -387,9 +636,14 @@ router.post('/submit', async (req, res) => {
       sessionTotalHours = 30;
     }
 
-    // 1.5 Find existing session to perform safe in-place UPDATE (avoids foreign-key CASCADE wipe)
+    const schema = await getSchemaCapabilities(conn);
+
+    // 1.5 Find existing session using columns that exist in the active schema
+    const selectFields = ['id', 'status'];
+    if (schema.hasExamDateCol) selectFields.push('exam_date');
+
     const [existingSessions] = await conn.execute(
-      `SELECT id, status, exam_date FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
+      `SELECT ${selectFields.join(', ')} FROM marks_sessions WHERE subject_id = ? AND class_id = ? AND session_label = ? ORDER BY id DESC`,
       [String(subjectId), String(classId), String(sessionLabel)]
     );
     const existingSession = existingSessions.length > 0 ? existingSessions[0] : null;
@@ -428,7 +682,9 @@ router.post('/submit', async (req, res) => {
     const totalMax = components.reduce((s, c) => s + (parseFloat(c.maxMarks) || 0), 0);
 
     // avg = (sum of converted marks) / studentCount
-    const studentIds = [...new Set(marks.map((m) => m.studentId))];
+    const safeMarks = Array.isArray(marks) ? marks : [];
+    const safeAttendance = Array.isArray(attendance) ? attendance : [];
+    const studentIds = [...new Set([...safeMarks.map((m) => m.studentId), ...safeAttendance.map((a) => a.studentId)])];
     const studentCount = studentIds.length;
 
     // Anna Univ 25th Regulation attendance rule:
@@ -443,7 +699,7 @@ router.post('/submit', async (req, res) => {
 
     // Group marks by student to compute converted total per student
     const studentTotals = {};
-    for (const m of marks) {
+    for (const m of safeMarks) {
       if (!studentTotals[m.studentId]) studentTotals[m.studentId] = 0;
 
       const comp = components[m.componentIndex];
@@ -512,53 +768,93 @@ router.post('/submit', async (req, res) => {
     const statusVal = actionType === 'frozen' ? 'locked' : (existingSession?.status === 'locked' ? 'locked' : 'draft');
     let sessionId;
 
-    const finalExamDate = examDate !== undefined
-      ? (cleanExamDate || null)
-      : (existingSession?.exam_date || null);
+    let existingExamDate = null;
+    if (schema.hasExamDateCol) {
+      existingExamDate = existingSession?.exam_date || null;
+    } else if (existingSession?.id) {
+      existingExamDate = await resolveExamDateFromSettings(conn, existingSession.id, subjectId, classId, sessionLabel);
+    }
+
+    let finalExamDate;
+    if (examDate === undefined) {
+      // Preserve existing exam date when omitted from payload
+      finalExamDate = existingExamDate || null;
+    } else if (!cleanExamDate) {
+      // Explicitly cleared date
+      finalExamDate = null;
+    } else {
+      finalExamDate = cleanExamDate;
+    }
 
     if (existingSession) {
       sessionId = existingSession.id;
+      const updateFields = ['staff_id = ?', 'total_max = ?'];
+      const updateParams = [String(effectiveStaffId), totalMax];
+
+      if (schema.hasTotalHoursCol) {
+        updateFields.push('total_hours = ?');
+        updateParams.push(parseInt(sessionTotalHours, 10) || 0);
+      }
+      if (schema.hasInternal2TotalHoursCol) {
+        updateFields.push('internal2_total_hours = ?');
+        updateParams.push(parseInt(internal2TotalHours, 10) || 0);
+      }
+
+      updateFields.push('status = ?', 'avg_score = ?', 'student_count = ?', 'remedial_action = ?');
+      updateParams.push(statusVal, avgScore, studentCount, remedialAction || '');
+
+      if (schema.hasExamDateCol) {
+        updateFields.push('exam_date = ?');
+        updateParams.push(finalExamDate);
+      }
+
+      updateFields.push('updated_at = NOW()');
+      updateParams.push(sessionId);
+
       await conn.execute(
-        `UPDATE marks_sessions
-         SET staff_id = ?, total_max = ?, total_hours = ?, internal2_total_hours = ?,
-             status = ?, avg_score = ?, student_count = ?, remedial_action = ?,
-             exam_date = ?,
-             updated_at = NOW()
-         WHERE id = ?`,
-        [
-          String(staffId),
-          totalMax,
-          parseInt(sessionTotalHours, 10) || 0,
-          parseInt(internal2TotalHours, 10) || 0,
-          statusVal,
-          avgScore,
-          studentCount,
-          remedialAction || '',
-          finalExamDate,
-          sessionId
-        ]
+        `UPDATE marks_sessions SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateParams
       );
     } else {
+      const insertCols = ['subject_id', 'class_id', 'staff_id'];
+      const insertVals = [String(subjectId), String(classId), String(effectiveStaffId)];
+
+      insertCols.push('session_label');
+      insertVals.push(sessionLabel || 'Internal Assessment');
+
+      if (schema.hasExamDateCol) {
+        insertCols.push('exam_date');
+        insertVals.push(finalExamDate);
+      }
+
+      insertCols.push('total_max');
+      insertVals.push(totalMax);
+
+      if (schema.hasTotalHoursCol) {
+        insertCols.push('total_hours');
+        insertVals.push(parseInt(sessionTotalHours, 10) || 0);
+      }
+      if (schema.hasInternal2TotalHoursCol) {
+        insertCols.push('internal2_total_hours');
+        insertVals.push(parseInt(internal2TotalHours, 10) || 0);
+      }
+
+      insertCols.push('status', 'avg_score', 'student_count', 'remedial_action');
+      insertVals.push(statusVal, avgScore, studentCount, remedialAction || '');
+
+      const placeholders = insertCols.map(() => '?').join(', ');
       const [sessionResult] = await conn.execute(
-        `INSERT INTO marks_sessions
-           (subject_id, class_id, staff_id, session_label, exam_date, total_max, total_hours, internal2_total_hours, status, avg_score, student_count, remedial_action)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          String(subjectId),
-          String(classId),
-          String(staffId),
-          sessionLabel || 'Internal Assessment',
-          cleanExamDate || null,
-          totalMax,
-          parseInt(sessionTotalHours, 10) || 0,
-          parseInt(internal2TotalHours, 10) || 0,
-          statusVal,
-          avgScore,
-          studentCount,
-          remedialAction || ''
-        ]
+        `INSERT INTO marks_sessions (${insertCols.join(', ')}) VALUES (${placeholders})`,
+        insertVals
       );
       sessionId = sessionResult.insertId;
+    }
+
+    // Persist or clear exam date in system_settings
+    if (examDate !== undefined) {
+      await saveExamDateToSettings(conn, sessionId, subjectId, classId, sessionLabel, finalExamDate);
+    } else if (finalExamDate) {
+      await saveExamDateToSettings(conn, sessionId, subjectId, classId, sessionLabel, finalExamDate);
     }
 
     // 3. Safe Component In-Place Update (keeps existing component IDs stable)
@@ -634,7 +930,7 @@ router.post('/submit', async (req, res) => {
     const auditLogEntries = [];
 
     // 4. Safe Marks Upsert (ON DUPLICATE KEY UPDATE) with Audit Delta Logging
-    for (const m of marks) {
+    for (const m of safeMarks) {
       const compDbId = componentIdMap[m.componentIndex];
       if (compDbId === undefined) continue;
       const sId = String(m.studentId);
@@ -651,8 +947,8 @@ router.post('/submit', async (req, res) => {
           'marks_obtained',
           oldVal !== null ? String(oldVal) : null,
           newVal !== null ? String(newVal) : null,
-          String(staffId),
-          String(staffName || staffId),
+          String(actingStaff.id),
+          String(actingStaff.name || actingStaff.id),
           String(actionType || 'save')
         ]);
       }
@@ -729,8 +1025,8 @@ router.post('/submit', async (req, res) => {
             'attendance_mark',
             oldAttMark !== null ? String(oldAttMark) : null,
             newAttMark !== null ? String(newAttMark) : null,
-            String(staffId),
-            String(staffName || staffId),
+            String(actingStaff.id),
+            String(actingStaff.name || actingStaff.id),
             String(actionType || 'save')
           ]);
         }
@@ -745,8 +1041,8 @@ router.post('/submit', async (req, res) => {
             'hours_attended',
             oldHours !== null ? String(oldHours) : null,
             String(newHours),
-            String(staffId),
-            String(staffName || staffId),
+            String(actingStaff.id),
+            String(actingStaff.name || actingStaff.id),
             String(actionType || 'save')
           ]);
         }
@@ -761,8 +1057,8 @@ router.post('/submit', async (req, res) => {
             'internal_exam_mark',
             oldExam !== null ? String(oldExam) : null,
             newExam !== null ? String(newExam) : null,
-            String(staffId),
-            String(staffName || staffId),
+            String(actingStaff.id),
+            String(actingStaff.name || actingStaff.id),
             String(actionType || 'save')
           ]);
         }
@@ -777,8 +1073,8 @@ router.post('/submit', async (req, res) => {
             'lab_mark',
             oldLab !== null ? String(oldLab) : null,
             newLab !== null ? String(newLab) : null,
-            String(staffId),
-            String(staffName || staffId),
+            String(actingStaff.id),
+            String(actingStaff.name || actingStaff.id),
             String(actionType || 'save')
           ]);
         }
@@ -839,11 +1135,11 @@ router.post('/submit', async (req, res) => {
           String(subjectId),
           String(classId),
           String(sessionLabel),
-          String(staffId),
+          String(actingStaff.id),
           actionType || 'save',
           JSON.stringify({
             studentCount,
-            marksCount: marks.length,
+            marksCount: safeMarks.length,
             avgScore,
             totalMax,
             savedAt: new Date().toISOString()
@@ -879,9 +1175,8 @@ router.post('/submit', async (req, res) => {
         // Resolve true department: ALWAYS the class department
         const dept = resolveSubjectDepartment(sub);
 
-        // Fetch staff name who froze the marks
-        const [freezerRows] = await db.execute('SELECT name FROM staffs WHERE id = ?', [staffId]);
-        const freezerName = freezerRows[0]?.name || 'the subject staff';
+        // Freezer staff name
+        const freezerName = actingStaff.name || actingStaff.id;
 
         // Notify HOD of the CLASS department ONLY
         await db.execute(
@@ -992,6 +1287,27 @@ router.get('/sessions', async (req, res) => {
     sql += ' ORDER BY ms.created_at DESC';
 
     const [rows] = await db.execute(sql, params);
+
+    // Populate authoritative exam dates from individual session keys in a single batch query
+    if (rows.length > 0) {
+      const sessionKeys = rows.map(r => `exam_date_${r.id}`);
+      const placeholders = sessionKeys.map(() => '?').join(', ');
+      const [dateRows] = await db.execute(
+        `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
+        sessionKeys
+      );
+      const dateMap = new Map();
+      for (const dr of dateRows) {
+        if (dr.setting_key && dr.setting_value) {
+          dateMap.set(dr.setting_key, String(dr.setting_value).substring(0, 10));
+        }
+      }
+      rows.forEach(r => {
+        if (!r.exam_date) {
+          r.exam_date = dateMap.get(`exam_date_${r.id}`) || null;
+        }
+      });
+    }
     res.json(rows);
   } catch (err) {
     console.error('GET /marks/sessions error:', err);
@@ -1018,6 +1334,17 @@ router.get('/sessions/:id', async (req, res) => {
        WHERE ms.id = ?`, [id]
     );
     if (!sessions.length) return res.status(404).json({ error: 'Session not found.' });
+
+    // Populate exam_date from system_settings if null or undefined
+    if (!sessions[0].exam_date) {
+      sessions[0].exam_date = await resolveExamDateFromSettings(
+        db,
+        sessions[0].id,
+        sessions[0].subject_id,
+        sessions[0].class_id,
+        sessions[0].session_label
+      );
+    }
 
     // Components
     const [components] = await db.execute(
@@ -1163,70 +1490,114 @@ router.delete('/sessions/:id', async (req, res) => {
 });
 
 router.post('/unlock-session', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const sessionId = req.body?.sessionId?.sessionId || req.body?.sessionId;
-    if (!sessionId) return res.status(400).json({ error: 'Missing sessionId.' });
+    if (!sessionId) {
+      conn.release();
+      return res.status(400).json({ error: 'Missing sessionId.' });
+    }
 
     // Derive acting user identity strictly from verified server authentication context
     const authUser = getAuthenticatedUser(req);
     if (!authUser || !authUser.id) {
+      conn.release();
       return res.status(401).json({ error: 'Authentication required to unlock session. Marks remain frozen.' });
     }
 
-    // Retrieve marks session and associated subject
-    const [sessRows] = await db.execute(
-      `SELECT ms.id, ms.subject_id, ms.status, s.code, s.name, s.department AS sub_dept
+    await conn.beginTransaction();
+
+    const [sessRows] = await conn.execute(
+      `SELECT ms.id, ms.subject_id, ms.class_id, ms.status, s.code, s.name, s.department AS sub_dept, s.class_id AS sub_class_id
        FROM marks_sessions ms
        LEFT JOIN subjects s ON s.id = ms.subject_id
        WHERE ms.id = ?`,
       [sessionId]
     );
-
     if (sessRows.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ error: 'Marks session not found.' });
     }
-
     const session = sessRows[0];
-    const authoritativeDept = getAuthoritativeSubjectDepartment({
+    const sessionClassId = session.class_id || session.sub_class_id;
+
+    // Fetch class details if available
+    let targetClass = null;
+    if (sessionClassId) {
+      const [clsRows] = await conn.execute(
+        'SELECT id, name, department FROM classes WHERE id = ? LIMIT 1',
+        [sessionClassId]
+      );
+      targetClass = clsRows[0] || null;
+    }
+
+    let authoritativeDept = getAuthoritativeSubjectDepartment({
       department: session.sub_dept,
       code: session.code,
       name: session.name
-    });
+    }, targetClass);
+
+    if (!authoritativeDept && session.subject_id) {
+      const [subRows] = await conn.execute(
+        'SELECT id, code, name, department, class_id FROM subjects WHERE id = ? FOR SHARE',
+        [session.subject_id]
+      );
+      if (subRows.length > 0) {
+        if (!targetClass && subRows[0].class_id) {
+          const [clsRows] = await conn.execute(
+            'SELECT id, name, department FROM classes WHERE id = ? LIMIT 1',
+            [subRows[0].class_id]
+          );
+          targetClass = clsRows[0] || null;
+        }
+        authoritativeDept = getAuthoritativeSubjectDepartment(subRows[0], targetClass);
+      }
+    }
 
     if (!authoritativeDept) {
+      await conn.rollback();
       return res.status(400).json({ error: 'Cannot unlock marks sheet: Subject does not have a valid department mapping. Marks remain frozen.' });
     }
 
     // Validate acting staff from database or privileged administrative registry
     let staff;
     try {
-      staff = await resolveActingStaff(db, authUser.id, authUser.pwf);
+      staff = await resolveActingStaff(conn, authUser.id, authUser.pwf);
     } catch (authErr) {
+      await conn.rollback();
       return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
     }
     if (!staff) {
+      await conn.rollback();
       return res.status(403).json({ error: 'Unauthorized: User not found in staff registry. Marks remain frozen.' });
     }
     const staffRole = (staff.role || '').toLowerCase();
     const staffDeptCanonical = canonicalizeDepartment(staff.department);
 
     const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
-    const isAuthorizedHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+    const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+    const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
+    const isAuthorizedHod = isSubjectHod || isClassHod;
 
     if (!isPrivileged && !isAuthorizedHod) {
+      await conn.rollback();
       return res.status(403).json({
         error: `Unauthorized: Only the HOD of ${authoritativeDept} or Admin can directly unlock this marks sheet. Your department is ${staff.department || 'unassigned'}. Marks remain frozen.`
       });
     }
 
-    await db.execute(`UPDATE marks_sessions SET status = 'draft' WHERE id = ?`, [sessionId]);
+    await conn.execute(`UPDATE marks_sessions SET status = 'draft', updated_at = NOW() WHERE id = ?`, [sessionId]);
+    await conn.commit();
     res.json({ success: true, message: 'Sheet unlocked successfully.' });
   } catch (err) {
+    await conn.rollback();
     if (err.status === 401) {
       return res.status(401).json({ error: err.message });
     }
     console.error('POST /marks/unlock-session error:', err);
     res.status(500).json({ error: 'Failed to unlock sheet: ' + err.message });
+  } finally {
+    conn.release();
   }
 });
 
@@ -1295,8 +1666,18 @@ router.post('/request-unlock', async (req, res) => {
     }
     const subject = subRows[0];
 
-    // 2. Identify authoritative department using existing subject mapping (department primary, code prefix fallback)
-    const authoritativeDept = getAuthoritativeSubjectDepartment(subject);
+    // Resolve class information for recording and department resolution fallback
+    const [classRows] = await db.execute(
+      `SELECT c.id, c.name, c.department, c.year_label
+       FROM classes c
+       WHERE c.id = ? OR c.id = ? LIMIT 1`,
+      [effClassId || '', subject.class_id || '']
+    );
+    const targetClass = classRows[0] || null;
+    const finalClassId = targetClass?.id || effClassId || subject.class_id || '';
+
+    // 2. Identify authoritative department using existing subject mapping (department primary, class owning dept fallback, code prefix fallback)
+    const authoritativeDept = getAuthoritativeSubjectDepartment(subject, targetClass);
     if (!authoritativeDept) {
       console.error(`[Unlock Request Failed]: Subject ${subject.code} ${subject.name} (ID: ${subject.id}) has missing or ambiguous department mapping.`);
       return res.status(400).json({
@@ -1312,16 +1693,6 @@ router.post('/request-unlock', async (req, res) => {
         error: `Cannot submit unlock request: No HOD is currently assigned for the ${authoritativeDept} department. Marks remain frozen. Please contact administration.`
       });
     }
-
-    // Resolve class information for recording
-    const [classRows] = await db.execute(
-      `SELECT c.id, c.name, c.department, c.year_label
-       FROM classes c
-       WHERE c.id = ? OR c.id = ?`,
-      [effClassId || '', subject.class_id || '']
-    );
-    const targetClass = classRows[0] || null;
-    const finalClassId = targetClass?.id || effClassId || subject.class_id || '';
 
     // Update marks_sessions status to unlock_requested
     await db.execute(
@@ -1425,11 +1796,16 @@ router.get('/unlock-requests', async (req, res) => {
 
     // Enrich each request with authoritative subject department and regulation
     const enriched = rows.map(r => {
+      const targetClass = {
+        id: r.class_id,
+        name: r.class_name,
+        department: r.class_department
+      };
       const authDept = getAuthoritativeSubjectDepartment({
         department: r.raw_subject_department,
         code: r.subject_code,
         name: r.subject_name
-      });
+      }, targetClass);
       const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
                      r.class_year === '3' || r.class_year === '4' ||
                      (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
@@ -1450,7 +1826,12 @@ router.get('/unlock-requests', async (req, res) => {
       if (!hodDeptCanonical) {
         return res.json([]);
       }
-      const filtered = enriched.filter(r => canonicalizeDepartment(r.subject_department) === hodDeptCanonical);
+      const filtered = enriched.filter(r => {
+        const reqDeptCanonical = canonicalizeDepartment(r.subject_department);
+        if (reqDeptCanonical === hodDeptCanonical) return true;
+        const targetClass = { id: r.class_id, name: r.class_name, department: r.class_department };
+        return isClassAuthorizedForHod(targetClass, staff.department);
+      });
       return res.json(filtered);
     }
 
@@ -1481,51 +1862,68 @@ router.get('/unlock-requests', async (req, res) => {
 // Subject department HOD approves or rejects unlock request
 // ─────────────────────────────────────────────────────────────
 router.post('/approve-unlock', async (req, res) => {
+  const conn = await db.getConnection();
   try {
     const { requestId, sessionId, action } = req.body; // action = 'approve' | 'reject'
     if (!requestId || !sessionId || !action) {
+      conn.release();
       return res.status(400).json({ error: 'Missing required parameters.' });
     }
 
     if (action !== 'approve' && action !== 'reject') {
+      conn.release();
       return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject".' });
     }
 
     // Derive acting user identity strictly from verified server authentication context
     const authUser = getAuthenticatedUser(req);
     if (!authUser || !authUser.id) {
+      conn.release();
       return res.status(401).json({ error: 'Authentication required to approve or reject unlock requests. Marks remain frozen.' });
     }
 
-    // 1. Fetch unlock request and associated subject
-    const [reqRows] = await db.execute(
+    await conn.beginTransaction();
+
+    // 1. Fetch unlock request metadata (snapshot read, no lock)
+    const [reqRows] = await conn.execute(
       `SELECT ur.id, ur.session_id, ur.subject_id, ur.class_id, ur.staff_id, ur.status,
               sub.code AS subject_code, sub.name AS subject_name, sub.department AS sub_dept,
+              COALESCE(cl.name, 'Class') AS class_name, cl.department AS class_department,
               ms.status AS session_status
        FROM mark_unlock_requests ur
        LEFT JOIN subjects sub ON sub.id = ur.subject_id
        LEFT JOIN marks_sessions ms ON ms.id = ur.session_id
+       LEFT JOIN classes cl ON cl.id = COALESCE(NULLIF(ur.class_id, ''), ms.class_id, sub.class_id)
        WHERE ur.id = ?`,
       [requestId]
     );
 
     if (reqRows.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ error: 'Unlock request not found.' });
     }
     const reqData = reqRows[0];
 
     if (reqData.status !== 'pending') {
+      await conn.rollback();
       return res.status(400).json({ error: `This unlock request has already been ${reqData.status}.` });
     }
+
+    const targetClass = {
+      id: reqData.class_id,
+      name: reqData.class_name,
+      department: reqData.class_department
+    };
 
     // 2. Identify authoritative subject department
     const authoritativeDept = getAuthoritativeSubjectDepartment({
       department: reqData.sub_dept,
       code: reqData.subject_code,
       name: reqData.subject_name
-    });
+    }, targetClass);
 
     if (!authoritativeDept) {
+      await conn.rollback();
       return res.status(400).json({
         error: 'Cannot process unlock request: Subject does not have a valid department mapping. Marks remain frozen.'
       });
@@ -1534,41 +1932,58 @@ router.post('/approve-unlock', async (req, res) => {
     // 3. Validate acting staff from database or privileged administrative registry
     let staff;
     try {
-      staff = await resolveActingStaff(db, authUser.id, authUser.pwf);
+      staff = await resolveActingStaff(conn, authUser.id, authUser.pwf);
     } catch (authErr) {
+      await conn.rollback();
       return res.status(authErr.status || 401).json({ error: authErr.message || 'Unauthorized authentication context.' });
     }
     if (!staff) {
+      await conn.rollback();
       return res.status(403).json({ error: 'Unauthorized: User not found in staff registry. Marks remain frozen.' });
     }
     const staffRole = (staff.role || '').toLowerCase();
     const staffDeptCanonical = canonicalizeDepartment(staff.department);
 
     const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
-    const isAuthorizedHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+    const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+    const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
+    const isAuthorizedHod = isSubjectHod || isClassHod;
 
     if (!isPrivileged && !isAuthorizedHod) {
+      await conn.rollback();
       return res.status(403).json({
         error: `Unauthorized: Only the HOD of ${authoritativeDept} or Admin can ${action} this unlock request. Your department is ${staff.department || 'unassigned'}. Marks remain frozen.`
       });
     }
 
+    // 4. Acquire exclusive lock on mark_unlock_requests row (downstream of marks_sessions)
+    const [lockedReqRows] = await conn.execute(
+      'SELECT id, status FROM mark_unlock_requests WHERE id = ? FOR UPDATE',
+      [requestId]
+    );
+    if (lockedReqRows.length === 0 || lockedReqRows[0].status !== 'pending') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'This unlock request is no longer pending.' });
+    }
+
     const newSessionStatus = action === 'approve' ? 'unlocked' : 'locked';
     const newRequestStatus = action === 'approve' ? 'approved' : 'rejected';
 
-    await db.execute(
-      `UPDATE marks_sessions SET status = ? WHERE id = ?`,
+    await conn.execute(
+      `UPDATE marks_sessions SET status = ?, updated_at = NOW() WHERE id = ?`,
       [newSessionStatus, sessionId]
     );
 
-    await db.execute(
+    await conn.execute(
       `UPDATE mark_unlock_requests
        SET status = ?, actioned_at = CURRENT_TIMESTAMP, actioned_by = ?
        WHERE id = ?`,
       [newRequestStatus, staff.id, requestId]
     );
 
-    // Notify requesting faculty member directly
+    await conn.commit();
+
+    // Notify requesting faculty member directly (outside transaction)
     try {
       if (reqData.staff_id) {
         const subTitle = reqData.subject_code ? `${reqData.subject_code} ${reqData.subject_name || ''}` : 'the subject';
@@ -1590,11 +2005,14 @@ router.post('/approve-unlock', async (req, res) => {
 
     res.json({ success: true, message: `Request ${action}d successfully by ${staff.name}.` });
   } catch (err) {
+    await conn.rollback();
     if (err.status === 401) {
       return res.status(401).json({ error: err.message });
     }
     console.error('POST /marks/approve-unlock error:', err);
     res.status(500).json({ error: 'Failed to process unlock action: ' + err.message });
+  } finally {
+    conn.release();
   }
 });
 
@@ -1804,11 +2222,16 @@ router.get('/admin/subject-freeze-status', async (req, res) => {
     const [rows] = await db.execute(sql, [sessionLabel]);
 
     const enriched = rows.map(r => {
+      const targetClass = {
+        id: r.class_id,
+        name: r.class_name,
+        department: r.class_department
+      };
       const authDept = getAuthoritativeSubjectDepartment({
         department: r.raw_subject_department,
         code: r.subject_code,
         name: r.subject_name
-      });
+      }, targetClass);
       const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
                      r.class_year === '3' || r.class_year === '4' ||
                      (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
@@ -1928,11 +2351,16 @@ router.post('/admin/toggle-freeze', async (req, res) => {
     }
 
     const subject = subRows[0];
+    const targetClass = {
+      id: subject.class_id,
+      name: subject.class_name,
+      department: subject.class_department
+    };
     const authoritativeDept = getAuthoritativeSubjectDepartment({
       department: subject.raw_subject_department,
       code: subject.code,
       name: subject.name
-    }) || subject.raw_subject_department || 'General';
+    }, targetClass) || subject.raw_subject_department || 'General';
 
     // Resolve valid staff ID for foreign key constraint (subjects.faculty_id or staffs table record)
     let targetStaffId = null;
@@ -1959,6 +2387,8 @@ router.post('/admin/toggle-freeze', async (req, res) => {
     let oldStatus = 'not_started';
     const newStatus = action === 'freeze' ? 'locked' : 'unlocked';
 
+    const schema = await getSchemaCapabilities(conn);
+
     if (sessRows.length > 0) {
       sessionId = sessRows[0].id;
       oldStatus = sessRows[0].status;
@@ -1982,10 +2412,21 @@ router.post('/admin/toggle-freeze', async (req, res) => {
       }
     } else {
       // Create session row directly
+      const insertCols = ['subject_id', 'class_id', 'staff_id'];
+      const insertVals = [subject.id, subject.class_id, targetStaffId];
+
+      insertCols.push('session_label', 'status');
+      insertVals.push(sessionLabel, newStatus);
+
+      if (schema.hasTotalHoursCol) {
+        insertCols.push('total_hours');
+        insertVals.push(30);
+      }
+
+      const placeholders = insertCols.map(() => '?').join(', ');
       const [insertRes] = await conn.execute(
-        `INSERT INTO marks_sessions (subject_id, class_id, staff_id, session_label, status, total_hours)
-         VALUES (?, ?, ?, ?, ?, 30)`,
-        [subject.id, subject.class_id, targetStaffId, sessionLabel, newStatus]
+        `INSERT INTO marks_sessions (${insertCols.join(', ')}) VALUES (${placeholders})`,
+        insertVals
       );
       sessionId = insertRes.insertId;
     }
@@ -2237,5 +2678,9 @@ router.post('/initiate-session', async (req, res) => {
     conn.release();
   }
 });
+
+router._resetSchemaCapabilities = () => {
+  schemaCapabilities = null;
+};
 
 export default router;
