@@ -86,6 +86,7 @@ export default function MarksEntryPage2021() {
   const [reportType, setReportType] = useState('theory_marks');
   const [remedialAction, setRemedialAction] = useState('');
   const [examDate, setExamDate] = useState('');
+  const [isDateDirty, setIsDateDirty] = useState(false);
 
   // Lock / Unlock
   const [currentSession, setCurrentSession]     = useState(null);
@@ -313,6 +314,8 @@ export default function MarksEntryPage2021() {
       setSessionStatus('draft');
       setAssessmentComponents([]);
       setRemedialAction('');
+      setExamDate('');
+      setIsDateDirty(false);
       setSaved(false);
       setIsComponentsDirty(false);
       return;
@@ -382,6 +385,7 @@ export default function MarksEntryPage2021() {
           setRemedialAction(detail.session.remedial_action || '');
           setSaved(true);
           setIsComponentsDirty(false);
+          setIsDateDirty(false);
         } else {
           setCurrentSession(null);
           setSessionStatus('draft');
@@ -397,6 +401,7 @@ export default function MarksEntryPage2021() {
           setExamDate('');
           setSaved(false);
           setIsComponentsDirty(false);
+          setIsDateDirty(false);
         }
       })
       .catch((err) => console.error('Failed to load marks session (2021):', err))
@@ -474,6 +479,14 @@ export default function MarksEntryPage2021() {
   // Auto-save removed: manual Save Draft requested to avoid network/latency dependency
   // ── Save handler ───────────────────────────────────────────
   const handleSave = async (actionType = 'draft', isAutoSave = false) => {
+    if (!user?.id) {
+      setSaveErr('Authentication required: please log in to save marks.');
+      return;
+    }
+    if (!effectiveSubjectId || !effectiveClassId) {
+      setSaveErr('Cannot save marks: class or subject selection is missing.');
+      return;
+    }
     if (!isAutoSave) setSaving(true);
     setSaveErr('');
     try {
@@ -538,37 +551,42 @@ export default function MarksEntryPage2021() {
       const res = await marksAPI.submit(payload);
       if (res.sessionId) {
         setCurrentSession((prev) => ({ ...(prev || {}), id: res.sessionId, exam_date: examDate || null }));
+        if (res.examDate !== undefined) {
+          setExamDate(res.examDate ? String(res.examDate).substring(0, 10) : '');
+        }
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
-          if (freshDetail && freshDetail.components) {
+          if (freshDetail) {
             if (freshDetail.session?.exam_date) {
               setExamDate(String(freshDetail.session.exam_date).substring(0, 10));
             }
-            const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
-              uid: c.id,
-              typeId: c.type_id,
-              label: c.label,
-              conductedMax: parseFloat(c.conducted_max) || 100,
-              max: parseFloat(c.max_marks),
-              icon: c.icon,
-              color: c.color,
-            }));
-            setAssessmentComponents(reloadedComps);
+            if (freshDetail.components) {
+              const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
+                uid: c.id,
+                typeId: c.type_id,
+                label: c.label,
+                conductedMax: parseFloat(c.conducted_max) || 100,
+                max: parseFloat(c.max_marks),
+                icon: c.icon,
+                color: c.color,
+              }));
+              setAssessmentComponents(reloadedComps);
 
-            const reloadedMarks = {};
-            (Array.isArray(freshDetail?.marks) ? freshDetail.marks : []).forEach(m => {
-              if (m && m.student_id) {
-                if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
-                reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
-              }
-            });
-            setSessionBulk({
-              marks: reloadedMarks,
-              attendance: freshDetail.attendance || {},
-              internalExam: freshDetail.internalExam || {},
-              labData: freshDetail.labData || {},
-              totalHours: freshDetail.session?.total_hours || ''
-            });
+              const reloadedMarks = {};
+              (Array.isArray(freshDetail?.marks) ? freshDetail.marks : []).forEach(m => {
+                if (m && m.student_id) {
+                  if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
+                  reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+                }
+              });
+              setSessionBulk({
+                marks: reloadedMarks,
+                attendance: freshDetail.attendance || {},
+                internalExam: freshDetail.internalExam || {},
+                labData: freshDetail.labData || {},
+                totalHours: parseInt(freshDetail.session?.total_hours, 10) || 0
+              });
+            }
           }
         } catch (detailErr) {
           console.warn('Post-save refresh detail notice (2021):', detailErr);
@@ -579,6 +597,7 @@ export default function MarksEntryPage2021() {
       setSaved(true);
       setSessionStatus(actionType === 'frozen' ? 'locked' : 'draft');
       setIsComponentsDirty(false);
+      setIsDateDirty(false);
       if (actionType === 'frozen') {
         alert('Marks have been frozen and locked successfully.');
       }
@@ -611,6 +630,7 @@ export default function MarksEntryPage2021() {
       setSaved(false);
       setSaveErr('');
       setIsComponentsDirty(false);
+      setIsDateDirty(false);
       setAssessmentMode('internal1');
       alert('Marks have been completely cleared and reset in the database.');
     } catch (err) {
@@ -861,6 +881,7 @@ export default function MarksEntryPage2021() {
     setSessionStatus('draft');
     setSaved(false);
     setSaveErr('');
+    setIsDateDirty(false);
   };
   const handleSubjectChange = (val) => {
     setSubject(val);
@@ -874,6 +895,7 @@ export default function MarksEntryPage2021() {
     setSessionStatus('draft');
     setSaved(false);
     setSaveErr('');
+    setIsDateDirty(false);
   };
 
   const selectedClassObj = classes.find(c => c && String(c.id) === String(effectiveClassId));
@@ -1098,7 +1120,11 @@ export default function MarksEntryPage2021() {
                 <input
                   type="date"
                   value={examDate}
-                  onChange={(e) => { setExamDate(e.target.value); setSaved(false); }}
+                  onChange={(e) => {
+                    setExamDate(e.target.value);
+                    setSaved(false);
+                    setIsDateDirty(true);
+                  }}
                   disabled={isLocked}
                   className={styles.examDateInput}
                   title={isLocked ? "Exam date is locked after submission" : "Select Subject Assessment Exam Date"}
@@ -1240,7 +1266,7 @@ export default function MarksEntryPage2021() {
                 <AlertTriangle size={16} /> {saveErr}
               </div>
             )}
-            {(isDirty || isComponentsDirty) && !saved && !saveErr && !isPrincipal && (
+            {(isDirty || isComponentsDirty || isDateDirty) && !saved && !saveErr && !isPrincipal && (
               <div className={styles.dirtyMsg}>
                 <AlertTriangle size={16} /> Unsaved changes. Click "Save Draft" to save.
               </div>
@@ -1276,7 +1302,7 @@ export default function MarksEntryPage2021() {
                 <button
                   className={styles.saveBtn}
                   onClick={() => handleSave('draft')}
-                  disabled={saving || (!isDirty && !isComponentsDirty) || isLocked}
+                  disabled={saving || (!isDirty && !isComponentsDirty && !isDateDirty) || isLocked}
                   style={{ background: 'var(--surface)', color: 'var(--primary)', border: '1px solid var(--primary)' }}
                 >
                   {saving ? <><Loader size={15} className={styles.spinner} /> Saving…</> : <><Save size={15} /> Save Draft</>}

@@ -90,6 +90,7 @@ export default function MarksEntryPage() {
   const [submittingUnlock, setSubmittingUnlock] = useState(false);
   const [liveSaveStatus, setLiveSaveStatus] = useState(''); // 'saving', 'saved', 'error', ''
   const [examDate, setExamDate] = useState('');
+  const [isDateDirty, setIsDateDirty] = useState(false);
   const autoSaveTimerRef = useRef(null);
 
   useEffect(() => {
@@ -341,6 +342,7 @@ export default function MarksEntryPage() {
       setAssessmentComponents([]);
       setRemedialAction('');
       setExamDate('');
+      setIsDateDirty(false);
       setSaved(false);
       setIsComponentsDirty(false);
       return;
@@ -431,6 +433,7 @@ export default function MarksEntryPage() {
               setRemedialAction(detail.session.remedial_action || '');
               setSaved(true);
               setIsComponentsDirty(false);
+              setIsDateDirty(false);
             } else {
               setCurrentSession(null);
               setSessionStatus('draft');
@@ -446,6 +449,7 @@ export default function MarksEntryPage() {
               setExamDate('');
               setSaved(false);
               setIsComponentsDirty(false);
+              setIsDateDirty(false);
             }
           });
       })
@@ -523,6 +527,14 @@ export default function MarksEntryPage() {
 
   // Auto-save removed: manual Save Draft requested to avoid network/latency dependency
   const handleSave = async (actionType = 'draft', isAutoSave = false) => {
+    if (!user?.id) {
+      setSaveErr('Authentication required: please log in to save marks.');
+      return;
+    }
+    if (!effectiveSubjectId || !effectiveClassId) {
+      setSaveErr('Cannot save marks: class or subject selection is missing.');
+      return;
+    }
     if (!isAutoSave) setSaving(true);
     setSaveErr('');
     try {
@@ -586,7 +598,7 @@ export default function MarksEntryPage() {
       const payload = {
         subjectId: effectiveSubjectId,
         classId: effectiveClassId,
-        staffId: user.id,
+        staffId: user?.id,
         sessionLabel: assessmentMode,
         examDate: examDate || null,
         totalHours: parseInt(currentAssessmentHours, 10),
@@ -616,33 +628,38 @@ export default function MarksEntryPage() {
         }
         try {
           const freshDetail = await marksAPI.getSessionDetail(res.sessionId);
-          if (freshDetail && freshDetail.components) {
-            const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
-              uid: c.id,
-              typeId: c.type_id,
-              label: c.label,
-              conductedMax: parseFloat(c.conducted_max) || 100,
-              max: parseFloat(c.max_marks),
-              icon: c.icon,
-              color: c.color,
-            }));
-            setAssessmentComponents(reloadedComps);
+          if (freshDetail) {
+            if (freshDetail.session?.exam_date) {
+              setExamDate(String(freshDetail.session.exam_date).substring(0, 10));
+            }
+            if (freshDetail.components) {
+              const reloadedComps = (freshDetail.components || []).filter(Boolean).map((c) => ({
+                uid: c.id,
+                typeId: c.type_id,
+                label: c.label,
+                conductedMax: parseFloat(c.conducted_max) || 100,
+                max: parseFloat(c.max_marks),
+                icon: c.icon,
+                color: c.color,
+              }));
+              setAssessmentComponents(reloadedComps);
 
-            const reloadedMarks = {};
-            (Array.isArray(freshDetail?.marks) ? freshDetail.marks : []).forEach(m => {
-              if (m && m.student_id) {
-                if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
-                reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
-              }
-            });
-            setSessionBulk({
-              marks: reloadedMarks,
-              attendance: freshDetail.attendance || {},
-              attendanceMarks: freshDetail.attendanceMarks || {},
-              internalExam: freshDetail.internalExam || {},
-              labData: freshDetail.labData || {},
-              totalHours: freshDetail.session?.total_hours || 0
-            });
+              const reloadedMarks = {};
+              (Array.isArray(freshDetail?.marks) ? freshDetail.marks : []).forEach(m => {
+                if (m && m.student_id) {
+                  if (!reloadedMarks[m.student_id]) reloadedMarks[m.student_id] = {};
+                  reloadedMarks[m.student_id][m.component_id] = parseFloat(m.marks_obtained);
+                }
+              });
+              setSessionBulk({
+                marks: reloadedMarks,
+                attendance: freshDetail.attendance || {},
+                attendanceMarks: freshDetail.attendanceMarks || {},
+                internalExam: freshDetail.internalExam || {},
+                labData: freshDetail.labData || {},
+                totalHours: freshDetail.session?.total_hours || 0
+              });
+            }
           }
         } catch (detailErr) {
           console.warn('Post-save refresh detail notice:', detailErr);
@@ -653,6 +670,7 @@ export default function MarksEntryPage() {
       setSaved(true);
       setSessionStatus(actionType === 'frozen' ? 'locked' : 'draft');
       setIsComponentsDirty(false);
+      setIsDateDirty(false);
       if (actionType === 'frozen') {
         alert('Marks have been frozen and locked successfully.');
       }
@@ -685,6 +703,7 @@ export default function MarksEntryPage() {
       setSaved(false);
       setSaveErr('');
       setIsComponentsDirty(false);
+      setIsDateDirty(false);
       const splits = selectedSubject ? getHourSplits(selectedSubject.ltpc, selectedSubject.type, selectedSubject.total_hours) : { int1: 30, int2: 30 };
       const prescribed = assessmentMode === 'internal2'
         ? (selectedSubject?.int2_hours ?? splits.int2 ?? 30)
@@ -924,6 +943,7 @@ export default function MarksEntryPage() {
     setSessionStatus('draft');
     setSaved(false);
     setSaveErr('');
+    setIsDateDirty(false);
   };
   const handleSubjectChange = (val) => {
     setSubject(val);
@@ -939,6 +959,7 @@ export default function MarksEntryPage() {
     setSessionStatus('draft');
     setSaved(false);
     setSaveErr('');
+    setIsDateDirty(false);
   };
 
   const selectedClassObj = classes.find(c => c && String(c.id) === String(effectiveClassId));
@@ -1146,7 +1167,11 @@ export default function MarksEntryPage() {
                 <input
                   type="date"
                   value={examDate}
-                  onChange={(e) => { setExamDate(e.target.value); setSaved(false); }}
+                  onChange={(e) => {
+                    setExamDate(e.target.value);
+                    setSaved(false);
+                    setIsDateDirty(true);
+                  }}
                   disabled={isLocked}
                   className={styles.examDateInput}
                   title={isLocked ? "Exam date is locked after submission" : "Select Subject Assessment Exam Date"}
@@ -1327,7 +1352,7 @@ export default function MarksEntryPage() {
                 {saveErr}
               </div>
             )}
-            {(isDirty || isComponentsDirty) && !saved && !saveErr && !isPrincipal && (
+            {(isDirty || isComponentsDirty || isDateDirty) && !saved && !saveErr && !isPrincipal && (
               <div className={styles.dirtyMsg}>
                 <AlertTriangle size={16} />
                 Unsaved changes. Click "Save Draft" to save.
@@ -1364,7 +1389,7 @@ export default function MarksEntryPage() {
                 <button
                   className={styles.saveBtn}
                   onClick={() => handleSave('draft')}
-                  disabled={saving || (!isDirty && !isComponentsDirty) || isLocked}
+                  disabled={saving || (!isDirty && !isComponentsDirty && !isDateDirty) || isLocked}
                   id="save-marks-btn"
                   style={{ background: 'var(--surface)', color: 'var(--primary)', border: '1px solid var(--primary)' }}
                 >
