@@ -1,122 +1,307 @@
 import express from 'express';
 import db from '../db.js';
 import { verifyAuthToken } from './auth.js';
+import {
+  canonicalizeDepartment,
+  getAuthoritativeSubjectDepartment,
+  isClassAuthorizedForHod
+} from './marks.js';
+
+export { isClassAuthorizedForHod };
 
 const router = express.Router();
 
 /**
- * Checks if a class belongs to an HOD's department or their owning PG programme.
+ * Canonicalizes a person's name or coordinator field by:
+ * 1. Stripping verified, explicit designation suffixes found in production
+ *    (e.g. ',TF/Eng', ', AP/Phy', ' TF/Maths', ', AP/Tamil', ' AP/Chem').
+ * 2. Removing leading honorific titles (Mr, Mrs, Ms, Dr, Prof).
+ * 3. Normalizing case, and stripping non-alphanumeric punctuation and spaces.
+ * Strictly accepts only valid strings and returns an alphanumeric string.
+ * Unknown designation suffixes and arbitrary words are NOT stripped.
  */
-function isClassAuthorizedForHod(cls, hodDept) {
-  if (!cls || !hodDept) return false;
-  const dStr = String(hodDept).trim().toLowerCase();
-  const clsDept = String(cls.department || '').trim().toLowerCase();
-  const clsName = String(cls.name || '').trim().toUpperCase();
-  const clsId = String(cls.id || '').trim();
+function canonicalizePersonName(rawName) {
+  if (!rawName || typeof rawName !== 'string') return '';
+  let trimmed = rawName.trim();
+  if (!trimmed) return '';
 
-  // 1. Direct department match (UG or matching department field)
-  if (clsDept === dStr) return true;
+  // Explicit allowlist of verified production designation suffixes
+  trimmed = trimmed.replace(/(?:,\s*|\s+)(?:tf\/eng|ap\/phy|tf\/maths|ap\/tamil|ap\/chem)$/i, '').trim();
+  if (!trimmed) return '';
 
-  // 2. PG Programme Owning Department match
-  const isCseHod = dStr.includes('computer') || dStr === 'cse';
-  const isEceHod = dStr.includes('electronics') || dStr === 'ece';
-  const isCivilHod = dStr.includes('civil');
-  const isMechHod = dStr.includes('mechanical') || dStr === 'mech';
-
-  // CSE owns M.E. CSE
-  if (isCseHod) {
-    if (clsId === 'CL_1794306342' || (clsName.includes('CSE') && (clsName.includes('ME') || clsName.includes('M.E.')))) return true;
-  }
-  // ECE owns M.E. EST
-  if (isEceHod) {
-    if (clsId === 'CL_1794909437' || clsName.includes('EST') || clsName.includes('EMBEDDED')) return true;
-  }
-  // Civil owns M.E. Structural Engineering
-  if (isCivilHod) {
-    if (clsId === 'CL_1794909933' || clsId === 'CL_1794909988' || (/\bSE\b/.test(clsName) && (clsName.includes('ME') || clsName.includes('M.E.'))) || clsName.includes('STRUCTURAL')) return true;
-  }
-  // Mechanical owns M.E. Manufacturing Engineering
-  if (isMechHod) {
-    if (clsId === 'CL_1794910479' || clsId === 'CL_1794910622' || clsName.includes('MFE') || clsName.includes('MANUFACTURING')) return true;
-  }
-
-  return false;
+  return trimmed
+    .toLowerCase()
+    .replace(/^(dr|mrs|mr|ms|prof)\.?\s*/i, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
-// GET /api/students?classId=CL001
+/**
+ * Checks if a faculty staff member is the verified coordinator or assistant coordinator
+ * of the target class using classes.class_coordinator and classes.asst_coordinator.
+ * Uses strict equality on canonical title-stripped names and exact staff IDs.
+ * Does NOT use substring matching, partial matching or fuzzy matching.
+ */
+function isFacultyClassCoordinator(targetClass, staff) {
+  if (!targetClass || !staff) return false;
+
+  const staffId = (staff.id && typeof staff.id === 'string') ? staff.id.trim().toLowerCase() : '';
+  const staffNameCanonical = canonicalizePersonName(staff.name);
+  const staffShortCanonical = canonicalizePersonName(staff.short_name);
+
+  const checkMatch = (rawCoord) => {
+    if (!rawCoord || typeof rawCoord !== 'string') return false;
+    const cleanCoord = rawCoord.trim();
+    if (!cleanCoord) return false;
+
+    // 1. Exact Staff ID match (only where the stored coordinator field actually contains a staff ID)
+    if (staffId && cleanCoord.toLowerCase() === staffId) return true;
+
+    const coordCanonical = canonicalizePersonName(cleanCoord);
+    if (!coordCanonical) return false;
+
+    // 2. Exact Title-Stripped Canonical Name Match against staff.name
+    if (staffNameCanonical && coordCanonical === staffNameCanonical) return true;
+
+    // 3. Exact Title-Stripped Canonical Name Match against staff.short_name
+    if (staffShortCanonical && coordCanonical === staffShortCanonical) return true;
+
+    return false;
+  };
+
+  return checkMatch(targetClass.class_coordinator) || checkMatch(targetClass.asst_coordinator);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Mandatory Authentication Middleware for all /api/students routes
+// ─────────────────────────────────────────────────────────────
+router.use((req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Authentication required: Missing Bearer token.'
+    });
+  }
+
+  const token = authHeader.slice(7).trim();
+  const verified = verifyAuthToken(token);
+  if (!verified || !verified.id) {
+    return res.status(401).json({
+      error: 'Authentication required: Invalid or expired token.'
+    });
+  }
+
+  req.authUser = verified;
+  next();
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/students
+// Query params: classId (optional for admin/leadership, required for hod/faculty), subjectId (optional)
+// ─────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { classId, subjectId } = req.query;
+    const authUser = req.authUser;
+    const userRole = (authUser.role || '').toLowerCase();
 
-    // Check token if present for role-based authorization
-    let authUser = null;
-    const authHeader = req.headers['authorization'];
-    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7).trim();
-      const verified = verifyAuthToken(token);
-      if (verified && verified.id) {
-        authUser = verified;
+    const cleanClassId = classId && typeof classId === 'string'
+      ? classId.trim()
+      : (classId ? String(classId).trim() : '');
+
+    // 1. Unscoped Global Roster (without classId)
+    if (!cleanClassId) {
+      if (['admin', 'principal', 'vice_principal'].includes(userRole)) {
+        const [rows] = await db.execute(
+          'SELECT id, s_no, roll_no, name, class_id FROM students ORDER BY s_no ASC'
+        );
+        return res.json(rows);
       }
+
+      return res.status(403).json({
+        error: 'Access denied: A valid class ID is required.'
+      });
     }
 
-    // Role-based access control for HOD
-    if (authUser && authUser.role === 'hod' && authUser.id) {
-      let isSubjectAuthorized = false;
+    // 2. Administrative and Leadership Scoped Access
+    if (['admin', 'principal', 'vice_principal'].includes(userRole)) {
+      const [rows] = await db.execute(
+        'SELECT id, s_no, roll_no, name, class_id FROM students WHERE class_id = ? ORDER BY s_no ASC',
+        [cleanClassId]
+      );
+      return res.json(rows);
+    }
 
-      // When subjectId is provided, verify subject-specific faculty assignment in the database
-      if (classId && subjectId) {
+    // 3. Target Class Existence Check for HOD and Faculty/Staff
+    const [classRows] = await db.execute(
+      'SELECT id, name, department, class_coordinator, asst_coordinator FROM classes WHERE id = ? LIMIT 1',
+      [cleanClassId]
+    );
+    if (classRows.length === 0) {
+      return res.status(403).json({
+        error: 'Access denied: The requested class does not exist or has an invalid mapping.'
+      });
+    }
+    const targetClass = classRows[0];
+
+    // 4. Department HOD Authorization
+    if (userRole === 'hod') {
+      let isAuthorized = false;
+
+      if (subjectId) {
+        const cleanSubjectId = typeof subjectId === 'string' ? subjectId.trim() : String(subjectId).trim();
         const [subRows] = await db.execute(
-          'SELECT id, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
-          [subjectId]
+          'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
+          [cleanSubjectId]
         );
-        if (subRows.length > 0) {
-          const sub = subRows[0];
-          // 1. Subject exists (subRows.length > 0)
-          // 2. Subject belongs to requested class
-          // 3. Faculty assigned to that subject matches authenticated user
-          if (String(sub.class_id) === String(classId) && String(sub.faculty_id) === String(authUser.id)) {
-            isSubjectAuthorized = true;
+        if (subRows.length === 0) {
+          return res.status(403).json({
+            error: 'Access denied: Invalid or unmapped subject.'
+          });
+        }
+
+        const sub = subRows[0];
+
+        // Require subject.class_id to be present and exactly equal to requested classId
+        if (!sub.class_id || String(sub.class_id) !== String(cleanClassId)) {
+          return res.status(403).json({
+            error: 'Access denied: Subject does not belong to the requested class or has no valid class mapping.'
+          });
+        }
+
+        // 4a. Assigned faculty authorization (HOD assigned to teach this subject in this class)
+        if (sub.faculty_id && String(sub.faculty_id) === String(authUser.id)) {
+          isAuthorized = true;
+        }
+
+        // 4b. Subject HOD or Class HOD authority
+        if (!isAuthorized) {
+          const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
+          const hodDept = staffRows[0]?.department;
+          const hodCanonical = canonicalizeDepartment(hodDept);
+
+          // Subject HOD authorization (using established marks.js department resolution)
+          if (hodCanonical) {
+            const authDept = getAuthoritativeSubjectDepartment(sub, targetClass);
+            if (authDept && authDept === hodCanonical) {
+              isAuthorized = true;
+            }
+          }
+
+          // Class HOD authorization (using standardized PG programme owning department mapping)
+          if (!isAuthorized && isClassAuthorizedForHod(targetClass, hodDept)) {
+            isAuthorized = true;
+          }
+
+          if (!isAuthorized) {
+            return res.status(403).json({
+              error: "Access denied: You do not have permission to view students from another department's academic programme."
+            });
           }
         }
-      }
-
-      // If subject assignment is not verified, apply existing HOD department-based authorization
-      if (!isSubjectAuthorized) {
-        // Fetch HOD's registered department from staffs table to prevent spoofing
+      } else {
+        // Fallback when subjectId is not provided: retain class-level HOD authorization
         const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
         const hodDept = staffRows[0]?.department;
 
-        if (hodDept && classId) {
-          const [classRows] = await db.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
-          if (classRows.length > 0) {
-            const cls = classRows[0];
-            if (!isClassAuthorizedForHod(cls, hodDept)) {
-              return res.status(403).json({
-                error: "Access denied: You do not have permission to view students from another department's academic programme."
-              });
-            }
+        if (!isClassAuthorizedForHod(targetClass, hodDept)) {
+          return res.status(403).json({
+            error: "Access denied: You do not have permission to view students from another department's academic programme."
+          });
+        }
+      }
+
+      // If authorized as HOD, fetch students
+      const [rows] = await db.execute(
+        'SELECT id, s_no, roll_no, name, class_id FROM students WHERE class_id = ? ORDER BY s_no ASC',
+        [cleanClassId]
+      );
+      return res.json(rows);
+    }
+
+    // 5. Faculty, Staff, and Class Coordinator Scoped Authorization
+    if (userRole === 'faculty' || userRole === 'staff' || userRole === 'class_coordinator') {
+      const [staffRows] = await db.execute(
+        'SELECT id, name, short_name, class_role, department FROM staffs WHERE id = ? LIMIT 1',
+        [authUser.id]
+      );
+      if (staffRows.length === 0) {
+        return res.status(403).json({
+          error: 'Access denied: Staff member not found in staff registry.'
+        });
+      }
+      const staffRecord = staffRows[0];
+      const isCoordinator = isFacultyClassCoordinator(targetClass, staffRecord);
+
+      if (subjectId) {
+        const cleanSubjectId = typeof subjectId === 'string' ? subjectId.trim() : String(subjectId).trim();
+        const [subRows] = await db.execute(
+          'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
+          [cleanSubjectId]
+        );
+        if (subRows.length === 0) {
+          return res.status(403).json({
+            error: 'Access denied: Invalid or unmapped subject.'
+          });
+        }
+
+        const sub = subRows[0];
+
+        // Require subject.class_id to be present and exactly equal to requested classId
+        if (!sub.class_id || String(sub.class_id) !== String(cleanClassId)) {
+          return res.status(403).json({
+            error: 'Access denied: Subject does not belong to the requested class or has no valid class mapping.'
+          });
+        }
+
+        const isAssigned = sub.faculty_id && String(sub.faculty_id) === String(authUser.id);
+        if (!isAssigned && !isCoordinator) {
+          return res.status(403).json({
+            error: 'Access denied: You are not assigned to this subject and are not the class coordinator.'
+          });
+        }
+      } else {
+        // When subjectId is omitted: permit only verified coordinator or faculty with assigned subject(s) in this class
+        if (!isCoordinator) {
+          const [assignedSubs] = await db.execute(
+            'SELECT id FROM subjects WHERE class_id = ? AND faculty_id = ? LIMIT 1',
+            [cleanClassId, authUser.id]
+          );
+          if (assignedSubs.length === 0) {
+            return res.status(403).json({
+              error: 'Access denied: You do not coordinate this class and have no assigned subjects in it.'
+            });
           }
         }
       }
+
+      // If authorized as Faculty/Staff, fetch students
+      const [rows] = await db.execute(
+        'SELECT id, s_no, roll_no, name, class_id FROM students WHERE class_id = ? ORDER BY s_no ASC',
+        [cleanClassId]
+      );
+      return res.json(rows);
     }
 
-    let sql = 'SELECT id, s_no, roll_no, name, class_id FROM students';
-    const params = [];
-    if (classId) {
-      sql += ' WHERE class_id = ?';
-      params.push(classId);
-    }
-    sql += ' ORDER BY s_no ASC';
-    const [rows] = await db.execute(sql, params);
-    res.json(rows);
+    // 6. Unknown / Unsupported Roles
+    return res.status(403).json({
+      error: 'Access denied: Unsupported or unrecognized user role.'
+    });
+
   } catch (err) {
     console.error('GET /students error:', err);
     res.status(500).json({ error: 'Failed to fetch students.' });
   }
 });
 
+// ─────────────────────────────────────────────────────────────
 // POST /api/students
+// Admin only
+// ─────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
+  if ((req.authUser?.role || '').toLowerCase() !== 'admin') {
+    return res.status(403).json({ error: 'Access denied: Admin role required to create students.' });
+  }
+
   const conn = await db.getConnection();
   try {
     const data = Array.isArray(req.body) ? req.body : [req.body];
@@ -161,8 +346,15 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
 // PUT /api/students/:id
+// Admin only
+// ─────────────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
+  if ((req.authUser?.role || '').toLowerCase() !== 'admin') {
+    return res.status(403).json({ error: 'Access denied: Admin role required to update students.' });
+  }
+
   try {
     const { s_no, roll_no, name, class_id } = req.body;
     await db.execute(
@@ -176,8 +368,15 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
 // DELETE /api/students/:id
+// Admin only
+// ─────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
+  if ((req.authUser?.role || '').toLowerCase() !== 'admin') {
+    return res.status(403).json({ error: 'Access denied: Admin role required to delete students.' });
+  }
+
   try {
     await db.execute('DELETE FROM students WHERE id = ?', [req.params.id]);
     res.json({ success: true });
