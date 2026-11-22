@@ -8,14 +8,20 @@ export default function MarksRow({
   isPureLab = false, prescribedLabHours = 40,
   isPG = false
 }) {
-  // Converted total (sum of raw marks)
-  let convertedTotal = 0;
+  // Total configured component weight
+  const totalConfiguredMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
+
+  // Converted total (sum of raw marks / scaled marks)
+  let rawConvertedTotal = 0;
   (components || []).forEach(c => {
     const val = parseFloat((marks || {})[c?.uid ?? c?.id]) || 0;
     const conducted = parseFloat(c?.conductedMax || c?.max) || 100;
-    convertedTotal += Math.min(val, conducted);
+    const weight = parseFloat(c?.max) || conducted;
+    const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+    rawConvertedTotal += scaled;
   });
-  convertedTotal = Math.round(convertedTotal);
+
+  const convertedTotal = Math.round(rawConvertedTotal);
 
   // Active component for focused student-wise mark entry
   const activeComponent = (selectedComponentId && selectedComponentId !== 'all')
@@ -117,7 +123,7 @@ export default function MarksRow({
     labHours,
     labData: student?.id ? { [student.id]: labData } : {}
   });
-  const finalTotal100 = convertedTotal + effectiveAttMark;
+  const finalTotal100 = Math.min(100, convertedTotal + effectiveAttMark);
 
   // Pure Laboratory / Practical Mode (legacy fallback when no assessment components are defined)
   if (isPureLab && (!components || components.length === 0)) {
@@ -130,7 +136,7 @@ export default function MarksRow({
     const pureLabMarkRaw = (labData?.labMark !== undefined && labData?.labMark !== '') ? labData.labMark : (internalExamMark || '');
     const pureLabMarkNum = parseFloat(pureLabMarkRaw);
     const isPureLabAbsent = isNaN(pureLabMarkNum) || pureLabMarkRaw === '' || pureLabMarkRaw === 'AB';
-    const pureLabTotal = isPureLabAbsent ? 0 : Math.min(100, Math.round(pureLabMarkNum));
+    const pureLabTotal = isPureLabAbsent ? 0 : Math.min(100, Math.round(pureLabMarkNum) + pureLabAttdMark);
     const isPureLabPass = !isPureLabAbsent && pureLabTotal >= 50;
 
     return (
@@ -195,20 +201,20 @@ export default function MarksRow({
           </div>
         </td>
 
-        {/* Column 2: Lab Exam Mark written out of 100 */}
+        {/* Column 2: Lab Assessment Mark written out of 95 (5 marks reserved for attendance) */}
         <td className={styles.inputCell}>
           <div className={styles.inputWrap}>
             <input
               type="number"
               min="0"
-              max="100"
-              className={`${styles.input} ${pureLabMarkNum > 100 ? styles.inputError : ''}`}
+              max="95"
+              className={`${styles.input} ${pureLabMarkNum > 95 ? styles.inputError : ''}`}
               value={pureLabMarkRaw}
               onChange={(e) => {
                 let val = e.target.value;
                 if (val !== '') {
                   const n = parseFloat(val);
-                  if (!isNaN(n) && n > 100) val = '100';
+                  if (!isNaN(n) && n > 95) val = '95';
                   else if (!isNaN(n) && n < 0) val = '0';
                 }
                 onInternalExamChange && onInternalExamChange(val);
@@ -217,17 +223,17 @@ export default function MarksRow({
               onKeyDown={(e) => {
                 if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                   const sel = window.getSelection()?.toString();
-                  if (!sel && pureLabMarkNum >= 100) {
+                  if (!sel && pureLabMarkNum >= 95) {
                     e.preventDefault();
                   }
                 }
               }}
               disabled={isLocked}
-              placeholder="Lab Mark / 100"
+              placeholder="Lab Assessment / 95"
             />
-            <span className={styles.inputMax}>/100</span>
-            {pureLabMarkNum > 100 && (
-              <span className={styles.errorTip}>Max: 100</span>
+            <span className={styles.inputMax}>/95</span>
+            {pureLabMarkNum > 95 && (
+              <span className={styles.errorTip}>Max: 95</span>
             )}
           </div>
         </td>

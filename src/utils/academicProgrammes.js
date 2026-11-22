@@ -160,7 +160,7 @@ export const PG_PROGRAMMES = [
     color: '#4F46E5',
     icon: '🎓',
     applicableCourseTypes: ['Theory', 'Theory-cum-Lab', 'Practical'],
-    productionClassIds: ['CL_1794306342'],
+    productionClassIds: ['CL_1794306342', 'CL_1795140566'],
     canonicalClassIds: ['ME_CSE_I', 'ME_CSE_II', 'ME_CSE_III', 'ME_CSE_IV']
   },
   {

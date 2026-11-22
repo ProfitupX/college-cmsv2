@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator.js';
 import { getHourSplits } from './pdfReportGenerator.js';
 import { isPGClass, isPGSubject, getPGComponentPresets } from '../utils/pgRegulation2025.js';
+import { resolveAuthoritativeRegulation } from '../utils/regulationResolver.js';
 
 const triggerDownload = async (workbook, filename) => {
   const safeFilename = String(filename || 'Report.xlsx')
@@ -160,9 +161,16 @@ export const exportSubjectMarksExcel = async ({
 
   const modeLabel = assessmentMode === 'internal1' ? 'INTERNAL ASSESSMENT 1' : 'INTERNAL ASSESSMENT 2';
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
-  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
-  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
-  const is2021 = !isPG && (classObj?.regulation === '2021' || subject?.regulation === '2021' || (assessmentMode && String(assessmentMode).includes('2021')));
+  const resolvedReg = resolveAuthoritativeRegulation({
+    classObj,
+    subject,
+    isPG,
+    assessmentMode
+  });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
   const typeLabel = withInternal ? 'WITH ASSIGNMENT MARKS' : 'WITHOUT ASSIGNMENT MARKS';
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || 'Faculty Staff';
 
@@ -307,13 +315,7 @@ export const exportSubjectMarksExcel = async ({
 
   // Table Column Headers (Row 11)
   let headers = [];
-  if (isPG) {
-    headers = [
-      'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
-      'Attd Mark (Max: 5)', 'Activities Mark (Max: 95)',
-      'Internal Mark', 'Activities Mark Total'
-    ];
-  } else if (!is2021) {
+  if (!is2021) {
     // 2025 Autonomous Regulation headers
     headers = [
       'S.No', 'Roll No', 'Student Name', 'Attended Hrs',
@@ -349,8 +351,10 @@ export const exportSubjectMarksExcel = async ({
     let convertedTotal = 0;
     (components || []).forEach(c => {
       const val = parseFloat(marksData[student.id]?.[c.uid || c.id]) || 0;
-      const conducted = parseFloat(c.conductedMax || c.conducted_max) || 100;
-      convertedTotal += Math.min(val, conducted);
+      const conducted = parseFloat(c.conductedMax || c.conducted_max || c.max) || 100;
+      const weight = parseFloat(c.max || c.max_marks) || conducted;
+      const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+      convertedTotal += scaled;
     });
     convertedTotal = Math.round(convertedTotal);
 
@@ -373,9 +377,7 @@ export const exportSubjectMarksExcel = async ({
     const examMarkStr = isExamAbsent ? 'AB' : Math.round(numExam);
 
     let totalInternal;
-    if (isPG) {
-      totalInternal = Math.min(100, convertedTotal + attendanceMark);
-    } else if (is2021) {
+    if (is2021) {
       const ciaMax = hasLab ? 50 : 40;
       const examConvertedMax = hasLab ? 50 : 60;
       const ciaTotal2021 = Math.min(convertedTotal, ciaMax);
@@ -388,7 +390,7 @@ export const exportSubjectMarksExcel = async ({
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
     let rowValues = [];
-    if (isPG) {
+    if (!is2021) {
       rowValues = [
         idx + 1,
         student.roll_no || student.rollNo || '-',
@@ -399,7 +401,7 @@ export const exportSubjectMarksExcel = async ({
         examMarkStr,
         totalInternal
       ];
-    } else if (!is2021) {
+    } else if (withInternal) {
       rowValues = [
         idx + 1,
         student.roll_no || student.rollNo || '-',
@@ -461,9 +463,7 @@ export const exportSubjectMarksExcel = async ({
   // Criteria Row
   const criteriaRow = worksheet.getRow(currentRow);
   const maxAssignment = is2021 ? (hasLab ? 50 : 40) : 95;
-  if (isPG) {
-    criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
-  } else if (!is2021) {
+  if (!is2021) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, 5, 95, 100, 100];
   } else if (withInternal) {
     criteriaRow.values = ['', '', 'MAX MARKS', `${tHours} Hrs`, maxAssignment, 100, 100];
@@ -599,7 +599,13 @@ export const exportLaboratoryMarksExcel = async ({
       prescribedLabHours = 60;
     }
   }
-  const numCols = 6;
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, subject, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
+  const numCols = is2021 ? 6 : 8;
 
   // Draw Official College Header
   await drawExcelCollegeHeader({
@@ -636,38 +642,72 @@ export const exportLaboratoryMarksExcel = async ({
     const rowNum = 7 + i;
     worksheet.getRow(rowNum).height = 20;
 
-    // Col 1-2 merged for Label 1
-    worksheet.mergeCells(rowNum, 1, rowNum, 2);
-    const l1 = worksheet.getCell(rowNum, 1);
-    l1.value = item.label1;
-    l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
-    l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
-    l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    if (numCols === 8) {
+      worksheet.mergeCells(rowNum, 1, rowNum, 2);
+      const l1 = worksheet.getCell(rowNum, 1);
+      l1.value = item.label1;
+      l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    // Col 3 for Val 1
-    const v1 = worksheet.getCell(rowNum, 3);
-    v1.value = item.val1;
-    v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
-    v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
-    v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      worksheet.mergeCells(rowNum, 3, rowNum, 4);
+      const v1 = worksheet.getCell(rowNum, 3);
+      v1.value = item.val1;
+      v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    // Col 4 for Label 2
-    const l2 = worksheet.getCell(rowNum, 4);
-    l2.value = item.label2;
-    l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
-    l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
-    l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      worksheet.mergeCells(rowNum, 5, rowNum, 6);
+      const l2 = worksheet.getCell(rowNum, 5);
+      l2.value = item.label2;
+      l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    // Col 5-6 merged for Val 2
-    worksheet.mergeCells(rowNum, 5, rowNum, 6);
-    const v2 = worksheet.getCell(rowNum, 5);
-    v2.value = item.val2;
-    v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
-    v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
-    v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      worksheet.mergeCells(rowNum, 7, rowNum, 8);
+      const v2 = worksheet.getCell(rowNum, 7);
+      v2.value = item.val2;
+      v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
 
-    for (let c = 1; c <= 6; c++) {
-      applyThinBorders(worksheet.getCell(rowNum, c));
+      for (let c = 1; c <= 8; c++) {
+        applyThinBorders(worksheet.getCell(rowNum, c));
+      }
+    } else {
+      // Col 1-2 merged for Label 1
+      worksheet.mergeCells(rowNum, 1, rowNum, 2);
+      const l1 = worksheet.getCell(rowNum, 1);
+      l1.value = item.label1;
+      l1.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Col 3 for Val 1
+      const v1 = worksheet.getCell(rowNum, 3);
+      v1.value = item.val1;
+      v1.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v1.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Col 4 for Label 2
+      const l2 = worksheet.getCell(rowNum, 4);
+      l2.value = item.label2;
+      l2.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
+      l2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+      l2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Col 5-6 merged for Val 2
+      worksheet.mergeCells(rowNum, 5, rowNum, 6);
+      const v2 = worksheet.getCell(rowNum, 5);
+      v2.value = item.val2;
+      v2.font = { name: 'Arial', size: 9, bold: false, color: { argb: '0F172A' } };
+      v2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF' } };
+      v2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      for (let c = 1; c <= 6; c++) {
+        applyThinBorders(worksheet.getCell(rowNum, c));
+      }
     }
   });
 
@@ -675,7 +715,9 @@ export const exportLaboratoryMarksExcel = async ({
 
   // Table Headers (Row 11)
   const headerRow = worksheet.getRow(11);
-  headerRow.values = ['S.No', 'Roll No', 'Student Name', `Lab Attended Hours (/ ${prescribedLabHours})`, 'Lab Marks (/ 100)', 'Result (Pass / Fail)'];
+  headerRow.values = is2021
+    ? ['S.No', 'Roll No', 'Student Name', `Lab Attended Hours (/ ${prescribedLabHours})`, 'Lab Marks (/ 100)', 'Result (Pass / Fail)']
+    : ['S.No', 'Roll No', 'Student Name', `Lab Attended Hours (/ ${prescribedLabHours})`, 'Attd Mark (Max: 5)', 'Lab Assessment (Max: 95)', 'Total Mark (/ 100)', 'Result (Pass / Fail)'];
   headerRow.height = 26;
   headerRow.eachCell((cell) => {
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FFFFFF' } };
@@ -721,17 +763,41 @@ export const exportLaboratoryMarksExcel = async ({
     const numMark = parseFloat(rawLabMark);
     const isAbsent = isNaN(numMark) || rawLabMark === null || rawLabMark === '' || rawLabMark === 'AB';
     const markStr = isAbsent ? 'AB' : Math.round(numMark);
-    const isPass = !isAbsent && markStr >= 50;
     const cleanName = String(student.name || '').replace(/ð[^\s]*/g, '').trim();
 
-    const rowValues = [
-      idx + 1,
-      student.roll_no || student.rollNo || '-',
-      cleanName,
-      `${cleanHours} / ${prescribedLabHours}`,
-      markStr,
-      isAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL')
-    ];
+    let rowValues;
+    if (is2021) {
+      const isPass = !isAbsent && markStr >= 50;
+      rowValues = [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        `${cleanHours} / ${prescribedLabHours}`,
+        markStr,
+        isAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL')
+      ];
+    } else {
+      const pct = prescribedLabHours > 0 ? (cleanHours / prescribedLabHours) * 100 : 0;
+      let attMark = 0;
+      if (pct >= 95) attMark = 5;
+      else if (pct >= 90) attMark = 3;
+      else if (pct >= 85) attMark = 2;
+      else if (pct >= 80) attMark = 1;
+
+      const totalMark = isAbsent ? 'AB' : Math.min(100, Math.round(numMark) + attMark);
+      const isPass = !isAbsent && totalMark >= 50;
+
+      rowValues = [
+        idx + 1,
+        student.roll_no || student.rollNo || '-',
+        cleanName,
+        `${cleanHours} / ${prescribedLabHours}`,
+        attMark,
+        markStr,
+        totalMark,
+        isAbsent ? 'AB' : (isPass ? 'PASS' : 'FAIL')
+      ];
+    }
 
     const dataRow = worksheet.getRow(currentRow);
     dataRow.values = rowValues;
@@ -749,7 +815,7 @@ export const exportLaboratoryMarksExcel = async ({
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
 
-      if (colNumber === 6) {
+      if (colNumber === numCols) {
         if (cell.value === 'PASS') {
           cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '166534' } };
         } else if (cell.value === 'FAIL') {
@@ -763,7 +829,9 @@ export const exportLaboratoryMarksExcel = async ({
 
   // Criteria
   const critRow = worksheet.getRow(currentRow);
-  critRow.values = ['', '', 'CRITERIA / MAX', `${prescribedLabHours} Hours`, 100, '>= 50% PASS'];
+  critRow.values = is2021
+    ? ['', '', 'CRITERIA / MAX', `${prescribedLabHours} Hours`, 100, '>= 50% PASS']
+    : ['', '', 'CRITERIA / MAX', `${prescribedLabHours} Hours`, 5, 95, 100, '>= 50% PASS'];
   critRow.height = 20;
   critRow.eachCell((cell) => {
     cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: '1E293B' } };
@@ -775,7 +843,9 @@ export const exportLaboratoryMarksExcel = async ({
 
   // Signatures
   const sigRow = worksheet.getRow(currentRow);
-  sigRow.values = ['', 'LAB IN-CHARGE', '', 'HOD', '', 'PRINCIPAL'];
+  sigRow.values = is2021
+    ? ['', 'LAB IN-CHARGE', '', 'HOD', '', 'PRINCIPAL']
+    : ['', 'LAB IN-CHARGE', '', '', 'HOD', '', '', 'PRINCIPAL'];
   sigRow.height = 24;
   sigRow.eachCell((cell) => {
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: '0F172A' } };
@@ -790,14 +860,28 @@ export const exportLaboratoryMarksExcel = async ({
     margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45 }
   };
 
-  worksheet.columns = [
-    { width: 7 },
-    { width: 17 },
-    { width: 34 },
-    { width: 28 },
-    { width: 18 },
-    { width: 18 }
-  ];
+  // Column Widths
+  if (!is2021) {
+    worksheet.columns = [
+      { width: 8 },  // S.No
+      { width: 20 }, // Roll No
+      { width: 32 }, // Student Name
+      { width: 22 }, // Lab Attended Hours
+      { width: 16 }, // Attd Mark
+      { width: 22 }, // Lab Assessment
+      { width: 18 }, // Total Mark
+      { width: 18 }  // Result
+    ];
+  } else {
+    worksheet.columns = [
+      { width: 8 },  // S.No
+      { width: 20 }, // Roll No
+      { width: 36 }, // Student Name
+      { width: 26 }, // Lab Attended Hours
+      { width: 20 }, // Lab Marks
+      { width: 20 }  // Result
+    ];
+  }
 
   await triggerDownload(workbook, `${subject?.code || 'SUB'}_Laboratory_Marks_Statement.xlsx`);
 };
@@ -830,7 +914,11 @@ export const exportOverallMarksExcel = async ({
   ];
 
   const isPG = isPGClass(classObj);
-  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
   const targetSubjects = subjects.filter(s => s.code !== 'LIB' && s.name?.toUpperCase() !== 'LIBRARY');
   const colsPerSub = is2021 ? 2 : 3;
   const totalColumns = 3 + (targetSubjects.length * colsPerSub) + 1;
@@ -1177,7 +1265,11 @@ export const exportSubjectAnalysisExcel = async ({
 
   const staffName = staff?.name || subject?.faculty_name || subject?.staff_name || user?.name || 'Faculty Staff';
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
-  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, subject, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
@@ -1258,8 +1350,10 @@ export const exportSubjectAnalysisExcel = async ({
           if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
             hasComponentMarks = true;
             const numVal = parseFloat(val);
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
-            rawCIA += Math.min(numVal, conducted);
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
+            const weight = parseFloat(comp.max_marks) || parseFloat(comp.max) || conducted;
+            const scaled = conducted > 0 ? (Math.min(numVal, conducted) / conducted) * weight : 0;
+            rawCIA += scaled;
           }
         });
       }
@@ -1747,7 +1841,11 @@ export const exportConsolidatedMarksExcel = async ({
   });
 
   const isPG = isPGClass(classObj);
-  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
 
   let curRow = 12;
   students.forEach((st, idx) => {
@@ -1767,7 +1865,7 @@ export const exportConsolidatedMarksExcel = async ({
       }
 
       let score = '-';
-      if (isPG) {
+      if (is2021) {
         const sessionComps = allComponents.filter(c => c.session_id === sess.id);
         const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
         let rawCIA = 0;
@@ -1775,23 +1873,9 @@ export const exportConsolidatedMarksExcel = async ({
           const markObj = studentMarks.find(m => m.component_id === comp.id);
           const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
           const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
-        });
-        const subConfig = getPGComponentPresets(sub?.type);
-        const maxCA = subConfig?.ciaMax || 40;
-        score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
-        if (studentMarks.length === 0 && sessionComps.length > 0) {
-          score = 'AB';
-        }
-      } else if (is2021) {
-        const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        let rawCIA = 0;
-        sessionComps.forEach(comp => {
-          const markObj = studentMarks.find(m => m.component_id === comp.id);
-          const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-          const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-          rawCIA += Math.min(val, conducted);
+          const weight = parseFloat(comp.max_marks) || conducted;
+          const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+          rawCIA += scaled;
         });
         const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type || '');
         const ciaMax = isLabType ? 50 : 40;
@@ -1816,14 +1900,50 @@ export const exportConsolidatedMarksExcel = async ({
       } else {
         const attRec = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
         const rawExam = attRec?.internal_exam_mark;
-        const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-        let sumAssignment = 0;
-        studentMarks.forEach(m => sumAssignment += parseFloat(m.marks_obtained || 0));
+        const labRaw = attRec?.lab_mark;
+        const isProject = String(sub.type || '').toLowerCase().includes('project');
 
-        if (rawExam !== null && rawExam !== undefined && rawExam !== '' && !isNaN(parseFloat(rawExam))) {
+        if (isProject) {
+          const sessionComps = allComponents.filter(c => c.session_id === sess.id);
+          const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
+          const hasEnteredMarks = studentMarks.some(m => m.marks_obtained !== null && m.marks_obtained !== undefined && m.marks_obtained !== '' && m.marks_obtained !== 'AB');
+          if (sessionComps.length > 0 && hasEnteredMarks) {
+            let convertedTotal = 0;
+            sessionComps.forEach(c => {
+              const markObj = studentMarks.find(m => m.component_id === c.id);
+              const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+              const conducted = parseFloat(c.conducted_max || c.conductedMax || c.max) || 100;
+              const weight = parseFloat(c.max_marks || c.max) || conducted;
+              const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+              convertedTotal += scaled;
+            });
+            convertedTotal = Math.round(convertedTotal);
+            let attMark = 0;
+            if (attRec) {
+              if (attRec.attendance_mark !== undefined && attRec.attendance_mark !== null && attRec.attendance_mark !== '') {
+                attMark = parseFloat(attRec.attendance_mark) || 0;
+              } else {
+                const attendedHours = parseFloat(attRec.hours_attended) || 0;
+                const totalHours = parseFloat(sess.total_hours) || 30;
+                const pct = totalHours > 0 ? (attendedHours / totalHours) * 100 : 0;
+                if (pct >= 95) attMark = 5;
+                else if (pct >= 90) attMark = 4;
+                else if (pct >= 85) attMark = 3;
+                else if (pct >= 80) attMark = 2;
+                else if (pct >= 75) attMark = 1;
+                else attMark = 0;
+              }
+            }
+            score = Math.min(100, convertedTotal + attMark);
+          } else {
+            score = 'AB';
+          }
+        } else if (rawExam === 'AB' || labRaw === 'AB') {
+          score = 'AB';
+        } else if (rawExam !== null && rawExam !== undefined && rawExam !== '' && !isNaN(parseFloat(rawExam))) {
           score = Math.round(parseFloat(rawExam));
-        } else if (studentMarks.length > 0) {
-          score = Math.round(sumAssignment);
+        } else if (labRaw !== null && labRaw !== undefined && labRaw !== '' && !isNaN(parseFloat(labRaw))) {
+          score = Math.round(parseFloat(labRaw));
         } else {
           score = 'AB';
         }

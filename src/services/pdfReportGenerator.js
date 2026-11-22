@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import logoImg from '../assets/nscetimg.jpeg';
 import { resolveAttendanceMark } from '../utils/attendanceCalculator';
 import { isPGClass, isPGSubject, getPGComponentPresets } from '../utils/pgRegulation2025';
+import { resolveAuthoritativeRegulation } from '../utils/regulationResolver';
 
 // Helper to convert image URL/imported asset to base64 DataURL
 const getImageDataUrl = (url) => {
@@ -191,7 +192,11 @@ export const generateSubjectAnalysisPDF = async ({
   let minMark = 100;
 
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
-  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, subject, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
   const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
   const ciaMax = isLabType ? 50 : 40;
   const examConvertedMax = isLabType ? 50 : 60;
@@ -259,8 +264,10 @@ export const generateSubjectAnalysisPDF = async ({
           if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
             hasComponentMarks = true;
             const numVal = parseFloat(val);
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || parseFloat(comp.max) || 100;
-            rawCIA += Math.min(numVal, conducted);
+            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
+            const weight = parseFloat(comp.max_marks) || parseFloat(comp.max) || conducted;
+            const scaled = conducted > 0 ? (Math.min(numVal, conducted) / conducted) * weight : 0;
+            rawCIA += scaled;
           }
         });
       }
@@ -446,8 +453,6 @@ export const generateSubjectMarksListPDF = async ({
   const isInternal2 = assessmentMode === 'internal2';
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
-  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
-  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
 
   // Total prescribed hours for this internal assessment:
   // Internal 1: strictly int1Hours (default 30 hrs)
@@ -472,14 +477,14 @@ export const generateSubjectMarksListPDF = async ({
   doc.text(`Dept                       : ${subject?.department || classObj?.department || 'IT'}`, 120, y);
   y += 5;
   doc.text(`Staff Name            : ${staffName}`, 14, y);
-  doc.text(`Academic Year    : 2026 - 2027${isPG ? ' (PG R2025)' : ''}`, 120, y);
+  doc.text(`Academic Year    : 2026 - 2027`, 120, y);
   y += 5;
   doc.text(`Subject Code \\ Name : ${subject?.code} / ${subject?.name}   |   Total Hrs: ${totHoursDisplay}`, 14, y);
   doc.text(`Exam Date            : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 8;
 
   // Default 2025 Autonomous Regulation College Format:
-  // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95 / PG CA Max), Internal Exam (Max: 100), Total Internal Marks (Max: 100 / PG CA Max)
+  // Attendance (Hrs), Attendance Mark (Max: 5), Activities Mark (Max: 95), Internal Exam (Max: 100), Total Internal Marks (Max: 100)
   const headRow = [
     'S.No',
     'Roll No',
@@ -497,8 +502,10 @@ export const generateSubjectMarksListPDF = async ({
     let convertedTotal = 0;
     (components || []).forEach(c => {
       const val = parseFloat(marksData[student.id]?.[c.uid || c.id]) || 0;
-      const conducted = parseFloat(c.conductedMax || c.conducted_max) || 100;
-      convertedTotal += Math.min(val, conducted);
+      const conducted = parseFloat(c.conductedMax || c.conducted_max || c.max) || 100;
+      const weight = parseFloat(c.max || c.max_marks) || conducted;
+      const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+      convertedTotal += scaled;
     });
     convertedTotal = Math.round(convertedTotal);
 
@@ -884,28 +891,15 @@ export const generateConsolidatedMarksPDF = async ({
   inchargeNameParam = '', user
 }) => {
   const isPG = isPGClass(classObj);
-  const regValue = String(
-    classObj?.regulation_code ||
-    classObj?.regulation ||
-    classObj?.regulation_year ||
-    ''
-  ).trim();
-  const isExplicit2021 = regValue === '2021' || regValue === 'R2021';
-  const isExplicit2025 = regValue === '2025' || regValue === 'R2025';
-
-  const VERIFIED_2021_CLASS_IDS = [
-    'CL_AIDS_III', 'CL_AIDS_IV',
-    'CL_CIVIL_III', 'CL_CIVIL_IV',
-    'CL_CSE_III', 'CL_CSE_IV',
-    'CL_ECE_III', 'CL_ECE_IV',
-    'CL_EEE_III', 'CL_EEE_IV',
-    'CL_IT_III', 'CL_IT_IV',
-    'CL_MECH_III', 'CL_MECH_IV'
-  ];
-  const classId = String(classObj?.id || classObj?.class_id || '').trim();
-  const isVerified2021Class = VERIFIED_2021_CLASS_IDS.includes(classId);
-
-  const is2021 = !isPG && !isExplicit2025 && (isExplicit2021 || isVerified2021Class);
+  const resolvedReg = resolveAuthoritativeRegulation({
+    classObj,
+    isPG,
+    regulation: classObj?.regulation_code || classObj?.regulation || classObj?.regulation_year
+  });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
 
   // ─────────────────────────────────────────────────────────────
   // 2025 REGULATION & PG PROGRAMMES: PRESERVE ORIGINAL LOGIC UNCHANGED
@@ -958,57 +952,77 @@ export const generateConsolidatedMarksPDF = async ({
           absentCount++;
           return '-';
         }
-        const isPGSub = isPGClass(classObj) || isPGSubject(sub, classObj);
         let score;
-        if (isPGSub) {
-          const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-          const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-          let rawCIA = 0;
-          sessionComps.forEach((comp) => {
-            const markObj = studentMarks.find(m => m.component_id === comp.id);
-            const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-            rawCIA += Math.min(val, conducted);
-          });
-          const subConfig = getPGComponentPresets(sub?.type);
-          const maxCA = subConfig?.ciaMax || 40;
-          score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
-          if (studentMarks.length === 0 && sessionComps.length > 0) {
-            score = 'AB';
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
+        const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
+          (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
+        const isProject = String(sub.type || '').toLowerCase().includes('project');
+
+        let rawScore = null;
+        let isExplicitAbsent = false;
+
+        if (isProject) {
+          // Project courses do not have a written internal exam; evaluated from Review milestones + Attendance (95 + 5 = 100)
+          const sessionComps = (allComponents || []).filter(c => c.session_id === sess.id);
+          const studentMarks = (allMarks || []).filter(m => m.session_id === sess.id && m.student_id === st.id);
+          const hasEnteredMarks = studentMarks.some(m => m.marks_obtained !== null && m.marks_obtained !== undefined && m.marks_obtained !== '' && m.marks_obtained !== 'AB');
+          if (sessionComps.length > 0 && hasEnteredMarks) {
+            let convertedTotal = 0;
+            sessionComps.forEach(c => {
+              const markObj = studentMarks.find(m => m.component_id === c.id);
+              const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
+              const conducted = parseFloat(c.conducted_max || c.conductedMax || c.max) || 100;
+              const weight = parseFloat(c.max_marks || c.max) || conducted;
+              const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+              convertedTotal += scaled;
+            });
+            convertedTotal = Math.round(convertedTotal);
+            let attMark = 0;
+            if (att) {
+              if (att.attendance_mark !== undefined && att.attendance_mark !== null && att.attendance_mark !== '') {
+                attMark = parseFloat(att.attendance_mark) || 0;
+              } else {
+                const attendedHours = parseFloat(att.hours_attended) || 0;
+                const totalHours = parseFloat(sess.total_hours) || 30;
+                const pct = totalHours > 0 ? (attendedHours / totalHours) * 100 : 0;
+                if (pct >= 95) attMark = 5;
+                else if (pct >= 90) attMark = 4;
+                else if (pct >= 85) attMark = 3;
+                else if (pct >= 80) attMark = 2;
+                else if (pct >= 75) attMark = 1;
+                else attMark = 0;
+              }
+            }
+            rawScore = Math.min(100, convertedTotal + attMark);
+          }
+        } else if (isPureLab) {
+          if (att && att.lab_mark === 'AB') {
+            isExplicitAbsent = true;
+          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && !isNaN(parseFloat(att.lab_mark))) {
+            rawScore = parseFloat(att.lab_mark);
+          }
+        } else if (isTheoryCumLab) {
+          if (att && (att.internal_exam_mark === 'AB' || att.lab_mark === 'AB')) {
+            isExplicitAbsent = true;
+          } else if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && !isNaN(parseFloat(att.internal_exam_mark))) {
+            rawScore = parseFloat(att.internal_exam_mark);
+          } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && !isNaN(parseFloat(att.lab_mark))) {
+            rawScore = parseFloat(att.lab_mark);
           }
         } else {
-          const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
-          const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
-          const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
-            (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
-
-          let rawScore = null;
-          if (isPureLab) {
-            if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-              const val = parseFloat(att.lab_mark);
-              if (!isNaN(val)) rawScore = val;
-            }
-          } else if (isTheoryCumLab) {
-            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-              const val = parseFloat(att.internal_exam_mark);
-              if (!isNaN(val)) rawScore = val;
-            } else if (att && att.lab_mark !== null && att.lab_mark !== undefined && att.lab_mark !== '' && att.lab_mark !== 'AB') {
-              const val = parseFloat(att.lab_mark);
-              if (!isNaN(val)) rawScore = val;
-            }
-          } else {
-            if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && att.internal_exam_mark !== 'AB') {
-              const val = parseFloat(att.internal_exam_mark);
-              if (!isNaN(val)) rawScore = val;
-            }
+          if (att && att.internal_exam_mark === 'AB') {
+            isExplicitAbsent = true;
+          } else if (att && att.internal_exam_mark !== null && att.internal_exam_mark !== undefined && att.internal_exam_mark !== '' && !isNaN(parseFloat(att.internal_exam_mark))) {
+            rawScore = parseFloat(att.internal_exam_mark);
           }
-
-          if (rawScore === null) {
-            absentCount++;
-            return 'AB';
-          }
-          score = rawScore;
         }
+
+        if (isExplicitAbsent || rawScore === null) {
+          absentCount++;
+          return 'AB';
+        }
+        score = rawScore;
 
         if (isNaN(score) || score === null) {
           absentCount++;
@@ -1044,28 +1058,10 @@ export const generateConsolidatedMarksPDF = async ({
           ab++;
           return;
         }
-        const isPGSub = isPGClass(classObj) || isPGSubject(sub, classObj);
         let score;
         let isAbsent = false;
 
-        if (isPGSub) {
-          const sessionComps = allComponents.filter(c => c.session_id === sess.id);
-          const studentMarks = allMarks.filter(m => m.session_id === sess.id && m.student_id === st.id);
-          let rawCIA = 0;
-          sessionComps.forEach((comp) => {
-            const markObj = studentMarks.find(m => m.component_id === comp.id);
-            const val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || 100;
-            rawCIA += Math.min(val, conducted);
-          });
-          const subConfig = getPGComponentPresets(sub?.type);
-          const maxCA = subConfig?.ciaMax || 40;
-          score = sessionComps.length > 0 ? Math.min(Math.round(rawCIA), maxCA) : '-';
-          if (studentMarks.length === 0 && sessionComps.length > 0) {
-            isAbsent = true;
-          }
-        } else {
-          const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
+        const att = allAttendance.find(a => a.session_id === sess.id && a.student_id === st.id);
           const isTheoryCumLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(sub.type);
           const isPureLab = ['Practical', 'Laboratory', 'Lab'].includes(sub.type) ||
             (sub.name?.toLowerCase().includes('laboratory') && !isTheoryCumLab);
@@ -1091,11 +1087,10 @@ export const generateConsolidatedMarksPDF = async ({
             }
           }
 
-          if (rawScore === null) {
-            isAbsent = true;
-          } else {
-            score = rawScore;
-          }
+        if (rawScore === null) {
+          isAbsent = true;
+        } else {
+          score = rawScore;
         }
 
         if (isAbsent || isNaN(score) || score === null) {
@@ -2170,7 +2165,11 @@ export const generateOverallMarksAndAttendancePDF = async ({
 
   // Top header row
   const isPG = isPGClass(classObj);
-  const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
 
   const headRow1 = [
     { content: 'Sl.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -2722,15 +2721,31 @@ export const generateLaboratoryMarksOnlyPDF = async ({
   doc.text(`Exam Date       : ${formatExamDate(session?.exam_date)}`, 120, y);
   y += 7;
 
+  const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
+  const resolvedReg = resolveAuthoritativeRegulation({ classObj, subject, isPG });
+  if (!resolvedReg) {
+    throw new Error('Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025.');
+  }
+  const is2021 = resolvedReg === '2021';
+
   // Table Headers:
-  // 1.) Lab Attended Hours
-  // 2.) Lab Marks (/100)
-  const headRow = [
+  // For Regulation 2021: 1.) Lab Attended Hours  2.) Lab Marks (/100)
+  // For Regulation 2025: 1.) Lab Attended Hours  2.) Attd Mark (Max: 5)  3.) Lab Assessment (Max: 95)  4.) Total Mark (/ 100)
+  const headRow = is2021 ? [
     'S.No',
     'Roll No',
     'Student Name',
     `Lab Attended\n(/ ${prescribedLabHours} Hrs)`,
     'Lab Marks\n(/ 100)',
+    'Result\n(Pass / Fail)'
+  ] : [
+    'S.No',
+    'Roll No',
+    'Student Name',
+    `Lab Attended\n(/ ${prescribedLabHours} Hrs)`,
+    'Attd Mark\n(Max: 5)',
+    'Lab Assessment\n(Max: 95)',
+    'Total Mark\n(/ 100)',
     'Result\n(Pass / Fail)'
   ];
 
@@ -2769,35 +2784,77 @@ export const generateLaboratoryMarksOnlyPDF = async ({
     const numMark = parseFloat(rawLabMark);
     const isAbsent = isNaN(numMark) || rawLabMark === null || rawLabMark === '' || rawLabMark === 'AB';
     const markDisplay = isAbsent ? 'AB' : Math.round(numMark);
-    const result = isAbsent ? 'AB' : (numMark >= 50 ? 'PASS' : 'FAIL');
     const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
+
+    if (is2021) {
+      const result = isAbsent ? 'AB' : (numMark >= 50 ? 'PASS' : 'FAIL');
+      return [
+        idx + 1,
+        sRoll || '-',
+        cleanName,
+        `${cleanHours} / ${prescribedLabHours}`,
+        markDisplay,
+        result
+      ];
+    }
+
+    // Regulation 2025 (Autonomous - UG & PG): 95m lab assessment + 5m attendance = 100m total
+    const pct = prescribedLabHours > 0 ? (cleanHours / prescribedLabHours) * 100 : 0;
+    let attMark = 0;
+    if (pct >= 95) attMark = 5;
+    else if (pct >= 90) attMark = 3;
+    else if (pct >= 85) attMark = 2;
+    else if (pct >= 80) attMark = 1;
+
+    const totalMark = isAbsent ? 'AB' : Math.min(100, Math.round(numMark) + attMark);
+    const result = isAbsent ? 'AB' : (totalMark >= 50 ? 'PASS' : 'FAIL');
 
     return [
       idx + 1,
       sRoll || '-',
       cleanName,
       `${cleanHours} / ${prescribedLabHours}`,
+      attMark,
       markDisplay,
+      totalMark,
       result
     ];
   });
 
-  const footRow = [
+  const footRow = is2021 ? [
     '',
     '',
     'MAX MARKS / CRITERIA',
     `${prescribedLabHours} Hrs`,
     '100',
     '>= 50 Pass'
+  ] : [
+    '',
+    '',
+    'MAX MARKS / CRITERIA',
+    `${prescribedLabHours} Hrs`,
+    '5',
+    '95',
+    '100',
+    '>= 50 Pass'
   ];
 
-  const colStyles = {
+  const colStyles = is2021 ? {
     0: { cellWidth: 12, halign: 'center' },
     1: { cellWidth: 32, halign: 'center' },
     2: { cellWidth: 70, halign: 'left' },
     3: { cellWidth: 26, halign: 'center' },
     4: { cellWidth: 26, halign: 'center' },
     5: { cellWidth: 24, halign: 'center' }
+  } : {
+    0: { cellWidth: 10, halign: 'center' },
+    1: { cellWidth: 26, halign: 'center' },
+    2: { cellWidth: 50, halign: 'left' },
+    3: { cellWidth: 24, halign: 'center' },
+    4: { cellWidth: 18, halign: 'center' },
+    5: { cellWidth: 24, halign: 'center' },
+    6: { cellWidth: 20, halign: 'center' },
+    7: { cellWidth: 18, halign: 'center' }
   };
 
   const sCount = students.length;

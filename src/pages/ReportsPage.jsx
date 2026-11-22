@@ -8,6 +8,7 @@ import {
 import { statsAPI, marksAPI, classesAPI, subjectsAPI, studentsAPI, remarksAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { isPGClass, isPGSubject } from '../utils/pgRegulation2025';
+import { resolveAuthoritativeRegulation } from '../utils/regulationResolver';
 import { 
   generateSubjectAnalysisPDF, 
   generateSubjectMarksListPDF,
@@ -376,7 +377,7 @@ export default function ReportsPage() {
       }
 
       const isPG = isPGClass(cls) || isPGSubject(sub, cls);
-      const is2021 = !isPG && (cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5);
+      const is2021 = resolveAuthoritativeRegulation({ classObj: cls, subject: sub, isPG }) === '2021';
 
       const staffObj = {
         name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff'
@@ -634,7 +635,7 @@ export default function ReportsPage() {
       }
 
       const isPG = isPGClass(cls) || isPGSubject(sub, cls);
-      const is2021 = !isPG && (cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5);
+      const is2021 = resolveAuthoritativeRegulation({ classObj: cls, subject: sub, isPG }) === '2021';
       const staffObj = { name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff' };
       const marksObj = {};
       (detail?.marks || []).forEach(m => {
@@ -835,9 +836,14 @@ export default function ReportsPage() {
   };
 
   const handleHistoryRowClick = (session) => {
-    // Check if class is 2021 Regulation (3rd & 4th Year)
+    // Authoritative regulation check (never heuristic year/sem)
     const isPG = isPGClass(session);
-    const is2021 = !isPG && (session.year_label === 'III' || session.year_label === 'IV' || session.year_label === '3' || session.year_label === '4' || parseInt(session.semester) >= 5);
+    const resolvedReg = resolveAuthoritativeRegulation({
+      classObj: session,
+      regulation: session?.regulation,
+      isPG
+    });
+    const is2021 = resolvedReg === '2021';
     const path = is2021 ? '/marks-entry-2021' : '/marks-entry';
     navigate(path, { 
       state: { 
@@ -866,7 +872,7 @@ export default function ReportsPage() {
     { label: 'Total Submissions', value: stats?.totalSessions ?? 0,         color: '#6C63FF' },
     { label: 'This Month',        value: stats?.submittedThisMonth ?? 0,     color: '#10B981' },
     ...(user?.role !== 'hod' && user?.role !== 'principal' && user?.role !== 'vice_principal' && user?.role !== 'admin' 
-      ? [{ label: 'Avg Score /40', value: `${stats?.averageScore ?? 0}`, color: '#F59E0B' }] 
+      ? [{ label: 'Avg Score', value: `${stats?.averageScore ?? 0}`, color: '#F59E0B' }] 
       : []),
     { label: 'Pending Drafts',    value: stats?.pendingSubmissions ?? 0,     color: '#EF4444' },
   ];
@@ -1462,7 +1468,7 @@ export default function ReportsPage() {
                 <th>Exam Date</th>
                 <th>Entry Date</th>
                 <th>Students</th>
-                <th>Avg /40</th>
+                <th>Avg Score</th>
                 <th>Status</th>
               </tr>
             </thead>

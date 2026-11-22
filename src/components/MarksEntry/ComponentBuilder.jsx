@@ -35,15 +35,15 @@ export default function ComponentBuilder({
   const [maxMarks, setMaxMarks] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Standardized to 95 Marks for all 2025 assessment modules (5 Marks reserved for Attendance)
-  const effectiveMaxAllocation = MAX_STAFF_ALLOCATION;
+  // Standard staff allocation (95 marks + 5 marks attendance = 100 marks total internal)
+  const effectiveMaxAllocation = maxAllocation || MAX_STAFF_ALLOCATION;
   const totalMax = (components || []).reduce((s, c) => s + (parseFloat(c?.max) || 0), 0);
   const remainingMarks = Math.max(0, effectiveMaxAllocation - totalMax);
 
-  // Standard Official R2025 Assessment Presets (summing to 95 Marks)
+  // Standard Official R2025 Assessment Presets (95 Marks Components + 5 Marks Attendance = 100)
   const getStandardR2025Preset = () => {
     const sType = String(subjectType || '').toLowerCase();
-    if (sType.includes('practical') || sType.includes('lab') && !sType.includes('cum')) {
+    if (sType.includes('practical') || (sType.includes('lab') && !sType.includes('cum'))) {
       return [
         { uid: Date.now() + 1, typeId: 'practical', label: 'Lab Experiments & Observation', conductedMax: 35, max: 35, color: '#F472B6', icon: '🔬' },
         { uid: Date.now() + 2, typeId: 'model', label: 'Model Practical Examination', conductedMax: 30, max: 30, color: '#8B5CF6', icon: '🏆' },
@@ -56,6 +56,12 @@ export default function ComponentBuilder({
         { uid: Date.now() + 2, typeId: 'practical', label: 'Laboratory Assessment', conductedMax: 25, max: 25, color: '#F472B6', icon: '🔬' },
         { uid: Date.now() + 3, typeId: 'assignment', label: 'Course Assignment / Activities', conductedMax: 25, max: 25, color: '#22D3EE', icon: '📋' },
         { uid: Date.now() + 4, typeId: 'quiz', label: 'Quiz / Viva', conductedMax: 20, max: 20, color: '#10B981', icon: '❓' }
+      ];
+    } else if (sType.includes('project')) {
+      return [
+        { uid: Date.now() + 1, typeId: 'project', label: 'Review I (Problem & Methodology)', conductedMax: 100, max: 30, color: '#F59E0B', icon: '🚀' },
+        { uid: Date.now() + 2, typeId: 'project', label: 'Review II (Design & Implementation)', conductedMax: 100, max: 35, color: '#FB923C', icon: '⚙️' },
+        { uid: Date.now() + 3, typeId: 'project', label: 'Review III (Results & Viva)', conductedMax: 100, max: 30, color: '#10B981', icon: '📊' }
       ];
     } else {
       // Theory Standard Preset
@@ -85,7 +91,8 @@ export default function ComponentBuilder({
     if (meta) {
       setCustomLabel(meta.label);
       const suggested = meta.suggestedMax || 25;
-      setMaxMarks(String(remainingMarks > 0 ? Math.min(suggested, remainingMarks) : suggested));
+      const initialMax = remainingMarks > 0 ? Math.min(suggested, remainingMarks) : suggested;
+      setMaxMarks(String(initialMax));
     }
   };
 
@@ -137,7 +144,7 @@ export default function ComponentBuilder({
         <div className={styles.header}>
           <div>
             <h3 className={styles.title}>Assessment Composition</h3>
-            <p className={styles.sub}>Total Weight: <strong>{totalMax} Marks</strong> (out of 95)</p>
+            <p className={styles.sub}>Total Weight: <strong>{totalMax} Marks</strong> (out of {effectiveMaxAllocation})</p>
           </div>
         </div>
         <div className={styles.compList}>
@@ -165,7 +172,7 @@ export default function ComponentBuilder({
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>
-            Build Assessment Sheet {isPG ? `(PG R2025 - ${subjectType})` : `(R2025 - ${subjectType})`}
+            Build Assessment Sheet (R2025 - {subjectType})
           </h3>
           <p className={styles.sub}>
             Add assessment components for this subject. Maximum allocation is <strong>95 Marks</strong> (remaining <strong>5 Marks</strong> reserved for Attendance; Overall Total: <strong>100 Marks</strong>).
@@ -223,9 +230,9 @@ export default function ComponentBuilder({
             alignItems: 'center',
             gap: '6px'
           }}
-          title={`Load official 2025 preset (95 Marks) for ${subjectType}`}
+          title={`Load official 2025 preset (${effectiveMaxAllocation} Marks) for ${subjectType}`}
         >
-          <Sparkles size={14} /> Load Official R2025 Preset (95 Marks)
+          <Sparkles size={14} /> Load Official R2025 Preset ({effectiveMaxAllocation} Marks)
         </button>
       </div>
 

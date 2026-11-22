@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { X, Download, FileSpreadsheet, FileText, CheckCircle2, BarChart2, BookOpen, Users, Award } from 'lucide-react';
-import { resolveAttendanceMark } from '../../utils/attendanceCalculator';
+import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/attendanceCalculator';
 import { isPGClass, isPGSubject, getPGComponentPresets } from '../../utils/pgRegulation2025';
+import { resolveAuthoritativeRegulation } from '../../utils/regulationResolver';
 import styles from './ReportPreviewModal.module.css';
 
 export default function ReportPreviewModal({
@@ -28,7 +29,7 @@ export default function ReportPreviewModal({
   int2Hours = 30,
   labHours = 0,
   int1AttendanceData = {},
-  regulation = '2025',
+  regulation = null,
   isLabOnly = false,
   // Props for multi-subject / class / analysis reports:
   subjects = [],
@@ -43,10 +44,20 @@ export default function ReportPreviewModal({
 }) {
   const isInternal2 = assessmentMode === 'internal2';
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
-  const pgConfig = isPG ? getPGComponentPresets(subject?.type) : null;
-  const pgCiaMax = pgConfig ? pgConfig.ciaMax : 40;
+  const resolvedReg = resolveAuthoritativeRegulation({
+    classObj,
+    subject,
+    regulation,
+    reportType,
+    assessmentMode,
+    batch: classObj?.batch,
+    isPG,
+    allowClientFallback: true
+  });
+  const is2021 = resolvedReg === '2021';
+  const isRegulationUnresolved = !resolvedReg;
   const hasLab = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type);
-  const isPureLabSubject = !isPG && Boolean(
+  const isPureLabSubject = Boolean(
     isLabOnly ||
     reportType === 'lab_marks_only' ||
     subject?.type === 'Practical' ||
@@ -54,7 +65,6 @@ export default function ReportPreviewModal({
     subject?.type === 'Lab' ||
     (subject?.name?.toLowerCase().includes('laboratory') && !hasLab)
   );
-  const is2021 = regulation === '2021' || classObj?.regulation === '2021' || reportType?.endsWith('_2021');
 
   // 2021 Regulation Theory-cum-Lab in Internal 2 options
   const [theoryCumLabMode, setTheoryCumLabMode] = useState('assignment_lab_only');
@@ -81,8 +91,10 @@ export default function ReportPreviewModal({
       let convertedTotal = 0;
       (components || []).forEach(c => {
         const val = parseFloat(marksData[student.id]?.[c.uid || c.id]) || 0;
-        const conducted = parseFloat(c.conductedMax || c.conducted_max) || 100;
-        convertedTotal += Math.min(val, conducted);
+        const conducted = parseFloat(c.conductedMax || c.conducted_max || c.max) || 100;
+        const weight = parseFloat(c.max || c.maxMarks || c.max_marks) || conducted;
+        const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+        convertedTotal += scaled;
       });
       convertedTotal = Math.round(convertedTotal);
 
@@ -109,7 +121,7 @@ export default function ReportPreviewModal({
 
       // Regulation specific total calculation:
       let totalInternal;
-      if (regulation === '2021') {
+      if (is2021) {
         const ciaMax = hasLab ? 50 : 40;
         const examConvertedMax = hasLab ? 50 : 60;
         const ciaTotal2021 = Math.min(convertedTotal, ciaMax);
@@ -158,7 +170,11 @@ export default function ReportPreviewModal({
       const numLabMark = parseFloat(labRawMark);
       const isLabAbsent = isNaN(numLabMark) || labRawMark === null || labRawMark === '' || labRawMark === 'AB';
       const labMarkStr = isLabAbsent ? 'AB' : Math.round(numLabMark);
-      const labResult = isLabAbsent ? 'AB' : (numLabMark >= 50 ? 'PASS' : 'FAIL');
+      const labPct = tHours > 0 ? Math.min(100, Math.round((attendedLabHours / tHours) * 100)) : 0;
+      const labAttdMark = calculateAttendanceMark(labPct);
+      const effAttMark = attendanceMark !== undefined && attendanceMark !== null && !isNaN(attendanceMark) ? attendanceMark : labAttdMark;
+      const pureLabTotal = isLabAbsent ? 'AB' : Math.min(100, (is2021 ? Math.round(numLabMark) : Math.round(numLabMark) + effAttMark));
+      const labResult = isLabAbsent ? 'AB' : (pureLabTotal >= 50 ? 'PASS' : 'FAIL');
 
       const rawAttdNum = parseInt(rawHours || 0, 10);
       const pct = tHours > 0 ? Math.min(100, Math.round((rawAttdNum / tHours) * 100)) : 0;
@@ -170,7 +186,7 @@ export default function ReportPreviewModal({
         rawHours,
         tHours,
         pct,
-        attendanceMark,
+        attendanceMark: is2021 ? attendanceMark : effAttMark,
         convertedTotal,
         labConverted,
         totalInternal,
@@ -178,6 +194,7 @@ export default function ReportPreviewModal({
         resultStr,
         attendedLabHours,
         labMarkStr,
+        pureLabTotal,
         labResult
       };
     });
@@ -219,7 +236,7 @@ export default function ReportPreviewModal({
   const subjectAnalysisData = useMemo(() => {
     if (reportType !== 'subject_analysis') return null;
 
-    const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+    const is2021 = resolvedReg === '2021';
     const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
     const ciaMax = isLabType ? 50 : 40;
     const examConvertedMax = isLabType ? 50 : 60;
@@ -295,8 +312,10 @@ export default function ReportPreviewModal({
               } else {
                 val = parseFloat(dataSource?.[st.id]?.[comp.uid || comp.id]) || 0;
               }
-              const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || 100;
-              rawCIA += Math.min(val, conducted);
+              const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
+              const weight = parseFloat(comp.max_marks) || parseFloat(comp.max) || conducted;
+              const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
+              rawCIA += scaled;
             });
           }
           rawCIA = Math.round(rawCIA);
@@ -379,7 +398,7 @@ export default function ReportPreviewModal({
       targetSubs = targetSubs.filter(s => selectedSubjectIds.includes(s.id));
     }
 
-    const is2021 = !isPG && (classObj?.year_label === 'III' || classObj?.year_label === 'IV' || parseInt(classObj?.semester) >= 5);
+    const is2021 = resolvedReg === '2021';
 
     const rows = students.map((st, idx) => {
       const cleanName = String(st.name || '').replace(/ð[^\s]*/g, '').trim();
@@ -538,10 +557,18 @@ export default function ReportPreviewModal({
   if (!isOpen) return null;
 
   const handleDownloadPDFClick = () => {
+    if (isRegulationUnresolved) {
+      alert('Academic regulation unresolved: Unable to determine whether class/subject belongs to Regulation 2021 or Regulation 2025. Export disabled.');
+      return;
+    }
     onDownloadPDF({ theoryCumLabMode, showWrittenExamInPdf, targetPages });
   };
 
   const handleDownloadExcelClick = () => {
+    if (isRegulationUnresolved) {
+      alert('Academic regulation unresolved: Unable to determine whether class/subject belongs to Regulation 2021 or Regulation 2025. Export disabled.');
+      return;
+    }
     onDownloadExcel({ theoryCumLabMode, showWrittenExamInPdf, targetPages });
   };
 
@@ -563,6 +590,25 @@ export default function ReportPreviewModal({
             <X size={20} />
           </button>
         </div>
+
+        {/* Unresolved Regulation Warning Banner */}
+        {isRegulationUnresolved && (
+          <div style={{
+            margin: '12px 20px 0',
+            padding: '12px 16px',
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #F87171',
+            borderRadius: '6px',
+            color: '#991B1B',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span>⚠️ Academic regulation unresolved: Unable to authoritatively determine whether class/subject belongs to Regulation 2021 or Regulation 2025. Report preview and export disabled.</span>
+          </div>
+        )}
 
         {/* Metadata Badges */}
         <div className={styles.metaRow}>
@@ -1005,11 +1051,21 @@ export default function ReportPreviewModal({
                         <th style={{ width: '130px', textAlign: 'center' }}>Roll No</th>
                         <th>Student Name</th>
                         {(isLabOnly || isPureLabSubject) ? (
-                          <>
-                            <th style={{ width: '150px', textAlign: 'center' }}>Lab Attended Hours</th>
-                            <th style={{ width: '150px', textAlign: 'center' }}>Lab Marks (/ 100)</th>
-                            <th style={{ width: '120px', textAlign: 'center' }}>Result</th>
-                          </>
+                          is2021 ? (
+                            <>
+                              <th style={{ width: '150px', textAlign: 'center' }}>Lab Attended Hours</th>
+                              <th style={{ width: '150px', textAlign: 'center' }}>Lab Marks (/ 100)</th>
+                              <th style={{ width: '120px', textAlign: 'center' }}>Result</th>
+                            </>
+                          ) : (
+                            <>
+                              <th style={{ width: '130px', textAlign: 'center' }}>Attended Hrs</th>
+                              <th style={{ width: '110px', textAlign: 'center' }}>Attd Mark (5)</th>
+                              <th style={{ width: '130px', textAlign: 'center' }}>Lab Assessment (95)</th>
+                              <th style={{ width: '120px', textAlign: 'center' }}>Total Mark (100)</th>
+                              <th style={{ width: '110px', textAlign: 'center' }}>Result</th>
+                            </>
+                          )
                         ) : is2021 ? (
                           withInternal ? (
                             <>
@@ -1030,9 +1086,9 @@ export default function ReportPreviewModal({
                           <>
                             <th style={{ width: '130px', textAlign: 'center' }}>Attended Hrs</th>
                             <th style={{ width: '110px', textAlign: 'center' }}>Attd Mark (5)</th>
-                            <th style={{ width: '120px', textAlign: 'center' }}>{isPG ? `CA (${pgCiaMax})` : 'Activities (95)'}</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>Activities (95)</th>
                             <th style={{ width: '130px', textAlign: 'center' }}>Internal Mark</th>
-                            <th style={{ width: '140px', textAlign: 'center' }}>{isPG ? 'CA Total' : 'Activities Mark Total'}</th>
+                            <th style={{ width: '140px', textAlign: 'center' }}>Activities Mark Total</th>
                           </>
                         )}
                       </tr>
@@ -1044,13 +1100,25 @@ export default function ReportPreviewModal({
                           <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.rollNo}</td>
                           <td style={{ fontWeight: 600 }}>{r.name}</td>
                           {(isLabOnly || isPureLabSubject) ? (
-                            <>
-                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#16a34a' : (r.labResult === 'FAIL' ? '#dc2626' : '#64748b') }}>
-                                {r.labResult}
-                              </td>
-                            </>
+                            is2021 ? (
+                              <>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#16a34a' : (r.labResult === 'FAIL' ? '#dc2626' : '#64748b') }}>
+                                  {r.labResult}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendedLabHours} Hrs</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.attendanceMark}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#0e7490' }}>{r.labMarkStr}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.pureLabTotal}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: r.labResult === 'PASS' ? '#16a34a' : (r.labResult === 'FAIL' ? '#dc2626' : '#64748b') }}>
+                                  {r.labResult}
+                                </td>
+                              </>
+                            )
                           ) : is2021 ? (
                             withInternal ? (
                               <>
@@ -1111,8 +1179,14 @@ export default function ReportPreviewModal({
         {/* Modal Footer with Two Download Options */}
         <div className={styles.footer}>
           <div className={styles.footerLeft}>
-            <CheckCircle2 size={16} color="#10B981" />
-            <span>Ready for official download. Select format below:</span>
+            {isRegulationUnresolved ? (
+              <span style={{ color: '#DC2626', fontWeight: 600 }}>⚠️ Regulation unresolved: Export is disabled.</span>
+            ) : (
+              <>
+                <CheckCircle2 size={16} color="#10B981" />
+                <span>Ready for official download. Select format below:</span>
+              </>
+            )}
           </div>
 
           <div className={styles.footerActions}>
@@ -1120,12 +1194,22 @@ export default function ReportPreviewModal({
               Cancel
             </button>
 
-            <button className={styles.excelBtn} onClick={handleDownloadExcelClick}>
+            <button
+              className={styles.excelBtn}
+              onClick={handleDownloadExcelClick}
+              disabled={isRegulationUnresolved}
+              style={isRegulationUnresolved ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
               <FileSpreadsheet size={16} />
               Download Excel (.xlsx)
             </button>
 
-            <button className={styles.pdfBtn} onClick={handleDownloadPDFClick}>
+            <button
+              className={styles.pdfBtn}
+              onClick={handleDownloadPDFClick}
+              disabled={isRegulationUnresolved}
+              style={isRegulationUnresolved ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
               <Download size={16} />
               Download PDF Document
             </button>

@@ -281,9 +281,8 @@ export default function MarksEntryPage() {
     isPGClass(selectedClass) ||
     isPGSubject(selectedSubject, selectedClass)
   );
-  const pgConfig = isPG ? getPGComponentPresets(selectedSubject?.type) : null;
-  const dynamicCiaMax = isPG ? (pgConfig?.ciaMax || 40) : 95;
-  const isPureLab = !isPG && Boolean(selectedSubject && (
+  const dynamicCiaMax = 95;
+  const isPureLab = Boolean(selectedSubject && (
     selectedSubject.type === 'Practical' ||
     selectedSubject.type === 'Laboratory' ||
     selectedSubject.type === 'Lab' ||
@@ -596,6 +595,7 @@ export default function MarksEntryPage() {
       });
 
       const payload = {
+        regulation: '2025',
         subjectId: effectiveSubjectId,
         classId: effectiveClassId,
         staffId: user?.id,

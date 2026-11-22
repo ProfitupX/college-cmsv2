@@ -18,7 +18,7 @@ export default function MarksTable({
   // Which hours to show based on mode (default standard 30)
   const displayHours = (assessmentMode === 'internal1' ? int1Hours : int2Hours) || 30;
   const isLabCumTheory = selectedSubject?.type === 'Lab-cum-Theory' || selectedSubject?.type === 'Theory-cum-Lab';
-  const isPureLabSubject = !isPG && Boolean(selectedSubject && (
+  const isPureLabSubject = Boolean(selectedSubject && (
     selectedSubject.type === 'Practical' ||
     selectedSubject.type === 'Laboratory' ||
     selectedSubject.type === 'Lab' ||
@@ -149,12 +149,12 @@ export default function MarksTable({
                   <div className={styles.thSub}>/ 5</div>
                 </th>
 
-                {/* Column 2: Lab Exam Mark written out of 100 */}
+                {/* Column 2: Lab Assessment Mark written out of 95 (5 marks reserved for attendance) */}
                 <th className={`${styles.th} ${styles.internalExamTh}`}>
                   <div className={styles.thContent}>
                     <span className={styles.thIcon}>🔬</span>
-                    <span className={styles.thLabel}>Lab Practical Exam</span>
-                    <div className={styles.thSub}>Max: 100</div>
+                    <span className={styles.thLabel}>Lab Assessment</span>
+                    <div className={styles.thSub}>Max: 95</div>
                   </div>
                 </th>
 

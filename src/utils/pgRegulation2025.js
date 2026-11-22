@@ -1,19 +1,17 @@
 /**
  * =====================================================================================
  * ANNA UNIVERSITY PG REGULATION 2025 (CBCS) ASSESSMENT & EVALUATION ENGINE
- * Applicable to M.E. / M.Tech. Programmes (Affiliated Non-Autonomous Institutions)
+ * Applicable to M.E. / M.Tech. Programmes (Affiliated Autonomous Institutions)
  *
  * Technical Governance & Scope:
- * - Pure, deterministic numerical calculations matching Anna University PG Regulations 2025.
+ * - Pure, deterministic numerical calculations matching Autonomous Regulation 2025.
  * - MARKS ONLY: Handles numerical marks, maximums, and attendance. No letter grades,
  *   grade points, SGPA, or CGPA.
- * - Handles 4 fundamental course types:
- *     1. Theory (T) - CA: 40, ESE: 60
- *     2. Theory-cum-Laboratory (TL) - CA: 50, ESE: 50
- *     3. Laboratory / Practical (P) - CA: 60, ESE: 40
- *     4. Project Work (PW - Phase I & Phase II) - CA: 60, ESE: 40
+ * - Unified Assessment Model (UG & PG R2025):
+ *     Continuous Assessment Components / Activities: Maximum 95 Marks
+ *     Attendance: Maximum 5 Marks
+ *     Total Internal Assessment: Maximum 100 Marks
  * - Passing Minimum: 45% in ESE for Theory/TL, 50% in ESE for Lab/Project; 50% in aggregate.
- * - Leaves existing UG calculation and attendance logic completely untouched.
  * =====================================================================================
  */
 
@@ -105,7 +103,7 @@ export const PG_COURSE_TYPES = {
       {
         uid: 203,
         typeId: 'assignment',
-        label: 'Course Activities / Assignment',
+        label: 'Course Assignment / Activities',
         conductedMax: 25,
         max: 25,
         color: '#22D3EE',
@@ -180,7 +178,7 @@ export const PG_COURSE_TYPES = {
   PROJECT: {
     id: 'Project',
     label: 'Project Work Phase I / Phase II (PW)',
-    ciaMax: 60,
+    ciaMax: 95,
     eseMax: 40,
     esePassingPercentage: 50, // 50% of 40 = 20 marks
     eseMinPassingMarks: 20,
@@ -191,30 +189,30 @@ export const PG_COURSE_TYPES = {
         typeId: 'project',
         label: 'Review I (Problem & Methodology)',
         conductedMax: 100,
-        max: 15,
+        max: 30,
         color: '#F59E0B',
         icon: '🚀',
-        description: 'Project Review I by Review Committee (15 marks)'
+        description: 'Project Review I by Review Committee (30 marks)'
       },
       {
         uid: 402,
         typeId: 'project',
         label: 'Review II (Design & Implementation)',
         conductedMax: 100,
-        max: 20,
+        max: 35,
         color: '#FB923C',
         icon: '⚙️',
-        description: 'Project Review II by Review Committee (20 marks)'
+        description: 'Project Review II by Review Committee (35 marks)'
       },
       {
         uid: 403,
         typeId: 'project',
-        label: 'Review III (Results & Dissertation Draft)',
+        label: 'Review III (Results & Viva)',
         conductedMax: 100,
-        max: 25,
+        max: 30,
         color: '#10B981',
         icon: '📊',
-        description: 'Project Review III by Review Committee (25 marks)'
+        description: 'Project Review III / Final Viva (30 marks)'
       }
     ]
   }
@@ -358,7 +356,6 @@ export const isPGClass = (classObj) => {
   if (obj.program_type === 'PG' || obj.programType === 'PG') return true;
   if (obj.degree === 'PG' || obj.degree_type === 'PG') return true;
   if (obj.degree_title === 'M.E.' || obj.degree_title === 'M.Tech') return true;
-  if (obj.regulation_code === 'R2025') return true;
 
   // 3. Class ID checks (supports ME_*, ME-*, PG_*)
   const idStr = String(obj.id || obj.class_id || obj.classId || '').trim();
@@ -386,10 +383,11 @@ export const isPGClass = (classObj) => {
 };
 
 export const isPGSubject = (subjectObj, classObj) => {
-  if (isPGClass(classObj)) return true;
+  if (classObj && isPGClass(classObj)) return true;
   if (!subjectObj) return false;
-  if (subjectObj.program_type === 'PG') return true;
-  if (subjectObj.regulation_code === 'R2025') return true;
+  if (subjectObj.program_type === 'PG' || subjectObj.programType === 'PG') return true;
+  if (subjectObj.degree === 'PG' || subjectObj.degree_type === 'PG') return true;
+  if (subjectObj.degree_title === 'M.E.' || subjectObj.degree_title === 'M.Tech') return true;
 
   // Check joined class name if available on the subject object
   if (subjectObj.class_name || subjectObj.className) {
@@ -397,11 +395,10 @@ export const isPGSubject = (subjectObj, classObj) => {
   }
 
   const classIdStr = String(subjectObj.class_id || '').trim();
-  if (/^(ME|PG)[_\-\/]/i.test(classIdStr)) return true;
+  if (classIdStr && isPGClass({ id: classIdStr })) return true;
 
-  // Project Work is uniquely a PG course type in R2025
-  if (subjectObj.type === 'Project') return true;
-
+  // Never classify as PG solely by course type (e.g. type === 'Project' or 'Theory').
+  // A UG Project subject must never be classified as PG.
   return false;
 };
 

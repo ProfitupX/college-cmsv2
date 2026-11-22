@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { verifyAuthToken, computePasswordFingerprint, isValidAdminFingerprint } from './auth.js';
+import { resolveAuthoritativeRegulation, resolveRegulationDetails } from '../../src/utils/regulationResolver.js';
 
 const router = express.Router();
 
@@ -352,6 +353,66 @@ export function getAuthoritativeSubjectDepartment(subject, targetClass = null) {
   return null;
 }
 
+export function isPGClassEntity(cls) {
+  if (!cls) return false;
+  const clsId = String(cls.id || cls.class_id || '').trim();
+  const clsName = String(cls.name || cls.class_name || '').trim().toUpperCase();
+
+  // 1. Direct registry check for known PG Programme production/canonical IDs
+  const pgProductionClassIds = [
+    'CL_1794306342', 'CL_1795140566', // ME CSE
+    'CL_1794909437',                  // ME EST
+    'CL_1794909933', 'CL_1794909988', // ME SE
+    'CL_1794910479', 'CL_1794910622'  // ME MFE
+  ];
+  if (pgProductionClassIds.includes(clsId)) return true;
+
+  // 2. Explicit schema flags
+  if (cls.program_type === 'PG' || cls.programType === 'PG' || cls.degree === 'PG' || cls.degree_type === 'PG') return true;
+  if (cls.degree_title === 'M.E.' || cls.degree_title === 'M.Tech') return true;
+
+  // 3. Class ID prefix patterns (ME_*, ME-*, PG_*)
+  if (/^(ME|PG)[_\-\/]/i.test(clsId)) return true;
+
+  // 4. Strict exclusion of Mechanical Engineering (UG MECH)
+  if (/^MECH\b|^MECHANICAL\b/i.test(clsName)) return false;
+
+  // 5. Class Name patterns with word boundaries
+  if (/\bM\.?E\.?\b/.test(clsName)) return true;
+  if (/\bM\.?TECH\b/i.test(clsName)) return true;
+  if (/^ME[\s_\-\/:]/i.test(clsName)) return true;
+  if (/\bPG[\s_\-\/:]/i.test(clsName) || /[\s_\-\/:]PG\b/i.test(clsName)) return true;
+
+  // Default fail-closed: if PG status cannot be established authoritatively, return false
+  return false;
+}
+
+export function isPGSubjectEntity(sub, cls) {
+  // 1. Authoritative class check: if class is established as PG, the subject is PG
+  if (cls && isPGClassEntity(cls)) return true;
+  if (!sub) return false;
+
+  // 2. Explicit subject-level schema flags
+  if (sub.program_type === 'PG' || sub.programType === 'PG' || sub.degree === 'PG' || sub.degree_type === 'PG') return true;
+  if (sub.degree_title === 'M.E.' || sub.degree_title === 'M.Tech') return true;
+
+  // 3. Subject-associated class ID
+  const clsIdStr = String(sub.class_id || '').trim();
+  if (clsIdStr && isPGClassEntity({ id: clsIdStr })) return true;
+
+  // 4. Subject-associated class name (joined from query)
+  const clsNameStr = String(sub.class_name || sub.className || '').trim();
+  if (clsNameStr && isPGClassEntity({ name: clsNameStr })) return true;
+
+  // A UG Project subject must never be classified as PG solely because its subject type is Project.
+  // If PG status cannot be established authoritatively, fail closed (return false).
+  return false;
+}
+
+export function getPGR2025CiaMax(_subjectType) {
+  return 95;
+}
+
 export function getDepartmentAliases(canonicalDept) {
   if (!canonicalDept) return [];
   switch (canonicalDept) {
@@ -560,6 +621,26 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'Invalid class: Subject does not belong to the selected class.' });
     }
 
+    // Fetch class details for authorization and regulation context
+    const [clsRows] = await conn.execute('SELECT * FROM classes WHERE id = ? LIMIT 1', [classId]);
+    const targetClass = clsRows.length > 0 ? clsRows[0] : null;
+
+    const isPG = isPGClassEntity(targetClass) || isPGSubjectEntity(subObj, targetClass);
+    const regResult = resolveRegulationDetails({
+      classObj: targetClass,
+      subject: subObj,
+      isPG
+    });
+
+    if (!regResult.regulation) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: regResult.error || 'Academic regulation unresolved: Unable to authoritatively determine academic regulation from class and subject database metadata.'
+      });
+    }
+
+    const is2021 = regResult.regulation === '2021';
+
     // Role-Based Assignment Authorization & Session Ownership Resolution
     let effectiveStaffId = actingStaff.id;
     if (isPrivileged) {
@@ -574,8 +655,6 @@ router.post('/submit', async (req, res) => {
       );
 
       // Check if class belongs to HOD's department or PG owning programme
-      const [clsRows] = await conn.execute('SELECT id, name, department FROM classes WHERE id = ? LIMIT 1', [classId]);
-      const targetClass = clsRows[0];
       const isDeptClass = targetClass && isClassAuthorizedForHod(targetClass, hodDept);
       const isAssignedFaculty = String(subObj.faculty_id || '') === String(actingStaff.id);
 
@@ -639,7 +718,7 @@ router.post('/submit', async (req, res) => {
     const schema = await getSchemaCapabilities(conn);
 
     // 1.5 Find existing session using columns that exist in the active schema
-    const selectFields = ['id', 'status'];
+    const selectFields = ['id', 'status', 'total_max'];
     if (schema.hasExamDateCol) selectFields.push('exam_date');
 
     const [existingSessions] = await conn.execute(
@@ -680,6 +759,35 @@ router.post('/submit', async (req, res) => {
 
     // 1. Calculate total max and avg score
     const totalMax = components.reduce((s, c) => s + (parseFloat(c.maxMarks) || 0), 0);
+
+    // Common Autonomous R2025 Internal Assessment Structure (UG & PG):
+    // When assessment components are configured, maximum staff allocation is strictly 95 marks across all course types
+    // (Theory, Theory-cum-Lab, Practical/Laboratory, Project), with 5 marks strictly reserved for attendance (total internal = 100 marks).
+    // In legacy pure-lab direct mark entry where no components are created (components.length === 0):
+    // - For Autonomous R2025 (UG & PG), direct laboratory assessment mark cannot exceed 95 marks (5 marks reserved for attendance).
+    // - For Regulation 2021, practical examination mark is written out of 100.
+    const maxAllowedStaffAllocation = 95;
+    if (components.length > 0 && totalMax > maxAllowedStaffAllocation) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: `Total assessment component weight (${totalMax} marks) exceeds the maximum allowed staff allocation of ${maxAllowedStaffAllocation} marks (5 marks reserved for attendance).`
+      });
+    }
+
+    if (!is2021 && isPureLabSubmission && components.length === 0 && attendance && Array.isArray(attendance)) {
+      for (const a of attendance) {
+        const rawLab = a.labMark !== undefined && a.labMark !== null && a.labMark !== '' ? a.labMark : a.internalExamMark;
+        if (rawLab !== undefined && rawLab !== null && rawLab !== '' && rawLab !== 'AB') {
+          const v = parseFloat(rawLab);
+          if (!isNaN(v) && v > 95) {
+            await conn.rollback();
+            return res.status(400).json({
+              error: `Direct laboratory assessment mark (${v}) exceeds the maximum allowed assessment activities mark of 95 marks (5 marks reserved for attendance).`
+            });
+          }
+        }
+      }
+    }
 
     // avg = (sum of converted marks) / studentCount
     const safeMarks = Array.isArray(marks) ? marks : [];
@@ -748,6 +856,7 @@ router.post('/submit', async (req, res) => {
           const pct = conductedBase > 0 ? (rawHours / conductedBase) * 100 : 0;
           attMark = getAttendanceMark(pct);
         }
+        // Continuous assessment includes attendance marks (up to 5m) for all 2025 courses (UG & PG)
         studentTotals[a.studentId] += attMark;
       }
     }
@@ -758,7 +867,18 @@ router.post('/submit', async (req, res) => {
       let lCount = 0;
       attendance.forEach(a => {
         const v = parseFloat(a.labMark !== undefined && a.labMark !== null && a.labMark !== '' ? a.labMark : a.internalExamMark);
-        if (!isNaN(v)) { lSum += v; lCount++; }
+        if (!isNaN(v)) {
+          if (!is2021) {
+            // Regulation 2025 (UG & PG): direct lab assessment (max 95) + attendance mark (max 5) = total out of 100
+            const attMark = parseFloat(a.attendanceMark) || (studentTotals[a.studentId] !== undefined ? studentTotals[a.studentId] : 0);
+            const studentTotal = Math.min(100, Math.round(v) + attMark);
+            lSum += studentTotal;
+          } else {
+            // Regulation 2021: direct lab exam mark out of 100
+            lSum += v;
+          }
+          lCount++;
+        }
       });
       labAvgScore = lCount > 0 ? (lSum / lCount) : 0;
     }
@@ -1780,6 +1900,7 @@ router.get('/unlock-requests', async (req, res) => {
              cl.department AS class_department,
              cl.year_label AS class_year,
              cl.semester AS class_semester,
+             cl.batch AS class_batch,
              sub.semester AS subject_semester,
              ms.session_label,
              ms.status AS session_status
@@ -1799,18 +1920,21 @@ router.get('/unlock-requests', async (req, res) => {
       const targetClass = {
         id: r.class_id,
         name: r.class_name,
-        department: r.class_department
+        department: r.class_department,
+        batch: r.class_batch
       };
       const authDept = getAuthoritativeSubjectDepartment({
         department: r.raw_subject_department,
         code: r.subject_code,
         name: r.subject_name
       }, targetClass);
-      const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
-                     r.class_year === '3' || r.class_year === '4' ||
-                     (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
-                     (r.subject_semester && parseInt(r.subject_semester, 10) >= 5);
-      const regulation = is2021 ? '2021' : '2025';
+      const isPG = isPGClassEntity(targetClass) || isPGSubjectEntity({ id: r.subject_id, code: r.subject_code, name: r.subject_name }, targetClass);
+      const resolvedReg = resolveAuthoritativeRegulation({
+        classObj: targetClass,
+        subject: { id: r.subject_id, code: r.subject_code, name: r.subject_name },
+        isPG
+      });
+      const regulation = resolvedReg || 'UNRESOLVED';
       return {
         ...r,
         subject_department: authDept || r.raw_subject_department || 'Unassigned',
@@ -2205,6 +2329,7 @@ router.get('/admin/subject-freeze-status', async (req, res) => {
              c.department AS class_department,
              c.year_label AS class_year,
              c.semester AS class_semester,
+             c.batch AS class_batch,
              ms.id AS session_id,
              ms.session_label,
              ms.status AS session_status,
@@ -2225,18 +2350,21 @@ router.get('/admin/subject-freeze-status', async (req, res) => {
       const targetClass = {
         id: r.class_id,
         name: r.class_name,
-        department: r.class_department
+        department: r.class_department,
+        batch: r.class_batch
       };
       const authDept = getAuthoritativeSubjectDepartment({
         department: r.raw_subject_department,
         code: r.subject_code,
         name: r.subject_name
       }, targetClass);
-      const is2021 = r.class_year === 'III' || r.class_year === 'IV' ||
-                     r.class_year === '3' || r.class_year === '4' ||
-                     (r.class_semester && parseInt(r.class_semester, 10) >= 5) ||
-                     (r.subject_semester && parseInt(r.subject_semester, 10) >= 5);
-      const reg = is2021 ? '2021' : '2025';
+      const isPG = isPGClassEntity(targetClass) || isPGSubjectEntity({ id: r.id, code: r.code, name: r.name }, targetClass);
+      const resolvedReg = resolveAuthoritativeRegulation({
+        classObj: targetClass,
+        subject: { id: r.id, code: r.code, name: r.name },
+        isPG
+      });
+      const reg = resolvedReg || 'UNRESOLVED';
       const status = r.session_status || 'not_started';
       const isFrozen = status === 'locked' || status === 'frozen';
       return {
