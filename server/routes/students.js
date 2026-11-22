@@ -147,12 +147,27 @@ router.get('/', async (req, res) => {
     if (userRole === 'hod') {
       let isAuthorized = false;
 
+      const [staffRows] = await db.execute(
+        'SELECT id, name, short_name, class_role, department FROM staffs WHERE id = ? LIMIT 1',
+        [authUser.id]
+      );
+      const staffRecord = staffRows[0] || {};
+      const hodDept = staffRecord.department;
+      const hodCanonical = canonicalizeDepartment(hodDept);
+      const isCoordinator = isFacultyClassCoordinator(targetClass, staffRecord);
+
       if (subjectId) {
         const cleanSubjectId = typeof subjectId === 'string' ? subjectId.trim() : String(subjectId).trim();
-        const [subRows] = await db.execute(
+        let [subRows] = await db.execute(
           'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
           [cleanSubjectId]
         );
+        if (subRows.length === 0) {
+          [subRows] = await db.execute(
+            'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE code = ? AND class_id = ? LIMIT 1',
+            [cleanSubjectId, cleanClassId]
+          );
+        }
         if (subRows.length === 0) {
           return res.status(403).json({
             error: 'Access denied: Invalid or unmapped subject.'
@@ -173,12 +188,13 @@ router.get('/', async (req, res) => {
           isAuthorized = true;
         }
 
-        // 4b. Subject HOD or Class HOD authority
-        if (!isAuthorized) {
-          const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
-          const hodDept = staffRows[0]?.department;
-          const hodCanonical = canonicalizeDepartment(hodDept);
+        // 4b. Class coordinator authority
+        if (!isAuthorized && isCoordinator) {
+          isAuthorized = true;
+        }
 
+        // 4c. Subject HOD or Class HOD authority
+        if (!isAuthorized) {
           // Subject HOD authorization (using established marks.js department resolution)
           if (hodCanonical) {
             const authDept = getAuthoritativeSubjectDepartment(sub, targetClass);
@@ -199,11 +215,27 @@ router.get('/', async (req, res) => {
           }
         }
       } else {
-        // Fallback when subjectId is not provided: retain class-level HOD authorization
-        const [staffRows] = await db.execute('SELECT department FROM staffs WHERE id = ? LIMIT 1', [authUser.id]);
-        const hodDept = staffRows[0]?.department;
+        // Fallback when subjectId is not provided:
+        // Check class-level HOD authority, coordinator assignment, or assigned teaching subjects
+        if (isClassAuthorizedForHod(targetClass, hodDept)) {
+          isAuthorized = true;
+        }
 
-        if (!isClassAuthorizedForHod(targetClass, hodDept)) {
+        if (!isAuthorized && isCoordinator) {
+          isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
+          const [assignedSubs] = await db.execute(
+            'SELECT id FROM subjects WHERE class_id = ? AND faculty_id = ? LIMIT 1',
+            [cleanClassId, authUser.id]
+          );
+          if (assignedSubs.length > 0) {
+            isAuthorized = true;
+          }
+        }
+
+        if (!isAuthorized) {
           return res.status(403).json({
             error: "Access denied: You do not have permission to view students from another department's academic programme."
           });
@@ -234,10 +266,16 @@ router.get('/', async (req, res) => {
 
       if (subjectId) {
         const cleanSubjectId = typeof subjectId === 'string' ? subjectId.trim() : String(subjectId).trim();
-        const [subRows] = await db.execute(
+        let [subRows] = await db.execute(
           'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE id = ? LIMIT 1',
           [cleanSubjectId]
         );
+        if (subRows.length === 0) {
+          [subRows] = await db.execute(
+            'SELECT id, code, name, department, class_id, faculty_id FROM subjects WHERE code = ? AND class_id = ? LIMIT 1',
+            [cleanSubjectId, cleanClassId]
+          );
+        }
         if (subRows.length === 0) {
           return res.status(403).json({
             error: 'Access denied: Invalid or unmapped subject.'
