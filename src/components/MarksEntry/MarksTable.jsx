@@ -229,7 +229,7 @@ export default function MarksTable({
                   {/* Activities Total - Standardized across all 2025 modules */}
                   <th className={`${styles.th} ${styles.computedTh}`}>
                     Activities Total
-                    <div className={styles.thSub}>/ {totalMax || 95}</div>
+                    <div className={styles.thSub}>/ {isPG ? 100 : (totalMax || 95)}</div>
                   </th>
 
                   {/* Internal Exam - mode specific name */}

@@ -279,6 +279,7 @@ export default function MarksEntryPage() {
   const selectedSubject = (subjects || []).find((s) => s && String(s.id) === String(effectiveSubjectId));
   const isPG = Boolean(
     isPGClass(selectedClass) ||
+    isPGClass(effectiveClassId) ||
     isPGSubject(selectedSubject, selectedClass)
   );
   const dynamicCiaMax = 95;

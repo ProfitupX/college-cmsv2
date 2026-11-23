@@ -450,12 +450,16 @@ export default function MarksRow({
       {/* Activities / Component Total */}
       <td className={styles.totalCell}>
         <div className={styles.finalTotalBadge}
+          title={isPG
+            ? `Activities Total: Assignment (${convertedTotal} / 95) + Attendance (${effectiveAttMark} / 5) = ${finalTotal100} / 100`
+            : `Activities Total: ${convertedTotal} / ${totalConfiguredMax || 95}`
+          }
           style={{
             background: `var(--text-primary)`,
             color: `var(--surface)`,
           }}
         >
-          <span className={styles.total}>{convertedTotal}</span>
+          <span className={styles.total}>{isPG ? finalTotal100 : convertedTotal}</span>
         </div>
       </td>
 
