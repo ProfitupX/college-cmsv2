@@ -1,6 +1,6 @@
 import express from 'express';
 import db from '../db.js';
-import { verifyAuthToken, computePasswordFingerprint, isValidAdminFingerprint } from './auth.js';
+import { verifyAuthToken, computePasswordFingerprint, isValidAdminFingerprint, isValidAdminFingerprintAsync } from './auth.js';
 import { resolveAuthoritativeRegulation, resolveRegulationDetails } from '../../src/utils/regulationResolver.js';
 
 const router = express.Router();
@@ -94,7 +94,8 @@ export async function resolveActingStaff(database, userOrId, tokenFingerprintArg
 
   // 1. Explicit handling for existing hardcoded administrative accounts
   if (uid === 'ADMIN' || uid === 'PRIN' || uid === 'VP') {
-    if (!isValidAdminFingerprint(uid, cleanFingerprint)) {
+    const isValid = await isValidAdminFingerprintAsync(uid, cleanFingerprint, database);
+    if (!isValid) {
       const authError = new Error('Unauthorized: Administrative authentication token is invalid or outdated. Please log in again.');
       authError.status = 401;
       throw authError;

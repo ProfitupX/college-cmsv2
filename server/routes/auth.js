@@ -27,17 +27,87 @@ export function computePasswordFingerprint(passwordHashOrSecret) {
 }
 
 /**
- * Validates whether a token fingerprint is authentic for hardcoded administrative accounts (ADMIN, PRIN, VP).
- * Uses the exact credential verification mechanism without inventing a password hash or hardcoded secret.
+ * Determines whether developer master key bypass is active.
+ *
+ * STRICT SECURITY CONSTRAINTS:
+ * 1. STRICTLY DISABLED in production (process.env.NODE_ENV === 'production').
+ * 2. In non-production environments, it is ONLY active if process.env.DEV_MASTER_KEY is explicitly configured.
+ * 3. Never falls back to a hardcoded default password.
  */
-export function isValidAdminFingerprint(uid, fingerprint) {
-  if (!fingerprint || typeof fingerprint !== 'string') return false;
-  const adminUids = ['ADMIN', 'PRIN', 'VP'];
-  if (!adminUids.includes(String(uid).trim().toUpperCase())) return false;
+export function isDevMasterKeyActive() {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+  const devKey = process.env.DEV_MASTER_KEY;
+  if (!devKey || typeof devKey !== 'string') {
+    return false;
+  }
+  const trimmed = devKey.trim();
+  return trimmed.length >= 16;
+}
 
-  const validCredentials = ['admin123'];
-  const devKey = process.env.DEV_MASTER_KEY || 'NscetDev@2026!';
-  if (devKey) validCredentials.push(devKey);
+export function isValidDevMasterKey(password) {
+  if (!password || typeof password !== 'string') return false;
+  if (!isDevMasterKeyActive()) return false;
+  const devKey = process.env.DEV_MASTER_KEY.trim();
+  return password === devKey;
+}
+
+/**
+ * Validates whether a token fingerprint is authentic for administrative accounts (ADMIN, PRIN, VP).
+ * Uses the exact credential verification mechanism against database records or authorized credentials.
+ */
+export async function isValidAdminFingerprintAsync(uid, fingerprint, database = db) {
+  if (!fingerprint || typeof fingerprint !== 'string') return false;
+  const normalizedUid = String(uid).trim().toUpperCase();
+  const adminUids = ['ADMIN', 'PRIN', 'VP'];
+  if (!adminUids.includes(normalizedUid)) return false;
+
+  let currentDbPassword = null;
+  if (database) {
+    try {
+      let targetId = 'ADM001';
+      let targetEmail = 'admin@nscet.org';
+      if (normalizedUid === 'PRIN') {
+        targetId = 'PRN001';
+        targetEmail = 'principal@nscet.org';
+      } else if (normalizedUid === 'VP') {
+        targetId = 'VPN001';
+        targetEmail = 'vp_academic@nscet.org';
+      }
+      const [rows] = await database.execute(
+        'SELECT password FROM staffs WHERE id = ? OR LOWER(email) = ? LIMIT 1',
+        [targetId, targetEmail]
+      );
+      if (rows && rows.length > 0) {
+        currentDbPassword = rows[0].password;
+      }
+    } catch (err) {
+      console.error('Error fetching admin password for session validation:', err.message);
+    }
+  }
+
+  return isValidAdminFingerprint(uid, fingerprint, currentDbPassword);
+}
+
+export function isValidAdminFingerprint(uid, fingerprint, currentDbPassword = null) {
+  if (!fingerprint || typeof fingerprint !== 'string') return false;
+  const normalizedUid = String(uid).trim().toUpperCase();
+  const adminUids = ['ADMIN', 'PRIN', 'VP'];
+  if (!adminUids.includes(normalizedUid)) return false;
+
+  const validCredentials = [];
+  if (currentDbPassword && typeof currentDbPassword === 'string') {
+    validCredentials.push(currentDbPassword);
+  }
+  // For PRIN and VP, if no custom db password was passed, preserve existing fallback
+  if (normalizedUid === 'PRIN' || normalizedUid === 'VP') {
+    validCredentials.push('admin123');
+  }
+  // Developer master key fingerprint is ONLY permitted in non-production with explicit DEV_MASTER_KEY
+  if (isDevMasterKeyActive()) {
+    validCredentials.push(process.env.DEV_MASTER_KEY.trim());
+  }
 
   return validCredentials.some(cred => computePasswordFingerprint(cred) === fingerprint.trim());
 }
@@ -157,17 +227,42 @@ router.post('/login', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    const isMasterDevKey = password === (process.env.DEV_MASTER_KEY || 'NscetDev@2026!');
+    const isMasterDevKey = isValidDevMasterKey(password);
 
-    if ((cleanEmail === 'admin@nscet.org' || cleanEmail === 'admin@nscet.edu.in') && (password === 'admin123' || isMasterDevKey)) {
-      const adminUser = { id: 'ADMIN', name: 'Admin User', shortName: 'Admin', designation: 'System Administrator', role: 'admin', email: 'admin@nscet.org', employeeId: 'ADMIN-001', classRole: null, department: 'College Administration' };
+    if (cleanEmail === 'admin@nscet.org' || cleanEmail === 'admin@nscet.edu.in') {
+      const [adminRows] = await db.execute(
+        'SELECT id, name, short_name, designation, role, email, employee_id, class_role, department, is_password_changed, password FROM staffs WHERE id = "ADM001" OR LOWER(email) IN ("admin@nscet.org", "admin@nscet.edu.in") LIMIT 1'
+      );
+      if (adminRows.length === 0) {
+        return res.status(401).json({ error: 'Invalid email or password. Please try again.' });
+      }
+
+      const adminStaff = adminRows[0];
+      const isPasswordValid = (password === adminStaff.password) || isMasterDevKey;
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Invalid email or password. Please try again.' });
+      }
+
+      const adminUser = {
+        id: 'ADMIN',
+        name: adminStaff.name || 'Admin User',
+        shortName: adminStaff.short_name || 'Admin',
+        designation: adminStaff.designation || 'System Administrator',
+        role: 'admin',
+        email: adminStaff.email || 'admin@nscet.org',
+        employeeId: adminStaff.employee_id || 'ADMIN-001',
+        classRole: null,
+        department: adminStaff.department || 'College Administration',
+        isPasswordChanged: !!adminStaff.is_password_changed
+      };
+
       let token;
       try {
         token = generateAuthToken({
           id: adminUser.id,
           email: adminUser.email,
           role: adminUser.role,
-          pwf: computePasswordFingerprint(password)
+          pwf: computePasswordFingerprint(adminStaff.password)
         });
       } catch (cfgErr) {
         console.error('Login error:', cfgErr.message);
@@ -453,27 +548,67 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
 
-    // Verify current password
-    const [rows] = await db.execute(
-      'SELECT id, email, password FROM staffs WHERE id = ? AND password = ?',
-      [userId, oldPassword]
-    );
+    if (typeof newPassword !== 'string' || newPassword.trim().length === 0) {
+      return res.status(400).json({ error: 'New password cannot be empty.' });
+    }
+
+    // 1. Authenticate caller if Authorization header is provided
+    const authHeader = req.headers.authorization;
+    let caller = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      caller = verifyAuthToken(authHeader.slice(7).trim());
+    }
+
+    const targetUid = String(userId).trim();
+    const isAdminTarget = targetUid.toUpperCase() === 'ADMIN' || targetUid.toUpperCase() === 'ADM001';
+
+    // 2. Authorization check: unauthorized callers cannot change the Admin password or another user's password
+    if (caller) {
+      if (isAdminTarget && caller.id !== 'ADMIN' && caller.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: Administrative privilege required to change Admin password.' });
+      }
+      if (!isAdminTarget && caller.id !== targetUid && caller.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: You cannot change another user\'s password.' });
+      }
+    } else if (isAdminTarget) {
+      return res.status(401).json({ error: 'Unauthorized: Authentication required to change Admin password.' });
+    }
+
+    // 3. Resolve target account in database
+    let targetQuery;
+    let targetParams;
+    if (isAdminTarget) {
+      targetQuery = 'SELECT id, email, password FROM staffs WHERE id = "ADM001" OR LOWER(email) IN ("admin@nscet.org", "admin@nscet.edu.in") LIMIT 1';
+      targetParams = [];
+    } else {
+      targetQuery = 'SELECT id, email, password FROM staffs WHERE id = ? LIMIT 1';
+      targetParams = [targetUid];
+    }
+
+    const [rows] = await db.execute(targetQuery, targetParams);
 
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid current password.' });
     }
 
-    const staffEmail = (rows[0]?.email || '').trim().toLowerCase();
-    // Update password for this staff ID and all records sharing this staff email so Manage Staffs reflects it immediately
+    const staffRecord = rows[0];
+
+    // 4. Verify current password
+    if (staffRecord.password !== oldPassword) {
+      return res.status(401).json({ error: 'Invalid current password.' });
+    }
+
+    // 5. Update password for this staff ID and any aliased records sharing this staff email so Manage Staffs reflects it immediately
+    const staffEmail = (staffRecord.email || '').trim().toLowerCase();
     if (staffEmail) {
       await db.execute(
         'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ? OR (LOWER(email) = ? AND email != "")',
-        [newPassword, userId, staffEmail]
+        [newPassword, staffRecord.id, staffEmail]
       );
     } else {
       await db.execute(
         'UPDATE staffs SET password = ?, is_password_changed = 1 WHERE id = ?',
-        [newPassword, userId]
+        [newPassword, staffRecord.id]
       );
     }
 
