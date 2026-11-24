@@ -3,6 +3,7 @@ import { X, Download, FileSpreadsheet, FileText, CheckCircle2, BarChart2, BookOp
 import { resolveAttendanceMark, calculateAttendanceMark } from '../../utils/attendanceCalculator';
 import { isPGClass, isPGSubject, getPGComponentPresets } from '../../utils/pgRegulation2025';
 import { resolveAuthoritativeRegulation } from '../../utils/regulationResolver';
+import { calculateSubjectAnalysis } from '../../utils/subjectAnalysisCalculator';
 import styles from './ReportPreviewModal.module.css';
 
 export default function ReportPreviewModal({
@@ -236,156 +237,31 @@ export default function ReportPreviewModal({
   const subjectAnalysisData = useMemo(() => {
     if (reportType !== 'subject_analysis') return null;
 
-    const is2021 = resolvedReg === '2021';
-    const isLabType = ['Lab-cum-Theory', 'Theory-cum-Lab', 'Lab cum Theory', 'Theory cum Lab'].includes(subject?.type || '');
-    const ciaMax = isLabType ? 50 : 40;
-    const examConvertedMax = isLabType ? 50 : 60;
-
-    const gradeCounts = { U: 0, E: 0, D: 0, C: 0, B: 0, A: 0, S: 0 };
-    let appeared = 0;
-    let passed = 0;
-    let failed = 0;
-    let absent = 0;
-    let maxMark = 0;
-    let minMark = 100;
-    let totalScore = 0;
-
-    const studentRows = students.map((st, idx) => {
-      let mark = 0;
-      let isAbsent = false;
-
-      if (is2021) {
-        // Regulation 2021: CIA components + internal exam (converted)
-        let rawCIA = 0;
-        if (components && (marksData || allMarks)) {
-          const isArray = Array.isArray(marksData) || Array.isArray(allMarks);
-          const dataArr = Array.isArray(marksData) ? marksData : (Array.isArray(allMarks) ? allMarks : []);
-          components.forEach(comp => {
-            let val = 0;
-            if (isArray) {
-              const markObj = dataArr.find(m => m.component_id === comp.id && m.student_id === st.id);
-              val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-            } else {
-              val = parseFloat(marksData?.[st.id]?.[comp.uid || comp.id]) || 0;
-            }
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.max_marks) || parseFloat(comp.conductedMax) || 100;
-            rawCIA += Math.min(val, conducted);
-          });
-        }
-        const ciaTotal = Math.min(Math.round(rawCIA), ciaMax);
-        const examRaw = parseFloat(internalExamData?.[st.id]) || 0;
-        const examConverted = Math.round((examRaw / 100) * examConvertedMax);
-        const labExamRaw = labData?.[st.id]?.labMark ? parseFloat(labData[st.id].labMark) : 0;
-        const labExamConverted = Math.round((labExamRaw / 100) * 50);
-
-        if (isLabType && assessmentMode === 'internal2') {
-          mark = Math.min(ciaTotal + labExamConverted, 100);
-        } else {
-          mark = Math.min(ciaTotal + examConverted, 100);
-        }
-
-        const rawVal = internalExamData?.[st.id];
-        // For 2021 reg: absent only if no CIA marks AND no exam mark
-        if ((rawVal === '' || rawVal === undefined || rawVal === null) && ciaTotal === 0 && (!isLabType || assessmentMode !== 'internal2')) {
-          isAbsent = true;
-        }
-      } else {
-        // Regulation 2025: prefer internalExamData, fall back to CIA component marks
-        const rawExamVal = internalExamData?.[st.id];
-        const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null;
-
-        if (hasExamMark) {
-          // Use the stored internal exam mark directly
-          mark = parseFloat(rawExamVal) || 0;
-        } else {
-          // Fall back: sum CIA component marks
-          let rawCIA = 0;
-          const dataSource = marksData;
-          if (components && dataSource) {
-            const isArray = Array.isArray(dataSource);
-            const dataArr = Array.isArray(allMarks) ? allMarks : [];
-            components.forEach(comp => {
-              let val = 0;
-              if (isArray) {
-                const markObj = dataArr.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && m.student_id === st.id);
-                val = markObj ? parseFloat(markObj.marks_obtained) || 0 : 0;
-              } else {
-                val = parseFloat(dataSource?.[st.id]?.[comp.uid || comp.id]) || 0;
-              }
-              const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
-              const weight = parseFloat(comp.max_marks) || parseFloat(comp.max) || conducted;
-              const scaled = conducted > 0 ? (Math.min(val, conducted) / conducted) * weight : 0;
-              rawCIA += scaled;
-            });
-          }
-          rawCIA = Math.round(rawCIA);
-
-          if (rawCIA > 0) {
-            // CIA marks exist — use component sum as analysis mark
-            mark = Math.min(rawCIA, 100);
-          } else {
-            // No marks at all — absent
-            isAbsent = true;
-          }
-        }
-      }
-
-      if (isAbsent) {
-        absent++;
-        return {
-          sNo: idx + 1,
-          rollNo: st.roll_no || st.rollNo || '-',
-          name: String(st.name || '').replace(/ð[^\s]*/g, '').trim(),
-          markStr: 'AB',
-          result: 'AB'
-        };
-      }
-
-      appeared++;
-      totalScore += mark;
-      if (mark > maxMark) maxMark = mark;
-      if (mark < minMark) minMark = mark;
-
-      // Pass threshold: 50 marks (Anna University standard for internal tests — E and D grades are passes)
-      const passThreshold = 50;
-      const isPass = mark >= passThreshold;
-      if (isPass) passed++;
-      else failed++;
-
-      if (mark < 50) gradeCounts.U++;
-      else if (mark <= 55) gradeCounts.E++;
-      else if (mark <= 59) gradeCounts.D++;
-      else if (mark <= 69) gradeCounts.C++;
-      else if (mark <= 79) gradeCounts.B++;
-      else if (mark <= 89) gradeCounts.A++;
-      else gradeCounts.S++;
-
-      return {
-        sNo: idx + 1,
-        rollNo: st.roll_no || st.rollNo || '-',
-        name: String(st.name || '').replace(/ð[^\s]*/g, '').trim(),
-        markStr: Math.round(mark),
-        result: isPass ? 'PASS' : 'FAIL'
-      };
+    return calculateSubjectAnalysis({
+      subject,
+      classObj,
+      students,
+      marksData,
+      allMarks,
+      components,
+      attendanceData,
+      attendanceMarks,
+      internalExamData,
+      labData,
+      assessmentMode,
+      totalHours,
+      int1Hours,
+      int2Hours,
+      labHours,
+      int1AttendanceData,
+      regulation
     });
-
-    if (appeared === 0) minMark = 0;
-    const passPct = appeared > 0 ? ((passed / appeared) * 100).toFixed(1) : '100.0';
-    const avgMark = appeared > 0 ? (totalScore / appeared).toFixed(1) : '0.0';
-
-    return {
-      appeared,
-      passed,
-      failed,
-      absent,
-      maxMark,
-      minMark,
-      passPct,
-      avgMark,
-      gradeCounts,
-      studentRows
-    };
-  }, [reportType, classObj, subject, students, components, marksData, allMarks, internalExamData, labData, assessmentMode]);
+  }, [
+    reportType, subject, classObj, students, marksData, allMarks,
+    components, attendanceData, attendanceMarks, internalExamData,
+    labData, assessmentMode, totalHours, int1Hours, int2Hours,
+    labHours, int1AttendanceData, regulation
+  ]);
 
   // 3. Multi-Subject Data for ExamCell Legal & Consolidated Statements
   const multiSubjectRows = useMemo(() => {

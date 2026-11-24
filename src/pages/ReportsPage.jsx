@@ -478,8 +478,9 @@ export default function ReportsPage() {
           subject, classObj, staff, session, students,
           allMarks: marksData || allMarks,
           marksData: marksData || allMarks,
-          components, attendanceData, internalExamData, labData,
-          assessmentMode, totalHours, declarationData, user
+          components, attendanceData, attendanceMarks, internalExamData, labData,
+          assessmentMode, totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await generateClassAnalysisPDF({
@@ -559,8 +560,9 @@ export default function ReportsPage() {
       if (reportType === 'subject_analysis') {
         await exportSubjectAnalysisExcel({
           subject, classObj, staff, session, students,
-          marksData, allMarks, components, attendanceData, internalExamData, labData,
-          assessmentMode, totalHours, declarationData, user
+          marksData, allMarks, components, attendanceData, attendanceMarks, internalExamData, labData,
+          assessmentMode, totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await exportClassAnalysisExcel({

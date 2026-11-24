@@ -33,6 +33,7 @@ import {
   exportClassAnalysisExcel
 } from '../services/excelReportGenerator';
 import { isPGClass, isPGSubject } from '../utils/pgRegulation2025';
+import { resolveAuthoritativeRegulation } from '../utils/regulationResolver';
 import AcademicUnitsManagement from '../components/Dashboard/AcademicUnitsManagement';
 import styles from './DashboardPage.module.css';
 
@@ -610,7 +611,7 @@ export default function DashboardPage() {
         detail = await marksAPI.getSessionDetail(currentSession.id);
       }
 
-      const is2021 = cls.year_label === 'III' || cls.year_label === 'IV' || parseInt(cls.semester) >= 5;
+      const is2021 = resolveAuthoritativeRegulation({ classObj: cls, subject: sub }) === '2021';
       const staffObj = {
         name: detail?.session?.staff_name || sub?.faculty_name || sub?.staff_name || 'Faculty Staff'
       };
@@ -692,8 +693,9 @@ export default function DashboardPage() {
           subject, classObj, staff, session, students,
           allMarks: marksData || allMarks,
           marksData: marksData || allMarks,
-          components, attendanceData, internalExamData, labData,
-          assessmentMode, totalHours, declarationData, user
+          components, attendanceData, attendanceMarks, internalExamData, labData,
+          assessmentMode, totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await generateClassAnalysisPDF({
@@ -766,8 +768,9 @@ export default function DashboardPage() {
       if (reportType === 'subject_analysis') {
         await exportSubjectAnalysisExcel({
           subject, classObj, staff, session, students,
-          marksData, allMarks, components, attendanceData, internalExamData, labData,
-          assessmentMode, totalHours, declarationData, user
+          marksData, allMarks, components, attendanceData, attendanceMarks, internalExamData, labData,
+          assessmentMode, totalHours, int1Hours, int2Hours, labHours, int1AttendanceData,
+          declarationData, user
         });
       } else if (reportType === 'class_analysis') {
         await exportClassAnalysisExcel({
@@ -1157,15 +1160,16 @@ export default function DashboardPage() {
                 alignItems: 'center',
                 gap: '6px',
                 padding: '4px 10px',
-                background: 'rgba(99, 102, 241, 0.08)',
-                color: '#4F46E5',
+                background: cycleInfo.modes.internal1.status === 'ACTIVE' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(156, 163, 175, 0.08)',
+                color: cycleInfo.modes.internal1.status === 'ACTIVE' ? '#4F46E5' : 'var(--text-muted)',
                 borderRadius: '6px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                border: '1px solid rgba(99, 102, 241, 0.2)'
+                border: cycleInfo.modes.internal1.status === 'ACTIVE' ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid rgba(156, 163, 175, 0.2)'
               }}>
-                <CheckCircle2 size={13} />
+                <CheckCircle2 size={13} color={cycleInfo.modes.internal1.status === 'ACTIVE' ? '#4F46E5' : 'var(--text-muted)'} />
                 {cycleInfo.modes.internal1.name || 'Internal Assessment 1 (IA1)'}
+                {cycleInfo.modes.internal1.status !== 'ACTIVE' && ` (${cycleInfo.modes.internal1.status})`}
               </span>
             )}
             {cycleInfo.modes.internal2 && (
@@ -1174,15 +1178,16 @@ export default function DashboardPage() {
                 alignItems: 'center',
                 gap: '6px',
                 padding: '4px 10px',
-                background: 'rgba(16, 185, 129, 0.08)',
-                color: '#059669',
+                background: cycleInfo.modes.internal2.status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(156, 163, 175, 0.08)',
+                color: cycleInfo.modes.internal2.status === 'ACTIVE' ? '#059669' : 'var(--text-muted)',
                 borderRadius: '6px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                border: '1px solid rgba(16, 185, 129, 0.2)'
+                border: cycleInfo.modes.internal2.status === 'ACTIVE' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(156, 163, 175, 0.2)'
               }}>
-                <CheckCircle2 size={13} />
+                <CheckCircle2 size={13} color={cycleInfo.modes.internal2.status === 'ACTIVE' ? '#059669' : 'var(--text-muted)'} />
                 {cycleInfo.modes.internal2.name || 'Internal Assessment 2 (IA2)'}
+                {cycleInfo.modes.internal2.status !== 'ACTIVE' && ` (${cycleInfo.modes.internal2.status})`}
               </span>
             )}
           </div>
@@ -1493,7 +1498,8 @@ export default function DashboardPage() {
           <div className={styles.subjectGrid}>
             {(assignedSubjects || []).filter(Boolean).map((sub) => {
               const isPG = isPGSubject(sub);
-              const is2021 = !isPG && (sub?.year_label === 'III' || sub?.year_label === 'IV' || parseInt(sub?.semester, 10) >= 5);
+              const resolvedReg = resolveAuthoritativeRegulation({ subject: sub, isPG });
+              const is2021 = resolvedReg === '2021';
               const targetRoute = is2021 ? '/marks-entry-2021' : '/marks-entry';
 
               return (
@@ -1819,8 +1825,14 @@ export default function DashboardPage() {
               ) : (
                 <div className={styles.requestsGrid}>
                   {displayedRequests.map((req) => {
-                    const is2021 = req.regulation === '2021' || req.class_year === 'III' || req.class_year === 'IV' || (req.class_semester && parseInt(req.class_semester, 10) >= 5);
-                    const regLabel = is2021 ? '2021' : '2025';
+                    const resolvedReg = req.regulation && req.regulation !== 'UNRESOLVED'
+                      ? req.regulation
+                      : resolveAuthoritativeRegulation({
+                          classObj: { id: req.class_id, name: req.class_name, department: req.class_department, batch: req.class_batch },
+                          subject: { id: req.subject_id, code: req.subject_code, name: req.subject_name }
+                        });
+                    const is2021 = resolvedReg === '2021';
+                    const regLabel = resolvedReg || '2025';
                     return (
                       <div key={req.id} className={styles.requestItem}>
                         <div className={styles.requestInfo}>

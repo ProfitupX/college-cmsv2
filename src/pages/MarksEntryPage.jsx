@@ -28,7 +28,7 @@ import styles from './MarksEntryPage.module.css';
 
 const isSubjectAssignedToUser = (s, currentUser) => {
   if (!s || !currentUser) return false;
-  if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'admin' || currentUser.role === 'hod') return true;
   const sFacId = String(s.faculty_id || '');
   const uId = String(currentUser.id || '');
   const uEmpId = String(currentUser.employeeId || '');
@@ -39,7 +39,13 @@ const isSubjectAssignedToUser = (s, currentUser) => {
     String(as.id) === String(s.id) ||
     (as.code && s.code && as.code === s.code && String(as.class_id) === String(s.class_id))
   ));
-  return Boolean(matchFacultyId || matchFacultyName || matchAssignedId || matchAssignedList);
+  const coordIds = [
+    ...(currentUser.coordinatedClasses || []).map(c => typeof c === 'object' ? String(c.id) : String(c)),
+    currentUser.coordinatedClassId ? String(currentUser.coordinatedClassId) : null,
+    currentUser.class_coordinator_id ? String(currentUser.class_coordinator_id) : null
+  ].filter(Boolean);
+  const matchCoordinatedClass = Boolean(s.class_id && coordIds.includes(String(s.class_id)));
+  return Boolean(matchFacultyId || matchFacultyName || matchAssignedId || matchAssignedList || matchCoordinatedClass);
 };
 
 export default function MarksEntryPage() {
@@ -157,8 +163,17 @@ export default function MarksEntryPage() {
         } else {
           const teachIds = (user?.teachingClasses || []).map(c => c && String(c.id));
           const assignedClassIds = (user?.assignedSubjects || []).map(s => s && String(s.class_id));
-          allowedClassIds = Array.from(new Set([...teachIds, ...assignedClassIds]));
-          filtered = filtered.filter(c => c && allowedClassIds.includes(String(c.id)));
+          const coordClassIds = [
+            ...(user?.coordinatedClasses || []).map(c => typeof c === 'object' ? String(c.id) : String(c)),
+            user?.coordinatedClassId ? String(user.coordinatedClassId) : null,
+            user?.class_coordinator_id ? String(user.class_coordinator_id) : null
+          ].filter(Boolean);
+          allowedClassIds = Array.from(new Set([...teachIds, ...assignedClassIds, ...coordClassIds]));
+          filtered = filtered.filter(c => c && (
+            allowedClassIds.includes(String(c.id)) ||
+            String(c.class_coordinator || '') === String(user?.id || '') ||
+            String(c.asst_coordinator || '') === String(user?.id || '')
+          ));
         }
 
         // Guarantee target class from redirect is available in classes list for HoD/Staff
@@ -809,10 +824,15 @@ export default function MarksEntryPage() {
           marksData,
           components: assessmentComponents,
           attendanceData,
+          attendanceMarks,
           internalExamData,
           labData,
           assessmentMode,
           totalHours,
+          int1Hours,
+          int2Hours,
+          labHours,
+          int1AttendanceData,
           declarationData: previewDeclarationData || options?.declarationData || {},
           user
         });
@@ -888,10 +908,15 @@ export default function MarksEntryPage() {
           marksData,
           components: assessmentComponents,
           attendanceData,
+          attendanceMarks,
           internalExamData,
           labData,
           assessmentMode,
           totalHours,
+          int1Hours,
+          int2Hours,
+          labHours,
+          int1AttendanceData,
           declarationData: previewDeclarationData || options?.declarationData || {},
           user
         });

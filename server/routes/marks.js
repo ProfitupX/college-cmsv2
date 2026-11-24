@@ -483,6 +483,61 @@ export function isClassAuthorizedForHod(cls, hodDept) {
   return false;
 }
 
+/**
+ * Canonicalizes a person's name or coordinator field by:
+ * 1. Stripping verified, explicit designation suffixes found in production
+ * 2. Removing leading honorific titles (Mr, Mrs, Ms, Dr, Prof).
+ * 3. Normalizing case, and stripping non-alphanumeric punctuation and spaces.
+ */
+export function canonicalizePersonName(rawName) {
+  if (!rawName || typeof rawName !== 'string') return '';
+  let trimmed = rawName.trim();
+  if (!trimmed) return '';
+
+  trimmed = trimmed.replace(/(?:,\s*|\s+)(?:tf\/eng|ap\/phy|tf\/maths|ap\/tamil|ap\/chem)$/i, '').trim();
+  if (!trimmed) return '';
+
+  return trimmed
+    .toLowerCase()
+    .replace(/^(dr|mrs|mr|ms|prof)\.?\s*/i, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Checks if a faculty staff member is the verified coordinator or assistant coordinator
+ * of the target class using classes.class_coordinator and classes.asst_coordinator.
+ * Enforces strict authorization: exact Staff ID matching is preferred, or exact
+ * title-stripped full name matching. Short-name, initials, and ambiguous matches are denied.
+ */
+export function isStaffClassIncharge(targetClass, staff) {
+  if (!targetClass || !staff) return false;
+
+  const staffId = (staff.id !== undefined && staff.id !== null) ? String(staff.id).trim().toLowerCase() : '';
+  const staffNameCanonical = canonicalizePersonName(staff.name);
+
+  const checkMatch = (rawCoord) => {
+    if (!rawCoord || typeof rawCoord !== 'string') return false;
+    const cleanCoord = rawCoord.trim();
+    if (!cleanCoord) return false;
+
+    // 1. Prefer Exact Staff ID match
+    if (staffId && cleanCoord.toLowerCase() === staffId) return true;
+
+    const coordCanonical = canonicalizePersonName(cleanCoord);
+    // Deny short, partial, or ambiguous strings (require minimum 4 characters)
+    if (!coordCanonical || !staffNameCanonical || coordCanonical.length < 4 || staffNameCanonical.length < 4) {
+      return false;
+    }
+
+    // 2. Exact Title-Stripped and Designation-Stripped Full Name Match
+    if (coordCanonical === staffNameCanonical) return true;
+
+    return false;
+  };
+
+  return checkMatch(targetClass.class_coordinator) || checkMatch(targetClass.asst_coordinator);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Database Schema Capabilities & Dynamic Fallback Helper
 // Ensures marks routes run safely on Phase 1 (markhub_db) and Phase 2 (markhub_phase2_test)
@@ -678,7 +733,15 @@ router.post('/submit', async (req, res) => {
       } else {
         effectiveStaffId = subObj.faculty_id || actingStaff.id;
       }
-    } else if (userRole === 'faculty') {
+    } else if (userRole === 'class_coordinator' || isStaffClassIncharge(targetClass, actingStaff)) {
+      const isCoordinator = isStaffClassIncharge(targetClass, actingStaff);
+      if (!isCoordinator) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Access denied: You are not the assigned Class Incharge for this class.' });
+      }
+      // Class Incharge is authorized to Save Draft and Freeze Marks for their assigned class
+      effectiveStaffId = subObj.faculty_id || actingStaff.id;
+    } else if (userRole === 'faculty' || userRole === 'staff') {
       const isAssignedFaculty = String(subObj.faculty_id || '') === String(actingStaff.id);
       if (!isAssignedFaculty) {
         await conn.rollback();
@@ -2703,7 +2766,7 @@ router.post('/initiate-session', async (req, res) => {
     }
     const allocatedFaculty = facRows[0];
 
-    // 3. Permission checks
+    // 3. Permission checks (Strictly restricted to Privileged admin, Department HOD, and Allocated Faculty)
     const isAllocatedFaculty = String(subject.faculty_id) === String(staff.id);
     const isDeptHod = isHod && (
       subject.subject_department === staff.department ||
