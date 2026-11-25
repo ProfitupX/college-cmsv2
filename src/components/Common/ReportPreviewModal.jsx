@@ -254,7 +254,8 @@ export default function ReportPreviewModal({
       int2Hours,
       labHours,
       int1AttendanceData,
-      regulation
+      regulation,
+      analysisMode: 'written_exam'
     });
   }, [
     reportType, subject, classObj, students, marksData, allMarks,

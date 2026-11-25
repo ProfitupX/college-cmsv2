@@ -1300,7 +1300,8 @@ export const exportSubjectAnalysisExcel = async ({
     int1Hours,
     int2Hours,
     labHours,
-    int1AttendanceData
+    int1AttendanceData,
+    analysisMode: 'written_exam'
   });
 
   const {

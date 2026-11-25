@@ -26,7 +26,8 @@ export function calculateSubjectAnalysis({
   int2Hours,
   labHours,
   int1AttendanceData = {},
-  regulation = null
+  regulation = null,
+  analysisMode = 'written_exam'
 }) {
   const isPG = isPGClass(classObj) || isPGSubject(subject, classObj);
   const resolvedReg = resolveAuthoritativeRegulation({
@@ -120,73 +121,126 @@ export function calculateSubjectAnalysis({
       }
     } else {
       // ── Regulation 2025 (UG & PG Autonomous Standard Model) ──
-      // Component marks (max 95) + Attendance marks (max 5) = Final Total (max 100)
-      let rawCIA = 0;
-      let hasComponentMarks = false;
-      const dataSource = activeMarksData;
-      if (components && dataSource) {
-        const isArray = Array.isArray(dataSource);
-        components.forEach(comp => {
-          let val = undefined;
-          if (isArray) {
-            const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && (m.student_id === st.id || String(m.student_id) === String(st.id)));
-            if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
-              val = markObj.marks_obtained;
-            }
+      const hasAnyExamData = Boolean(
+        internalExamData &&
+        typeof internalExamData === 'object' &&
+        Object.keys(internalExamData).length > 0 &&
+        students.some(s => {
+          const v = internalExamData?.[s.id] ??
+                    internalExamData?.[String(s.id)] ??
+                    internalExamData?.[s.roll_no] ??
+                    internalExamData?.[s.rollNo] ??
+                    internalExamData?.[s.student_id] ??
+                    internalExamData?.[String(s.student_id)];
+          return v !== undefined && v !== null && String(v).trim() !== '';
+        })
+      );
+
+      const isWrittenExamMode = (analysisMode === 'written_exam' || analysisMode === 'exam')
+        ? (hasAnyExamData || !components || components.length === 0)
+        : false;
+
+      if (isWrittenExamMode) {
+        // ── NAC/TLP-07a.21: Written Internal Examination Analysis (Max: 100) ──
+        const rawExamVal = internalExamData?.[st.id] ??
+                           internalExamData?.[String(st.id)] ??
+                           internalExamData?.[st.roll_no] ??
+                           internalExamData?.[st.rollNo] ??
+                           internalExamData?.[st.student_id] ??
+                           internalExamData?.[String(st.student_id)];
+
+        if (
+          rawExamVal === '' ||
+          rawExamVal === undefined ||
+          rawExamVal === null ||
+          String(rawExamVal).trim() === '' ||
+          String(rawExamVal).trim().toUpperCase() === 'AB'
+        ) {
+          isAbsent = true;
+          mark = 0;
+        } else {
+          const num = parseFloat(rawExamVal);
+          if (isNaN(num)) {
+            // Invalid mark safely rejected as absent/missing
+            isAbsent = true;
+            mark = 0;
           } else {
-            val = dataSource?.[st.id]?.[comp.uid || comp.id] ?? dataSource?.[String(st.id)]?.[comp.uid || comp.id];
+            // Numeric mark, including 0: use actual written examination mark directly (0 to 100)
+            mark = Math.min(100, Math.max(0, Math.round(num)));
+            isAbsent = false;
           }
-
-          if (val === undefined && Array.isArray(allMarks) && allMarks.length > 0) {
-            const markObj = allMarks.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && (m.student_id === st.id || String(m.student_id) === String(st.id)));
-            if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
-              val = markObj.marks_obtained;
-            }
-          }
-
-          if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
-            hasComponentMarks = true;
-            const numVal = parseFloat(val);
-            const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
-            const weight = parseFloat(comp.max_marks) || parseFloat(comp.max) || conducted;
-            const scaled = conducted > 0 ? (Math.min(numVal, conducted) / conducted) * weight : 0;
-            rawCIA += scaled;
-          }
-        });
-      }
-      rawCIA = Math.round(rawCIA);
-
-      const rawHoursVal = attendanceData?.[st.id] ?? attendanceData?.[String(st.id || '')];
-      const hasAttendanceHours = rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null;
-      const dbAttMark = (attendanceMarks?.[st.id] !== undefined && attendanceMarks?.[st.id] !== null && attendanceMarks?.[st.id] !== '')
-        ? parseFloat(attendanceMarks[st.id])
-        : (attendanceMarks?.[String(st.id)] !== undefined && attendanceMarks?.[String(st.id)] !== null && attendanceMarks?.[String(st.id)] !== '')
-          ? parseFloat(attendanceMarks[String(st.id)])
-          : null;
-      const hasAttendanceMark = dbAttMark !== null && !isNaN(dbAttMark);
-
-      const attendanceMark = resolveAttendanceMark(st.id, {
-        attendanceMarks,
-        attendanceData,
-        totalHours: analysisPrescribedHrs,
-        assessmentMode,
-        int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
-        int1Hours: int1Hours || subject?.int1_hours || 30,
-        int2Hours: int2Hours || subject?.int2_hours || 30,
-        labHours: labHours || subject?.lab_hours || 0,
-        labData
-      });
-
-      const rawExamVal = internalExamData?.[st.id] ?? internalExamData?.[String(st.id)];
-      const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null && rawExamVal !== 'AB' && !isNaN(parseFloat(rawExamVal));
-
-      if (hasComponentMarks || hasAttendanceHours || hasAttendanceMark) {
-        mark = Math.min(100, rawCIA + attendanceMark);
-      } else if (hasExamMark) {
-        // Fallback for legacy standalone exam entry if no 2025 assessment components/attendance exist
-        mark = Math.min(100, Math.round(parseFloat(rawExamVal) || 0));
+        }
       } else {
-        isAbsent = true;
+        // ── Non-exam / Activities + Attendance Fallback (Max 95 + Max 5 = Max 100) ──
+        let rawCIA = 0;
+        let hasComponentMarks = false;
+        const dataSource = activeMarksData;
+        if (components && dataSource) {
+          const isArray = Array.isArray(dataSource);
+          components.forEach(comp => {
+            let val = undefined;
+            if (isArray) {
+              const markObj = dataSource.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && (m.student_id === st.id || String(m.student_id) === String(st.id)));
+              if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
+                val = markObj.marks_obtained;
+              }
+            } else {
+              val = dataSource?.[st.id]?.[comp.uid || comp.id] ?? dataSource?.[String(st.id)]?.[comp.uid || comp.id];
+            }
+
+            if (val === undefined && Array.isArray(allMarks) && allMarks.length > 0) {
+              const markObj = allMarks.find(m => (m.component_id === comp.id || m.component_id === comp.uid) && (m.student_id === st.id || String(m.student_id) === String(st.id)));
+              if (markObj && markObj.marks_obtained !== null && markObj.marks_obtained !== undefined && markObj.marks_obtained !== '') {
+                val = markObj.marks_obtained;
+              }
+            }
+
+            if (val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val))) {
+              hasComponentMarks = true;
+              const numVal = parseFloat(val);
+              const conducted = parseFloat(comp.conducted_max) || parseFloat(comp.conductedMax) || 100;
+              const weight = (comp.max_marks !== undefined && comp.max_marks !== null && !isNaN(parseFloat(comp.max_marks)))
+                ? parseFloat(comp.max_marks)
+                : ((comp.max !== undefined && comp.max !== null && !isNaN(parseFloat(comp.max))) ? parseFloat(comp.max) : conducted);
+              const scaled = conducted > 0 ? (Math.min(numVal, conducted) / conducted) * weight : 0;
+              rawCIA += scaled;
+            }
+          });
+        }
+        rawCIA = Math.round(rawCIA);
+
+        const rawHoursVal = attendanceData?.[st.id] ?? attendanceData?.[String(st.id || '')];
+        const hasAttendanceHours = rawHoursVal !== undefined && rawHoursVal !== '' && rawHoursVal !== null;
+        const dbAttMark = (attendanceMarks?.[st.id] !== undefined && attendanceMarks?.[st.id] !== null && attendanceMarks?.[st.id] !== '')
+          ? parseFloat(attendanceMarks[st.id])
+          : (attendanceMarks?.[String(st.id)] !== undefined && attendanceMarks?.[String(st.id)] !== null && attendanceMarks?.[String(st.id)] !== '')
+            ? parseFloat(attendanceMarks[String(st.id)])
+            : null;
+        const hasAttendanceMark = dbAttMark !== null && !isNaN(dbAttMark);
+
+        const attendanceMark = resolveAttendanceMark(st.id, {
+          attendanceMarks,
+          attendanceData,
+          totalHours: analysisPrescribedHrs,
+          assessmentMode,
+          int1AttendanceData: typeof int1AttendanceData !== 'undefined' ? int1AttendanceData : {},
+          int1Hours: int1Hours || subject?.int1_hours || 30,
+          int2Hours: int2Hours || subject?.int2_hours || 30,
+          labHours: labHours || subject?.lab_hours || 0,
+          labData
+        });
+
+        const rawExamVal = internalExamData?.[st.id] ?? internalExamData?.[String(st.id)];
+        const hasExamMark = rawExamVal !== '' && rawExamVal !== undefined && rawExamVal !== null && rawExamVal !== 'AB' && !isNaN(parseFloat(rawExamVal));
+
+        if (hasComponentMarks || hasAttendanceHours || hasAttendanceMark) {
+          mark = Math.min(100, rawCIA + attendanceMark);
+        } else if (hasExamMark) {
+          // Fallback for legacy standalone exam entry if no 2025 assessment components/attendance exist
+          mark = Math.min(100, Math.round(parseFloat(rawExamVal) || 0));
+        } else {
+          isAbsent = true;
+        }
       }
     }
 
