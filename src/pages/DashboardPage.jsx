@@ -267,6 +267,43 @@ export default function DashboardPage() {
 
           const filtered = pending.filter(r => {
             const subDeptNorm = norm(r.subject_department) || inferDeptFromCode(r.subject_code);
+
+            // S&H HOD owns eligible First-Year UG classes across all branches plus legitimate First-Year S&H subjects
+            if (userDeptNorm === 'sh') {
+              const clsNameUpper = String(r.class_name || '').toUpperCase();
+              const clsIdUpper = String(r.class_id || '').toUpperCase();
+              const isMechUG = clsNameUpper.includes('MECH') || clsNameUpper.includes('MECHANICAL');
+              const isPGClass = !isMechUG && (
+                clsNameUpper.includes('M.E.') ||
+                clsNameUpper.includes('M.TECH') ||
+                clsNameUpper.includes('ME ') ||
+                clsNameUpper.startsWith('ME ') ||
+                clsIdUpper.startsWith('ME_') ||
+                clsIdUpper.startsWith('ME-') ||
+                clsIdUpper.startsWith('CL_179')
+              );
+
+              // PG requests must never enter the S&H HOD queue
+              if (isPGClass) return false;
+
+              const classDeptNorm = norm(r.class_department);
+              const isFirstYear = r.class_year === 'I' || r.class_year === '1' || String(r.class_year || '').trim().toUpperCase() === 'I';
+
+              // 1. Authoritative First-Year UG class owned by S&H
+              const isFirstYearSHClass = isFirstYear && classDeptNorm === 'sh';
+
+              // 2. Legitimate First-Year explicit S&H subject
+              const isFirstYearSHSubject = isFirstYear && subDeptNorm === 'sh';
+
+              // 3. Fallback when authoritative class metadata is missing
+              const isFallbackSHClass = (!r.class_department && !r.class_year) && (
+                clsNameUpper.startsWith('I ') || clsNameUpper.includes('I YEAR')
+              );
+
+              return Boolean(isFirstYearSHClass || isFirstYearSHSubject || isFallbackSHClass);
+            }
+
+            // For every NON-S&H HOD: preserve existing filtering logic EXACTLY
             return Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm);
           });
           setUnlockRequests(filtered);
