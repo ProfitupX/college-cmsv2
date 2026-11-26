@@ -209,6 +209,11 @@ export function verifyAuthToken(token) {
       return null; // Expired
     }
 
+    // Backward-compatible resolution for legacy S_CHITRA tokens -> canonical FAC002
+    if (payload.id === 'S_CHITRA') {
+      payload.id = 'FAC002';
+    }
+
     return payload;
   } catch {
     return null;
@@ -497,7 +502,7 @@ router.post('/login', async (req, res) => {
     const primaryCoordClass = coordClasses.length > 0 ? coordClasses[0] : null;
 
     const finalUser = {
-        id:                 isDrChithra ? 'S_CHITRA' : staff.id,
+        id:                 isDrChithra ? 'FAC002' : staff.id,
         name:               isDrChithra ? 'Dr. C. Chithra' : staff.name,
         shortName:          isDrChithra ? 'CC' : staff.short_name,
         designation:        isDrChithra ? 'Prof. & HoD / Maths' : staff.designation,

@@ -297,10 +297,20 @@ export default function DashboardPage() {
 
               // 3. Fallback when authoritative class metadata is missing
               const isFallbackSHClass = (!r.class_department && !r.class_year) && (
-                clsNameUpper.startsWith('I ') || clsNameUpper.includes('I YEAR')
+                clsNameUpper.startsWith('I ') || (/\bI\s+YEAR\b/i.test(clsNameUpper) && !clsNameUpper.includes('II YEAR') && !clsNameUpper.includes('III YEAR') && !clsNameUpper.includes('IV YEAR'))
               );
 
-              return Boolean(isFirstYearSHClass || isFirstYearSHSubject || isFallbackSHClass);
+              // 4. Assigned teaching subject for S&H faculty in other departments (MA25C08 in CL001)
+              // Strictly validate that database-verified subject faculty assignment AND request faculty identity both belong to FAC002
+              const isAssignedTeachingSubject = Boolean(
+                (r.subject_code === 'MA25C08' || r.subject_id === 'SUB001') &&
+                String(r.class_id || '') === 'CL001' &&
+                String(r.subject_faculty_id || '') === 'FAC002' &&
+                String(r.staff_id || '') === 'FAC002' &&
+                String(user?.id || '') === 'FAC002'
+              );
+
+              return Boolean(isFirstYearSHClass || isFirstYearSHSubject || isFallbackSHClass || isAssignedTeachingSubject);
             }
 
             // For every NON-S&H HOD: preserve existing filtering logic EXACTLY

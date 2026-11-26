@@ -90,6 +90,11 @@ router.use((req, res, next) => {
     });
   }
 
+  // Canonicalize legacy token IDs (e.g. S_CHITRA -> FAC002) for backwards-compatibility
+  if (verified.id === 'S_CHITRA') {
+    verified.id = 'FAC002';
+  }
+
   req.authUser = verified;
   next();
 });
