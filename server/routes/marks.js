@@ -1761,15 +1761,22 @@ router.post('/unlock-session', async (req, res) => {
     const staffDeptCanonical = canonicalizeDepartment(staff.department);
 
     const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
-    const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
-    const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
-    const isSHHodAssignedTeaching = staffRole === 'hod' && staffDeptCanonical === 'Science and Humanities' &&
-      String(staff.id || '') === 'FAC002' &&
-      (session.code === 'MA25C08' || session.subject_id === 'SUB001') &&
+    const isSHAssignedTeachingTarget = session.code === 'MA25C08' &&
+      session.subject_id === 'SUB001' &&
       String(sessionClassId || '') === 'CL001' &&
-      String(session.sub_faculty_id || '') === 'FAC002' &&
-      (String(session.staff_id || '') === 'FAC002' || !session.staff_id);
-    const isAuthorizedHod = isSubjectHod || isClassHod || isSHHodAssignedTeaching;
+      String(session.sub_faculty_id || '') === 'FAC002';
+
+    let isAuthorizedHod = false;
+    if (isSHAssignedTeachingTarget) {
+      isAuthorizedHod = staffRole === 'hod' &&
+        staffDeptCanonical === 'Science and Humanities' &&
+        String(staff.id || '') === 'FAC002' &&
+        String(session.staff_id || '') === 'FAC002';
+    } else {
+      const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+      const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
+      isAuthorizedHod = isSubjectHod || isClassHod;
+    }
 
     if (!isPrivileged && !isAuthorizedHod) {
       await conn.rollback();
@@ -1882,7 +1889,8 @@ router.post('/request-unlock', async (req, res) => {
     // route unlock request notification to S&H HOD strictly when both subject faculty assignment and requester are FAC002
     let targetHodDept = authoritativeDept;
     if (
-      (subject.code === 'MA25C08' || effSubjectId === 'SUB001') &&
+      subject.code === 'MA25C08' &&
+      effSubjectId === 'SUB001' &&
       String(finalClassId) === 'CL001' &&
       String(subject.faculty_id || '') === 'FAC002' &&
       requestingStaffId === 'FAC002'
@@ -2056,7 +2064,8 @@ router.get('/unlock-requests', async (req, res) => {
 
           // 3. Assigned teaching subject in other departments (MA25C08 in CL001)
           // Strictly validate that database-verified subject faculty assignment AND requesting staff ID both belong to FAC002
-          const isAssignedTeaching = (r.subject_code === 'MA25C08' || r.subject_id === 'SUB001') &&
+          const isAssignedTeaching = r.subject_code === 'MA25C08' &&
+            r.subject_id === 'SUB001' &&
             String(r.class_id || '') === 'CL001' &&
             String(r.subject_faculty_id || '') === 'FAC002' &&
             String(r.staff_id || '') === 'FAC002' &&
@@ -2185,15 +2194,22 @@ router.post('/approve-unlock', async (req, res) => {
     const staffDeptCanonical = canonicalizeDepartment(staff.department);
 
     const isPrivileged = staffRole === 'admin' || staffRole === 'principal' || staffRole === 'vice_principal';
-    const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
-    const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
-    const isSHHodAssignedTeaching = staffRole === 'hod' && staffDeptCanonical === 'Science and Humanities' &&
-      String(staff.id || '') === 'FAC002' &&
-      (reqData.subject_code === 'MA25C08' || reqData.subject_id === 'SUB001') &&
+    const isSHAssignedTeachingTarget = reqData.subject_code === 'MA25C08' &&
+      reqData.subject_id === 'SUB001' &&
       String(reqData.class_id || '') === 'CL001' &&
-      String(reqData.subject_faculty_id || '') === 'FAC002' &&
-      String(reqData.staff_id || '') === 'FAC002';
-    const isAuthorizedHod = isSubjectHod || isClassHod || isSHHodAssignedTeaching;
+      String(reqData.subject_faculty_id || '') === 'FAC002';
+
+    let isAuthorizedHod = false;
+    if (isSHAssignedTeachingTarget) {
+      isAuthorizedHod = staffRole === 'hod' &&
+        staffDeptCanonical === 'Science and Humanities' &&
+        String(staff.id || '') === 'FAC002' &&
+        String(reqData.staff_id || '') === 'FAC002';
+    } else {
+      const isSubjectHod = staffRole === 'hod' && staffDeptCanonical === authoritativeDept;
+      const isClassHod = staffRole === 'hod' && targetClass && isClassAuthorizedForHod(targetClass, staff.department);
+      isAuthorizedHod = isSubjectHod || isClassHod;
+    }
 
     if (!isPrivileged && !isAuthorizedHod) {
       await conn.rollback();

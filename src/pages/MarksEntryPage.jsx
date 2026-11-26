@@ -26,6 +26,44 @@ import {
 import { Save, RotateCcw, Download, AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Loader, Lock, Key, Clock, UserCheck } from 'lucide-react';
 import styles from './MarksEntryPage.module.css';
 
+const isFirstYearUGClass = (targetClass, fallbackName = '', fallbackId = '') => {
+  const c = targetClass;
+  const rawYearLabel = String(c?.year_label || '').trim().toUpperCase();
+  const semester = parseInt(c?.semester, 10);
+  const clsName = String(c?.name || fallbackName || '').trim().toUpperCase();
+  const clsId = String(c?.id || fallbackId || '').trim().toUpperCase();
+
+  // Normalize year label (strip trailing YEAR, e.g. "II YEAR" -> "II", "I YEAR" -> "I")
+  const normYear = rawYearLabel.replace(/\s+YEAR$/, '').trim();
+
+  // 1. Strict negative exclusion: Higher years (II, III, IV) or higher semesters (3+) are NEVER first year
+  // Inconsistent metadata guard: a class identified as II, III or IV Year must NEVER become first year
+  // merely because its semester metadata is inconsistent or corrupted (e.g. sem=1 on a II Year class)
+  const isHigherYearLabel = ['II', 'III', 'IV', '2', '3', '4'].includes(normYear) ||
+    /\b(II|III|IV)\s+YEAR\b/i.test(rawYearLabel) ||
+    /^(2ND|3RD|4TH)\b/i.test(rawYearLabel);
+  const isHigherYearName = /\b(II|III|IV)\s+YEAR\b/i.test(clsName);
+  const isHigherSemester = !isNaN(semester) && semester >= 3;
+
+  if (isHigherYearLabel || isHigherYearName || isHigherSemester) {
+    return false;
+  }
+
+  // 2. Strict positive first-year determination
+  const isFirstYearLabel = ['I', '1'].includes(normYear) ||
+    /\bI\s+YEAR\b/i.test(rawYearLabel) ||
+    /^1ST\b/i.test(rawYearLabel);
+  const isFirstSemester = !isNaN(semester) && (semester === 1 || semester === 2);
+  const isSHClassId = clsId.startsWith('C_SH_');
+  const isFirstYearName = /^\s*I\b/i.test(clsName) || /\bI\s+YEAR\b/i.test(clsName);
+
+  if (isFirstYearLabel || isFirstSemester || isSHClassId || isFirstYearName) {
+    return true;
+  }
+
+  return false;
+};
+
 const isSubjectAssignedToUser = (s, currentUser, targetClass = null) => {
   if (!s || !currentUser) return false;
   if (currentUser.role === 'admin') return true;
@@ -84,17 +122,20 @@ const isSubjectAssignedToUser = (s, currentUser, targetClass = null) => {
         clsIdUpper.startsWith('CL_179')
       );
 
-      const isFirstYear = targetClass ? (
-        targetClass.year_label === 'I' || targetClass.year_label === '1' ||
-        parseInt(targetClass.semester) === 1 || parseInt(targetClass.semester) === 2 ||
-        clsIdUpper.startsWith('C_SH_') || clsNameUpper.includes('I YEAR') || clsNameUpper.startsWith('I ')
-      ) : (clsIdUpper.startsWith('C_SH_') || clsNameUpper.includes('I YEAR') || clsNameUpper.startsWith('I '));
+      if (isPG) return false;
 
-      if (isFirstYear && !isPG) {
-        // Legitimate First-Year UG supervision for S&H HOD across all branches
-        return true;
-      }
-      if (subDeptNorm === 'sh' && isFirstYear && !isPG) {
+      const isFirstYear = isFirstYearUGClass(targetClass, s.class_name, s.class_id);
+      if (!isFirstYear) return false;
+
+      // Legitimate First-Year UG supervisory authorization:
+      // S&H HOD can supervise:
+      // 1. All subjects belonging to Science and Humanities department in First-Year UG classes
+      // 2. All subjects within First-Year S&H-owned classes (C_SH_* or department 'Science and Humanities')
+      // S&H HOD cannot access unrelated engineering subjects in engineering classes.
+      const isSHClass = (clsDeptNorm === 'sh' || clsIdUpper.startsWith('C_SH_'));
+      const isSHSubject = (subDeptNorm === 'sh');
+
+      if (isSHSubject || isSHClass) {
         return true;
       }
       return false;
@@ -253,8 +294,9 @@ export default function MarksEntryPage() {
                 clsIdUpper.startsWith('ME-') ||
                 clsIdUpper.startsWith('CL_179')
               );
-              const isFirstYear = c.year_label === 'I' || c.year_label === '1' || parseInt(c.semester) === 1 || parseInt(c.semester) === 2 || clsIdUpper.startsWith('C_SH_');
-              return (cDeptNorm === 'sh' || isFirstYear) && !isPG;
+              const isFirstYear = isFirstYearUGClass(c, c.name, c.id);
+              const isSHClass = (cDeptNorm === 'sh' || clsIdUpper.startsWith('C_SH_'));
+              return isSHClass && isFirstYear && !isPG;
             }
             return cDeptNorm && uDeptNorm && cDeptNorm === uDeptNorm;
           }).map(c => String(c.id));
@@ -1187,7 +1229,8 @@ export default function MarksEntryPage() {
   const isSubjectDeptHod = user?.role === 'hod' && (Boolean(userDeptNorm && subDeptNorm && userDeptNorm === subDeptNorm) || isClassAuthorized);
   const isAssignedTeachingHod = user?.role === 'hod' && userDeptNorm === 'sh' &&
     String(user?.id || '') === 'FAC002' &&
-    (selectedSubject?.code === 'MA25C08' || selectedSubject?.id === 'SUB001') &&
+    selectedSubject?.code === 'MA25C08' &&
+    selectedSubject?.id === 'SUB001' &&
     String(effectiveClassId) === 'CL001' &&
     String(selectedSubject?.faculty_id || '') === 'FAC002';
   const canDirectlyUnlock = Boolean(user?.role === 'admin' || user?.role === 'principal' || user?.role === 'vice_principal' || isSubjectDeptHod || isAssignedTeachingHod);
